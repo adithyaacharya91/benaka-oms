@@ -71,6 +71,13 @@ const INITIAL_STATE = {
     { id:"wt21", name:"SILENCER COAT",      defaultRate:600  },
     { id:"wt22", name:"HANDPOLISH",         defaultRate:100  },
     { id:"wt23", name:"FULL GLASS",         defaultRate:1100 },
+    // Sales products — editable
+    { id:"wt24", name:"JOPASU",              defaultRate:500,  category:"sales" },
+    { id:"wt25", name:"SHAMPOO",             defaultRate:200,  category:"sales" },
+    { id:"wt26", name:"POLISH LIQUID",       defaultRate:350,  category:"sales" },
+    { id:"wt27", name:"MICROFIBER CLOTH",    defaultRate:150,  category:"sales" },
+    { id:"wt28", name:"AIR FRESHENER",       defaultRate:120,  category:"sales" },
+    { id:"wt29", name:"TYRE SHINE",          defaultRate:180,  category:"sales" },
   ],
   attendance: [
     { id:"a1", date:"2025-07-01", supervisorId:"u4", staffId:"u9",  status:"present", reason:"", markedAt:"09:05" },
@@ -128,10 +135,24 @@ const INITIAL_STATE = {
       vehicleNo:"KA03CD5678", serviceType:"POLISH", customerName:"Meena R", rating:4,
       comment:"Good polish, small area was missed near door", source:"public_form" },
   ],
+  // Salary records: { id, userId, month, basicSalary, allowances, deductions, netSalary, paidOn, paidBy, note }
+  salaries: [
+    { id:"sal1", userId:"u4", month:"2025-07", basicSalary:18000, allowances:2000, deductions:500, netSalary:19500, paidOn:"2025-07-01", paidBy:"u2", note:"" },
+    { id:"sal2", userId:"u5", month:"2025-07", basicSalary:18000, allowances:2000, deductions:0,   netSalary:20000, paidOn:"2025-07-01", paidBy:"u2", note:"" },
+    { id:"sal3", userId:"u6", month:"2025-07", basicSalary:18000, allowances:2000, deductions:0,   netSalary:20000, paidOn:"2025-07-01", paidBy:"u3", note:"" },
+    { id:"sal4", userId:"u9", month:"2025-07", basicSalary:12000, allowances:1000, deductions:0,   netSalary:13000, paidOn:"2025-07-01", paidBy:"u4", note:"" },
+    { id:"sal5", userId:"u10",month:"2025-07", basicSalary:12000, allowances:1000, deductions:500, netSalary:12500, paidOn:"2025-07-01", paidBy:"u4", note:"" },
+  ],
+  // Collection reports: { id, date, supervisorId, counterName, bankEntries:[{bank,description,amount}], expenses:[{description,sbiAmount,kblAmount}] }
+  collectionReports: [],
+  // Planned leaves (staff → executive approval flow)
+  plannedLeaves: [
+    { id:"pl1", userId:"u9", staffName:"Ramesh B", supervisorId:"u4", fromDate:"2025-07-10", toDate:"2025-07-10", reason:"Personal work", status:"pending", appliedOn:"2025-07-03" },
+  ],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const ROLE_LABELS = { md:"MD", manager:"Manager", supervisor:"Supervisor", office:"Office Staff", it_admin:"IT Admin", field_staff:"Field Staff" };
+const ROLE_LABELS = { md:"MD", manager:"Manager", supervisor:"Executive", office:"Office Staff", it_admin:"IT Admin", field_staff:"Field Staff" };
 const ROLE_COLORS = { md:"#6D28D9", manager:"#0369A1", supervisor:"#0F2B4A", office:"#15803D", it_admin:"#B87D18", field_staff:"#475569" };
 const today = () => new Date().toISOString().split("T")[0];
 const fmtDate = d => d ? new Date(d).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
@@ -419,12 +440,15 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout }
 function SupervisorPortal({ user, state, setState, toast }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
-    { id:"dashboard",  icon:"🏠", label:"Dashboard" },
-    { id:"attendance", icon:"👥", label:"Mark Attendance" },
-    { id:"report",     icon:"📋", label:"Daily Report" },
-    { id:"feedback",   icon:"⭐", label:"Customer Feedback" },
-    { id:"myleaves",   icon:"🗓️", label:"My Leaves" },
-    { id:"history",    icon:"📁", label:"Report History" },
+    { id:"dashboard",    icon:"🏠", label:"Dashboard" },
+    { id:"attendance",   icon:"👥", label:"Mark Attendance" },
+    { id:"report",       icon:"📋", label:"Daily Report" },
+    { id:"collection",   icon:"📊", label:"Collection Report" },
+    { id:"analysis",     icon:"📈", label:"Analysis" },
+    { id:"staffleaves",  icon:"🗓️", label:"Staff Leaves" },
+    { id:"feedback",     icon:"⭐", label:"Customer Feedback" },
+    { id:"myleaves",     icon:"🌿", label:"My Leave" },
+    { id:"history",      icon:"📁", label:"Report History" },
   ];
 
   const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active);
@@ -439,8 +463,11 @@ function SupervisorPortal({ user, state, setState, toast }) {
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
-      {page==="history"   && <SupHistory user={user} state={state}/>}
-      {page==="feedback"  && <SupFeedback user={user} state={state}/>}
+      {page==="history"     && <SupHistory user={user} state={state}/>}
+      {page==="feedback"    && <SupFeedback user={user} state={state}/>}
+      {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="analysis"    && <CounterAnalysis user={user} state={state} counterFilter={myCounter?.name}/>}
+      {page==="staffleaves" && <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="executive"/>}
     </Shell>
   );
 }
@@ -499,6 +526,22 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SupCollectionReport({ user, state, setState, toast }) {
+  const [date, setDate] = useState(today());
+  const existing = state.collectionReports?.find(r=>r.supervisorId===user.id&&r.date===date);
+  const save = (bankEntries, expenses) => {
+    const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
+    setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    toast.show("Collection report saved");
+  };
+  return (
+    <div>
+      <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:16}}/>
+      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={state.serviceReports} attendance={state.attendance} users={state.users} onSave={save}/>
     </div>
   );
 }
@@ -738,6 +781,12 @@ function SupReport({ user, state, setState, toast }) {
         </div>
       </div>
 
+      {/* Work type legend */}
+      <div style={{ display:"flex", gap:8, marginBottom:12, fontSize:12 }}>
+        <Badge color={T.navy}>Service work types</Badge>
+        <Badge color={T.grn}>Sales / Products</Badge>
+        <span style={{color:T.txt3}}>— rates are editable per entry</span>
+      </div>
       {/* Header row */}
       <Card style={{ marginBottom:16 }}>
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"flex-end" }}>
@@ -963,13 +1012,16 @@ function LeavePortal({ user, state, setState, toast }) {
 function ManagerPortal({ user, state, setState, toast }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
-    { id:"dashboard", icon:"🏠", label:"Dashboard" },
-    { id:"reports",   icon:"📊", label:"Reports & Analytics" },
-    { id:"leaves",    icon:"✅", label:"Leave Approvals" },
-    { id:"people",    icon:"👥", label:"People & Counters" },
-    { id:"targets",   icon:"🎯", label:"Set Targets" },
-    { id:"feedback",  icon:"💬", label:"Feedback" },
-    { id:"myleaves",  icon:"🗓️", label:"My Leaves" },
+    { id:"dashboard",   icon:"🏠", label:"Dashboard" },
+    { id:"collection",  icon:"📊", label:"Collection Report" },
+    { id:"analysis",    icon:"📈", label:"Counter Analysis" },
+    { id:"reports",     icon:"📋", label:"Reports" },
+    { id:"leaves",      icon:"✅", label:"Leave Approvals" },
+    { id:"people",      icon:"👥", label:"People & Counters" },
+    { id:"salary",      icon:"💰", label:"Salary & P&L" },
+    { id:"targets",     icon:"🎯", label:"Set Targets" },
+    { id:"feedback",    icon:"💬", label:"Feedback" },
+    { id:"myleaves",    icon:"🌿", label:"My Leave" },
   ];
 
   const mySupervisors = state.users.filter(u=>u.managerId===user.id&&u.role==="supervisor"&&u.active);
@@ -981,10 +1033,29 @@ function ManagerPortal({ user, state, setState, toast }) {
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"    && <MgrPeople user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="targets"   && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
-      {page==="feedback"  && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
-      {page==="myleaves"  && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="targets"    && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
+      {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
+      {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors}/>}
+      {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
+      {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
     </Shell>
+  );
+}
+
+function MgrCollectionReport({ user, state, setState, toast, mySupervisors }) {
+  const [date, setDate] = useState(today());
+  const existing = state.collectionReports?.find(r=>r.date===date&&mySupervisors.some(s=>s.id===r.supervisorId));
+  const save = (bankEntries, expenses) => {
+    const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
+    setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    toast.show("Collection report saved");
+  };
+  return (
+    <div>
+      <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:16}}/>
+      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={state.serviceReports} attendance={state.attendance} users={state.users} onSave={save}/>
+    </div>
   );
 }
 
@@ -1084,7 +1155,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
           </div>
           <Table cols={[
             {key:"counter",label:"Counters",render:r=>reportCounterNames(r)},
-            {key:"supervisor",label:"Supervisor",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
+            {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
             {key:"vehicles",label:"Vehicles",render:r=>reportVehicles(r)},
             {key:"totalAmount",label:"Revenue",render:r=><b style={{color:T.amber}}>{fmtCurr(r.totalAmount)}</b>},
             {key:"submittedAt",label:"Submitted"},
@@ -1235,7 +1306,7 @@ function MgrPeople({ user, state, setState, toast }) {
         <Table cols={[
           {key:"empId",label:"ID"},
           {key:"name",label:"Name",render:r=><b>{r.name}</b>},
-          {key:"supervisorName",label:"Supervisor"},
+          {key:"supervisorName",label:"Executive"},
           {key:"counter",label:"Counter"},
           {key:"phone",label:"Phone"},
           {key:"status",label:"Status",render:r=><Badge color={r.active?T.grn:T.red}>{r.active?"Active":"Inactive"}</Badge>},
@@ -1458,11 +1529,30 @@ function MDPortal({ user, state, setState, toast }) {
   return (
     <Shell user={user} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard"  && <MDDashboard user={user} state={state}/>}
+      {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
       {page==="financial"  && <MDFinancial state={state}/>}
       {page==="operations" && <MDOperations state={state}/>}
+      {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
     </Shell>
+  );
+}
+
+function MDCollectionReport({ user, state, setState, toast }) {
+  const [date, setDate] = useState(today());
+  const existing = state.collectionReports?.find(r=>r.date===date);
+  const save = (bankEntries, expenses) => {
+    const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:"admin", bankEntries, expenses };
+    setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    toast.show("Collection report saved");
+  };
+  return (
+    <div>
+      <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:16}}/>
+      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={state.serviceReports} attendance={state.attendance} users={state.users} onSave={save}/>
+    </div>
   );
 }
 
@@ -1703,7 +1793,7 @@ function OfficeAttendance({ state }) {
       <Input label="Select Date" type="date" value={date} onChange={setDate} style={{ maxWidth:200 }}/>
       <Table cols={[
         {key:"staff",label:"Staff",render:r=>state.users.find(u=>u.id===r.staffId)?.name||r.staffId},
-        {key:"supervisor",label:"Supervisor",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
+        {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
         {key:"counter",label:"Counter",render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
         {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
         {key:"reason",label:"Reason",render:r=>r.reason||"—"},
@@ -1909,7 +1999,7 @@ function CounterMgmt({ state, setState, toast }) {
         {key:"name",label:"Counter Name",render:r=><b>{r.name}</b>},
         {key:"dealership",label:"Dealership"},
         {key:"city",label:"City"},
-        {key:"supervisor",label:"Supervisor",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
+        {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
         {key:"actions",label:"",render:r=>(
           <div style={{display:"flex",gap:6}}>
             <Btn onClick={()=>{setEditing(r);setForm({name:r.name,supervisorId:r.supervisorId||"",dealership:r.dealership||"",city:r.city||""});setModal(true)}} size="sm" variant="outline">Edit</Btn>
@@ -1936,14 +2026,15 @@ function WorkTypeMgmt({ state, setState, toast }) {
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("");
+  const [editCat, setEditCat] = useState("service");
 
   const save = () => {
     if (!name) { toast.show("Name required","error"); return; }
     if (editing) {
-      setState(p=>({ ...p, workTypes:p.workTypes.map(w=>w.id===editing.id?{...w,name,defaultRate:Number(rate)}:w) }));
+      setState(p=>({ ...p, workTypes:p.workTypes.map(w=>w.id===editing.id?{...w,name,defaultRate:Number(rate),category:editCat}:w) }));
       toast.show("Work type updated");
     } else {
-      setState(p=>({ ...p, workTypes:[...p.workTypes,{ id:`wt_${Date.now()}`, name, defaultRate:Number(rate) }] }));
+      setState(p=>({ ...p, workTypes:[...p.workTypes,{ id:`wt_${Date.now()}`, name, defaultRate:Number(rate), category:editCat||"service" }] }));
       toast.show("Work type added");
     }
     setModal(false);
@@ -1964,10 +2055,11 @@ function WorkTypeMgmt({ state, setState, toast }) {
       <div style={{ fontSize:12, color:T.txt2, marginBottom:14 }}>These are the default rates. Supervisors can override per-report.</div>
       <Table cols={[
         {key:"name",label:"Work Type",render:r=><b>{r.name}</b>},
+        {key:"category",label:"Type",render:r=><Badge color={r.category==="sales"?T.grn:T.navy}>{r.category==="sales"?"Sales":"Service"}</Badge>},
         {key:"defaultRate",label:"Default Rate",render:r=>fmtCurr(r.defaultRate)},
         {key:"actions",label:"",render:r=>(
           <div style={{display:"flex",gap:6}}>
-            <Btn onClick={()=>{setEditing(r);setName(r.name);setRate(r.defaultRate);setModal(true)}} size="sm" variant="outline">Edit</Btn>
+            <Btn onClick={()=>{setEditing(r);setName(r.name);setRate(r.defaultRate);setEditCat(r.category||"service");setModal(true)}} size="sm" variant="outline">Edit</Btn>
             <Btn onClick={()=>del(r)} size="sm" variant="danger">Delete</Btn>
           </div>
         )},
@@ -1975,6 +2067,7 @@ function WorkTypeMgmt({ state, setState, toast }) {
       <Modal open={modal} onClose={()=>setModal(false)} title={editing?"Edit Work Type":"Add Work Type"}>
         <Input label="Work Type Name" value={name} onChange={setName} required/>
         <Input label="Default Rate (₹)" type="number" value={rate} onChange={setRate}/>
+        <Select label="Category" value={editCat||"service"} onChange={v=>setEditCat(v)} options={[{value:"service",label:"Service"},{value:"sales",label:"Sales / Product"}]}/>
         <div style={{display:"flex",gap:8,marginTop:8}}>
           <Btn onClick={save}>{editing?"Save":"Add"}</Btn>
           <Btn onClick={()=>setModal(false)} variant="ghost">Cancel</Btn>
@@ -2065,6 +2158,618 @@ function DataMgmt({ state, setState, toast }) {
               <Btn onClick={()=>deleteAttendance(d)} size="sm" variant="danger">Delete</Btn>
             </div>
           ))}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  COLLECTION REPORT (matches Image 1 format)
+// ═══════════════════════════════════════════════════════════════════════════════
+function CollectionReportView({ date, report, counters, allReports, attendance, users, onSave, readOnly }) {
+  const [bankEntries, setBankEntries] = useState(report?.bankEntries || [
+    { id:1, description:"", sbi:"", kbl:"" },
+    { id:2, description:"", sbi:"", kbl:"" },
+    { id:3, description:"", sbi:"", kbl:"" },
+  ]);
+  const [expenses, setExpenses] = useState(report?.expenses || [
+    { id:1, description:"", sbi:"", kbl:"" },
+    { id:2, description:"", sbi:"", kbl:"" },
+    { id:3, description:"", sbi:"", kbl:"" },
+  ]);
+
+  const totalSBI = bankEntries.reduce((s,r)=>s+(Number(r.sbi)||0),0);
+  const totalKBL = bankEntries.reduce((s,r)=>s+(Number(r.kbl)||0),0);
+  const totalCollBank = totalSBI + totalKBL;
+  const expSBI = expenses.reduce((s,r)=>s+(Number(r.sbi)||0),0);
+  const expKBL = expenses.reduce((s,r)=>s+(Number(r.kbl)||0),0);
+  const grandExpenses = expSBI + expKBL;
+
+  // Service totals from daily reports for this date
+  const dayReports = allReports.filter(r=>r.date===date);
+  const serviceEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>!['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].some(s=>e.workTypeName===s));
+  const salesEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].some(s=>e.workTypeName===s));
+
+  const absent = attendance.filter(a=>a.date===date&&a.status==='absent');
+
+  const printReport = () => {
+    const w = window.open('','_blank');
+    const counterRows = dayReports.map((r,i) => {
+      const cname = (r.counters||[])[0]?.counterName || users.find(u=>u.id===r.supervisorId)?.counter || '—';
+      const svcTotal = serviceEntries(r).reduce((s,e)=>s+e.amount,0);
+      const salesTotal = salesEntries(r).reduce((s,e)=>s+e.amount,0);
+      return `<tr><td style="border:1px solid #ccc;padding:5px 10px">${cname}</td><td style="border:1px solid #ccc;padding:5px 10px;text-align:right">${svcTotal.toLocaleString('en-IN')}</td><td style="border:1px solid #ccc;padding:5px 10px;text-align:right">${salesTotal.toLocaleString('en-IN')}</td><td style="border:1px solid #ccc;padding:5px 10px;text-align:right">${(svcTotal+salesTotal).toLocaleString('en-IN')}</td></tr>`;
+    }).join('');
+    const absentList = absent.map(a=>users.find(u=>u.id===a.staffId)?.name||'').filter(Boolean).join(', ');
+    w.document.write(`<!DOCTYPE html><html><head><title>Collection Report - ${date}</title>
+    <style>body{font-family:Arial,sans-serif;margin:20px;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:16px}
+    h2,h3{text-align:center;margin:4px 0}.section-title{background:#f0f0f0;font-weight:700;padding:6px 10px;text-align:center}</style></head>
+    <body><h2>BENAKA ENTERPRISES</h2><h3>COLLECTION REPORT</h3><h3>Date: ${date.split('-').reverse().join('-')}</h3><br>
+    <table><thead><tr><th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">COUNTER</th>
+    <th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">SERVICE</th>
+    <th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">SALES</th>
+    <th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">TOTAL</th></tr></thead>
+    <tbody>${counterRows}</tbody>
+    <tfoot>
+    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">TOTAL SERVICE</td>
+    <td style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">${dayReports.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0).toLocaleString('en-IN')}</td></tr>
+    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">TOTAL SALES</td>
+    <td style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">${dayReports.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0).toLocaleString('en-IN')}</td></tr>
+    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px 10px;font-weight:800;text-align:right;background:#f8f8f8">GRAND TOTAL</td>
+    <td style="border:1px solid #ccc;padding:5px 10px;font-weight:800;text-align:right;background:#f8f8f8">${dayReports.reduce((s,r)=>s+r.totalAmount,0).toLocaleString('en-IN')}</td></tr>
+    </tfoot></table>
+    <table><thead><tr><th class="section-title" colspan="5">COLLECTION (BANK)</th></tr>
+    <tr><th style="border:1px solid #ccc;padding:5px">COLLECTION</th><th style="border:1px solid #ccc;padding:5px">SBI</th><th style="border:1px solid #ccc;padding:5px">KBL</th><th style="border:1px solid #ccc;padding:5px">TOTAL SBI</th><th style="border:1px solid #ccc;padding:5px">TOTAL KBL</th></tr></thead>
+    <tbody>${bankEntries.map(r=>`<tr><td style="border:1px solid #ccc;padding:5px">${r.description}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.sbi||''}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.kbl||''}</td><td style="border:1px solid #ccc;padding:5px"></td><td style="border:1px solid #ccc;padding:5px"></td></tr>`).join('')}</tbody>
+    <tfoot><tr><td style="border:1px solid #ccc;padding:5px;font-weight:700">TOTAL</td><td style="border:1px solid #ccc;padding:5px;font-weight:700;text-align:right">${totalSBI.toLocaleString('en-IN')}</td><td style="border:1px solid #ccc;padding:5px;font-weight:700;text-align:right">${totalKBL.toLocaleString('en-IN')}</td><td colspan="2"></td></tr>
+    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px;font-weight:700">TOTAL COLLECTION BANK</td><td colspan="2" style="border:1px solid #ccc;padding:5px;font-weight:800;text-align:right">${totalCollBank.toLocaleString('en-IN')}</td></tr></tfoot></table>
+    <table><thead><tr><th class="section-title" colspan="3">EXPENSES</th></tr>
+    <tr><th style="border:1px solid #ccc;padding:5px">DESCRIPTION</th><th style="border:1px solid #ccc;padding:5px">SBI</th><th style="border:1px solid #ccc;padding:5px">KBL</th></tr></thead>
+    <tbody>${expenses.map(r=>`<tr><td style="border:1px solid #ccc;padding:5px">${r.description}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.sbi||''}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.kbl||''}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td style="border:1px solid #ccc;padding:5px;font-weight:700">TOTAL</td><td colspan="2" style="border:1px solid #ccc;padding:5px;font-weight:700;text-align:right">${grandExpenses.toLocaleString('en-IN')}</td></tr>
+    <tr><td colspan="2" style="border:1px solid #ccc;padding:5px;font-weight:800">GRAND TOTAL EXPENSES</td><td style="border:1px solid #ccc;padding:5px;font-weight:800;text-align:right">${grandExpenses.toLocaleString('en-IN')}</td></tr></tfoot></table>
+    ${absentList ? `<p><strong>ABSENT: ${date.split('-').reverse().join('/')}</strong><br>${absentList}</p>` : ''}
+    </body></html>`);
+    w.document.close(); w.print();
+  };
+
+  const updateBank = (i,f,v) => setBankEntries(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
+  const updateExp  = (i,f,v) => setExpenses(p=>p.map((r,j)=>j===i?{...r,[f]:v}:v));
+
+  const td = (content, align='left', bold=false, bg='') =>
+    `style="border:1px solid ${T.bdr};padding:7px 10px;text-align:${align};font-weight:${bold?700:400};background:${bg||'transparent'};font-size:13px"`;
+
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, marginBottom:16 }}>
+        <div style={{ fontSize:15, fontWeight:800 }}>Collection Report — {date ? date.split('-').reverse().join('-') : ''}</div>
+        <div style={{ display:"flex", gap:8 }}>
+          <Btn onClick={printReport} variant="ghost" size="sm">🖨 Print / PDF</Btn>
+          {!readOnly && onSave && <Btn onClick={()=>onSave(bankEntries, expenses)} variant="amber" size="sm">Save Report</Btn>}
+        </div>
+      </div>
+
+      {/* SERVICE SUMMARY */}
+      <Card style={{ marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase", letterSpacing:".04em" }}>Service & Sales Summary</div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+            <thead>
+              <tr style={{ background:T.surf }}>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"left" }}>Counter</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>Service (₹)</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>Sales (₹)</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>Total (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dayReports.map((r,i) => {
+                const cname = (r.counters||[])[0]?.counterName || users.find(u=>u.id===r.supervisorId)?.counter || '—';
+                const svcT = serviceEntries(r).reduce((s,e)=>s+e.amount,0);
+                const salT = salesEntries(r).reduce((s,e)=>s+e.amount,0);
+                return <tr key={i}>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:600 }}>{cname}</td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>{svcT.toLocaleString('en-IN')}</td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>{salT.toLocaleString('en-IN')}</td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right", fontWeight:700, color:T.amber }}>{(svcT+salT).toLocaleString('en-IN')}</td>
+                </tr>;
+              })}
+            </tbody>
+            <tfoot>
+              {[
+                ["TOTAL SERVICE", dayReports.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0)],
+                ["TOTAL SALES",   dayReports.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0)],
+              ].map(([lbl,val])=>(
+                <tr key={lbl} style={{ background:T.surf }}>
+                  <td colSpan={3} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:700, textAlign:"right" }}>{lbl}</td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.navy, textAlign:"right" }}>{fmtCurr(val)}</td>
+                </tr>
+              ))}
+              <tr style={{ background:T.navyXL }}>
+                <td colSpan={3} style={{ border:`1px solid ${T.bdr}`, padding:"8px 10px", fontWeight:800, textAlign:"right", color:T.navy }}>GRAND TOTAL (SERVICE + SALES)</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"8px 10px", fontWeight:800, color:T.amber, textAlign:"right", fontSize:15 }}>{fmtCurr(dayReports.reduce((s,r)=>s+r.totalAmount,0))}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {/* Bar chart */}
+        {dayReports.length > 0 && (
+          <div style={{ marginTop:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:T.txt2, textTransform:"uppercase", marginBottom:8 }}>Visual breakdown</div>
+            {dayReports.map((r,i) => {
+              const cname = (r.counters||[])[0]?.counterName || '—';
+              const max = Math.max(...dayReports.map(x=>x.totalAmount), 1);
+              return <div key={i} style={{ marginBottom:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3 }}>
+                  <span style={{ fontWeight:600 }}>{cname}</span>
+                  <span style={{ fontWeight:700, color:T.amber }}>{fmtCurr(r.totalAmount)}</span>
+                </div>
+                <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${r.totalAmount/max*100}%`, background:T.amber, borderRadius:4 }}/>
+                </div>
+              </div>;
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* COLLECTION BANK */}
+      <Card style={{ marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase" }}>Collection (Bank)</div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+            <thead>
+              <tr style={{ background:T.surf }}>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"left", width:"40%" }}>COLLECTION</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>SBI (₹)</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>KBL (₹)</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>TOTAL SBI</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>TOTAL KBL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bankEntries.map((row,i) => (
+                <tr key={i}>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
+                    {readOnly ? row.description : <input value={row.description} onChange={e=>updateBank(i,'description',e.target.value)} placeholder="Description" style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", background:"transparent" }}/>}
+                  </td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
+                    {readOnly ? row.sbi||'' : <input type="number" value={row.sbi} onChange={e=>updateBank(i,'sbi',e.target.value)} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
+                  </td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
+                    {readOnly ? row.kbl||'' : <input type="number" value={row.kbl} onChange={e=>updateBank(i,'kbl',e.target.value)} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
+                  </td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 10px", textAlign:"right", color:T.txt2 }}></td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 10px", textAlign:"right", color:T.txt2 }}></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background:T.surf }}>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800 }}>TOTAL</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{totalSBI.toLocaleString('en-IN')}</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{totalKBL.toLocaleString('en-IN')}</td>
+                <td colSpan={2} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px" }}></td>
+              </tr>
+              <tr style={{ background:T.navyXL }}>
+                <td colSpan={4} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.navy }}>TOTAL COLLECTION BANK</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>{fmtCurr(totalCollBank)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {!readOnly && <Btn onClick={()=>setBankEntries(p=>[...p,{id:Date.now(),description:'',sbi:'',kbl:''}])} size="sm" variant="ghost" style={{marginTop:8}}>+ Add row</Btn>}
+      </Card>
+
+      {/* EXPENSES */}
+      <Card style={{ marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase" }}>Expenses</div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+            <thead>
+              <tr style={{ background:T.surf }}>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"left", width:"50%" }}>DESCRIPTION</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>SBI (₹)</th>
+                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>KBL (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map((row,i) => (
+                <tr key={i}>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
+                    {readOnly ? row.description : <input value={row.description} onChange={e=>setExpenses(p=>p.map((r,j)=>j===i?{...r,description:e.target.value}:r))} placeholder="Expense description" style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", background:"transparent" }}/>}
+                  </td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
+                    {readOnly ? row.sbi||'' : <input type="number" value={row.sbi} onChange={e=>setExpenses(p=>p.map((r,j)=>j===i?{...r,sbi:e.target.value}:r))} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
+                  </td>
+                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
+                    {readOnly ? row.kbl||'' : <input type="number" value={row.kbl} onChange={e=>setExpenses(p=>p.map((r,j)=>j===i?{...r,kbl:e.target.value}:r))} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background:T.surf }}>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800 }}>TOTAL</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{expSBI.toLocaleString('en-IN')}</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{expKBL.toLocaleString('en-IN')}</td>
+              </tr>
+              <tr style={{ background:T.navyXL }}>
+                <td colSpan={2} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.navy }}>GRAND TOTAL EXPENSES</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.red, textAlign:"right" }}>{fmtCurr(grandExpenses)}</td>
+              </tr>
+              <tr style={{ background:T.grnL }}>
+                <td colSpan={2} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.grn }}>NET (Collection − Expenses)</td>
+                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.grn, textAlign:"right" }}>{fmtCurr(totalCollBank - grandExpenses)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {!readOnly && <Btn onClick={()=>setExpenses(p=>[...p,{id:Date.now(),description:'',sbi:'',kbl:''}])} size="sm" variant="ghost" style={{marginTop:8}}>+ Add row</Btn>}
+      </Card>
+
+      {/* ABSENT */}
+      {absent.length > 0 && (
+        <Card>
+          <div style={{ fontSize:13, fontWeight:700, color:T.red, marginBottom:8 }}>ABSENT — {date ? date.split('-').reverse().join('/') : ''}</div>
+          {absent.map((a,i) => {
+            const staff = users.find(u=>u.id===a.staffId);
+            return <div key={i} style={{ fontSize:13, padding:"4px 0" }}>{i+1}. {staff?.name} {a.reason?`— ${a.reason}`:''}</div>;
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SALARY MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function SalaryView({ user, state, setState, toast, viewScope }) {
+  const [month, setMonth] = useState(today().slice(0,7));
+  const [modal, setModal] = useState(false);
+  const [editSal, setEditSal] = useState(null);
+  const [form, setForm] = useState({ userId:"", basic:0, allowances:0, deductions:0, paidOn:"", note:"" });
+
+  // Scope: 'all' for MD/manager, 'mine' for executive
+  const staffInScope = viewScope === 'all'
+    ? state.users.filter(u=>u.active && u.role !== 'md')
+    : state.users.filter(u=>u.managerId === user.id && u.active);
+
+  const monthSalaries = state.salaries.filter(s=>s.month===month);
+  const totalPaid = monthSalaries.reduce((s,sal)=>s+(Number(sal.netSalary)||0),0);
+
+  const openEdit = (s) => {
+    setEditSal(s);
+    setForm({ userId:s.userId, basic:s.basicSalary, allowances:s.allowances, deductions:s.deductions, paidOn:s.paidOn||'', note:s.note||'' });
+    setModal(true);
+  };
+  const openNew = (uid) => {
+    setEditSal(null);
+    setForm({ userId:uid, basic:0, allowances:0, deductions:0, paidOn:today(), note:'' });
+    setModal(true);
+  };
+
+  const save = () => {
+    const net = (Number(form.basic)||0) + (Number(form.allowances)||0) - (Number(form.deductions)||0);
+    const sal = {
+      id: editSal?.id || `sal_${Date.now()}`,
+      userId: form.userId, month,
+      basicSalary: Number(form.basic), allowances: Number(form.allowances),
+      deductions: Number(form.deductions), netSalary: net,
+      paidOn: form.paidOn, paidBy: user.id, note: form.note
+    };
+    setState(p => ({ ...p, salaries: [...p.salaries.filter(s=>s.id!==sal.id), sal] }));
+    toast.show('Salary record saved');
+    setModal(false);
+  };
+
+  const exportCSV = () => {
+    const rows = staffInScope.map(u => {
+      const sal = monthSalaries.find(s=>s.userId===u.id);
+      return { Name:u.name, Role:ROLE_LABELS[u.role], Month:month, Basic:sal?.basicSalary||0, Allowances:sal?.allowances||0, Deductions:sal?.deductions||0, NetSalary:sal?.netSalary||0, PaidOn:sal?.paidOn||'', Note:sal?.note||'' };
+    });
+    const h = Object.keys(rows[0]);
+    const csv = [h.join(','),...rows.map(r=>h.map(k=>`"${r[k]}"`).join(','))].join('
+');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download = `salaries_${month}.csv`; a.click();
+    toast.show('Salary report exported');
+  };
+
+  // P&L calc
+  const monthStr = month;
+  const monthRevenue = state.serviceReports.filter(r=>r.date.startsWith(monthStr)).reduce((s,r)=>s+r.totalAmount,0);
+  const monthExpenses = totalPaid; // salaries as main expense
+  const profit = monthRevenue - monthExpenses;
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Salary & Payroll</div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:20 }}>
+        <StatCard label="Month Revenue" value={fmtCurr(monthRevenue)} color={T.amber}/>
+        <StatCard label="Total Salaries" value={fmtCurr(totalPaid)} color={T.red}/>
+        <StatCard label="Net Profit" value={fmtCurr(profit)} color={profit>=0?T.grn:T.red} sub={profit>=0?"Surplus":"Deficit"}/>
+        <StatCard label="Staff Paid" value={`${monthSalaries.length}/${staffInScope.length}`} color={T.navy}/>
+      </div>
+
+      <Card style={{ marginBottom:16, background:profit>=0?T.grnL:T.redL, border:`1px solid ${profit>=0?T.grn:T.red}44` }}>
+        <div style={{ fontSize:13, fontWeight:700, color:profit>=0?T.grn:T.red, marginBottom:8 }}>
+          {profit>=0?'✅ Profitable month':'❌ Loss this month'} — {month}
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+          {[['Revenue',monthRevenue,T.navy],['Expenses (Salaries)',totalPaid,T.red],['Net P&L',profit,profit>=0?T.grn:T.red]].map(([l,v,c])=>(
+            <div key={l} style={{ textAlign:"center" }}>
+              <div style={{ fontSize:11, color:T.txt2, fontWeight:700, textTransform:"uppercase" }}>{l}</div>
+              <div style={{ fontSize:18, fontWeight:800, color:c }}>{fmtCurr(v)}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div style={{ display:"flex", gap:12, marginBottom:16, alignItems:"flex-end", flexWrap:"wrap" }}>
+        <div><label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Month</label>
+        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/></div>
+        <Btn onClick={exportCSV} variant="ghost" size="sm">📥 Export CSV</Btn>
+      </div>
+
+      <Table cols={[
+        {key:"name",label:"Name",render:r=><b>{r.name}</b>},
+        {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]}>{ROLE_LABELS[r.role]}</Badge>},
+        {key:"basic",label:"Basic",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?fmtCurr(s.basicSalary):<span style={{color:T.txt3}}>—</span>; }},
+        {key:"allow",label:"Allowances",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?fmtCurr(s.allowances):'—'; }},
+        {key:"ded",label:"Deductions",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?<span style={{color:T.red}}>{fmtCurr(s.deductions)}</span>:'—'; }},
+        {key:"net",label:"Net Salary",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?<b style={{color:T.grn}}>{fmtCurr(s.netSalary)}</b>:<Badge color={T.red}>Unpaid</Badge>; }},
+        {key:"paidOn",label:"Paid On",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?fmtDate(s.paidOn):'—'; }},
+        {key:"action",label:"",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id);
+          return <Btn onClick={()=>s?openEdit(s):openNew(r.id)} size="sm" variant={s?"outline":"amber"}>{s?"Edit":"Add"}</Btn>; }},
+      ]} rows={staffInScope}/>
+
+      <Modal open={modal} onClose={()=>setModal(false)} title="Salary Record">
+        <div style={{ fontSize:14, fontWeight:700, marginBottom:14 }}>{state.users.find(u=>u.id===form.userId)?.name} — {month}</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+          <Input label="Basic Salary" type="number" value={form.basic} onChange={v=>setForm(p=>({...p,basic:v}))}/>
+          <Input label="Allowances" type="number" value={form.allowances} onChange={v=>setForm(p=>({...p,allowances:v}))}/>
+          <Input label="Deductions" type="number" value={form.deductions} onChange={v=>setForm(p=>({...p,deductions:v}))}/>
+        </div>
+        <div style={{ background:T.navyXL, padding:"10px 14px", borderRadius:8, marginBottom:14, fontWeight:700 }}>
+          Net Salary: {fmtCurr((Number(form.basic)||0)+(Number(form.allowances)||0)-(Number(form.deductions)||0))}
+        </div>
+        <Input label="Paid On" type="date" value={form.paidOn} onChange={v=>setForm(p=>({...p,paidOn:v}))}/>
+        <Input label="Note" value={form.note} onChange={v=>setForm(p=>({...p,note:v}))} placeholder="Optional note"/>
+        <div style={{ display:"flex", gap:8 }}>
+          <Btn onClick={save} variant="success">Save</Btn>
+          <Btn onClick={()=>setModal(false)} variant="ghost">Cancel</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  COUNTER-WISE ANALYSIS (shared by Executive/Manager/MD)
+// ═══════════════════════════════════════════════════════════════════════════════
+function CounterAnalysis({ user, state, counterFilter }) {
+  const [range, setRange] = useState("month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const getRangeLabel = () => ({ week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", custom:"Custom Range" }[range]);
+
+  const getDateRange = () => {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    if (range === "week") {
+      const day = now.getDay(), diff = now.getDate() - day + (day===0?-6:1);
+      const mon = new Date(now.setDate(diff));
+      const sun = new Date(now); sun.setDate(mon.getDate()+6);
+      return [mon.toISOString().split('T')[0], sun.toISOString().split('T')[0]];
+    }
+    if (range === "month") return [`${y}-${String(m+1).padStart(2,'0')}-01`, `${y}-${String(m+1).padStart(2,'0')}-31`];
+    if (range === "quarter") {
+      const q = Math.floor(m/3);
+      return [`${y}-${String(q*3+1).padStart(2,'0')}-01`, `${y}-${String(Math.min(q*3+3,12)).padStart(2,'0')}-31`];
+    }
+    if (range === "year") return [`${y}-01-01`, `${y}-12-31`];
+    return [customFrom, customTo];
+  };
+
+  const [from, to] = getDateRange();
+
+  const filteredReports = state.serviceReports.filter(r => {
+    if (from && r.date < from) return false;
+    if (to && r.date > to) return false;
+    if (counterFilter) {
+      const sup = state.users.find(u=>u.id===r.supervisorId);
+      if (sup?.counter !== counterFilter && !(r.counters||[]).some(c=>c.counterName===counterFilter)) return false;
+    }
+    return true;
+  });
+
+  const serviceEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>{
+    const wt = state.workTypes.find(w=>w.id===e.workTypeId);
+    return wt?.category !== 'sales' && !['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName);
+  });
+  const salesEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>{
+    const wt = state.workTypes.find(w=>w.id===e.workTypeId);
+    return wt?.category === 'sales' || ['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName);
+  });
+
+  // Build per-counter stats
+  const counterStats = state.counters.map(c => {
+    const reps = filteredReports.filter(r=>r.supervisorId===c.supervisorId||(r.counters||[]).some(x=>x.counterName===c.name));
+    const svcTotal = reps.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0);
+    const salTotal = reps.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0);
+    const total = svcTotal + salTotal;
+    const vehicles = reps.reduce((s,r)=>s+(r.counters||[]).flatMap(c=>c.entries||[]).reduce((ss,e)=>ss+(Number(e.vehicles)||0),0),0);
+    const days = new Set(reps.map(r=>r.date)).size;
+    const dailyAvg = days ? Math.round(total/days) : 0;
+    return { ...c, svcTotal, salTotal, total, vehicles, days, dailyAvg };
+  }).filter(c => !counterFilter || c.name === counterFilter);
+
+  const grandTotal = counterStats.reduce((s,c)=>s+c.total,0);
+  const maxTotal = Math.max(...counterStats.map(c=>c.total),1);
+
+  // Work type breakdown
+  const wtMap = {};
+  filteredReports.forEach(r=>(r.counters||[]).flatMap(c=>c.entries||[]).forEach(e=>{
+    if(e.vehicles>0) wtMap[e.workTypeName]=(wtMap[e.workTypeName]||0)+e.amount;
+  }));
+  const wtArr = Object.entries(wtMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxWt = wtArr[0]?.[1]||1;
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Counter-wise Analysis</div>
+
+      {/* Range selector */}
+      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+        {["week","month","quarter","year","custom"].map(r=>(
+          <button key={r} onClick={()=>setRange(r)} style={{
+            padding:"7px 16px", borderRadius:20, border:`1px solid ${range===r?T.navy:T.bdrS}`,
+            background:range===r?T.navy:"transparent", color:range===r?"#fff":T.txt2,
+            fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit"
+          }}>{r==="week"?"Week":r==="month"?"Month":r==="quarter"?"Quarter":r==="year"?"Year":"Custom"}</button>
+        ))}
+        {range==="custom" && (
+          <>
+            <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+            <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+          </>
+        )}
+      </div>
+      <div style={{ fontSize:12, color:T.txt2, marginBottom:16 }}>{getRangeLabel()} · {filteredReports.length} reports · Grand Total: <b style={{color:T.amber}}>{fmtCurr(grandTotal)}</b></div>
+
+      {/* Counter cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14, marginBottom:20 }}>
+        {counterStats.map(c=>(
+          <Card key={c.id} style={{ borderTop:`3px solid ${T.amber}` }}>
+            <div style={{ fontWeight:800, marginBottom:4 }}>{c.name}</div>
+            <div style={{ fontSize:12, color:T.txt2, marginBottom:8 }}>{c.days} day(s) reported</div>
+            <div style={{ fontSize:20, fontWeight:800, color:T.amber, marginBottom:4 }}>{fmtCurr(c.total)}</div>
+            <div style={{ height:6, background:T.surf, borderRadius:3, overflow:"hidden", marginBottom:8 }}>
+              <div style={{ height:"100%", width:`${c.total/maxTotal*100}%`, background:T.amber, borderRadius:3 }}/>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4, fontSize:11, color:T.txt2 }}>
+              <div><div style={{fontWeight:700,color:T.navy}}>Service</div>{fmtCurr(c.svcTotal)}</div>
+              <div><div style={{fontWeight:700,color:T.grn}}>Sales</div>{fmtCurr(c.salTotal)}</div>
+              <div><div style={{fontWeight:700,color:T.txt2}}>Vehicles</div>{c.vehicles}</div>
+            </div>
+            <div style={{ marginTop:6, fontSize:11, color:T.txt2 }}>Daily avg: <b>{fmtCurr(c.dailyAvg)}</b></div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Top work types */}
+      {wtArr.length > 0 && (
+        <Card>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Top work types — {getRangeLabel()}</div>
+          {wtArr.map(([name, rev]) => (
+            <div key={name} style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                <span style={{ fontSize:13 }}>{name}</span>
+                <b style={{ fontSize:13, color:T.navy }}>{fmtCurr(rev)}</b>
+              </div>
+              <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${rev/maxWt*100}%`, background:T.navy, borderRadius:4 }}/>
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PLANNED LEAVE (Staff → Executive approval)
+// ═══════════════════════════════════════════════════════════════════════════════
+function PlannedLeavePortal({ user, state, setState, toast, mode }) {
+  // mode: 'staff' = field staff submitting, 'executive' = executive approving
+  const [from, setFrom] = useState("");
+  const [to, setTo]     = useState("");
+  const [reason, setReason] = useState("");
+
+  const myPlanned   = state.plannedLeaves.filter(l=>l.userId===user.id);
+  const toApprove   = state.plannedLeaves.filter(l=>l.supervisorId===user.id);
+  const pendingCount = toApprove.filter(l=>l.status==='pending').length;
+
+  const submit = () => {
+    if (!from || !reason.trim()) { toast.show("Fill from date and reason","error"); return; }
+    const sup = state.users.find(u=>u.id===user.managerId);
+    const pl = { id:`pl_${Date.now()}`, userId:user.id, staffName:user.name, supervisorId:user.managerId, fromDate:from, toDate:to||from, reason, status:"pending", appliedOn:today() };
+    setState(p=>({...p, plannedLeaves:[...(p.plannedLeaves||[]), pl]}));
+    toast.show("Leave request submitted to " + (sup?.name||"Executive"));
+    setFrom(""); setTo(""); setReason("");
+  };
+
+  const decide = (id, status) => {
+    setState(p=>({...p, plannedLeaves:p.plannedLeaves.map(l=>l.id===id?{...l,status,decidedOn:today()}:l)}));
+    toast.show(status==="approved"?"Leave approved":"Leave rejected");
+  };
+
+  if (mode === 'executive') return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Staff Leave Approvals {pendingCount>0&&<Badge color={T.red} style={{marginLeft:8}}>{pendingCount} pending</Badge>}</div>
+      {toApprove.filter(l=>l.status==='pending').map(l=>(
+        <Card key={l.id} style={{ marginBottom:12, borderLeft:`4px solid ${T.amb}` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10 }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:15 }}>{l.staffName}</div>
+              <div style={{ fontSize:13, color:T.txt2 }}>{fmtDate(l.fromDate)}{l.toDate!==l.fromDate?` → ${fmtDate(l.toDate)}`:''}</div>
+              <div style={{ fontSize:13, marginTop:4 }}>"{l.reason}"</div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <Btn onClick={()=>decide(l.id,'approved')} variant="success" size="sm">✓ Approve</Btn>
+              <Btn onClick={()=>decide(l.id,'rejected')} variant="danger"  size="sm">✗ Reject</Btn>
+            </div>
+          </div>
+        </Card>
+      ))}
+      {toApprove.filter(l=>l.status==='pending').length===0 && <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No pending leave requests</div></Card>}
+      {toApprove.filter(l=>l.status!=='pending').length > 0 && <>
+        <div style={{ fontSize:14, fontWeight:700, marginTop:20, marginBottom:12 }}>Reviewed</div>
+        <Table cols={[
+          {key:"staffName",label:"Staff"},
+          {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
+          {key:"reason",label:"Reason"},
+          {key:"status",label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:T.red}>{r.status}</Badge>},
+        ]} rows={toApprove.filter(l=>l.status!=='pending')}/>
+      </>}
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Plan a Leave</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+        <Card>
+          <div style={{ fontSize:14, fontWeight:700, marginBottom:14 }}>New Leave Request</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <Input label="From" type="date" value={from} onChange={setFrom}/>
+            <Input label="To"   type="date" value={to}   onChange={setTo}/>
+          </div>
+          <Input label="Reason" value={reason} onChange={setReason} placeholder="Reason for leave..." required/>
+          <Btn onClick={submit}>Submit Request</Btn>
+        </Card>
+        <Card>
+          <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>My Requests</div>
+          {myPlanned.length===0 ? <div style={{color:T.txt3,fontSize:13}}>No requests yet</div> :
+            myPlanned.sort((a,b)=>b.appliedOn.localeCompare(a.appliedOn)).map(l=>(
+              <div key={l.id} style={{ padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between" }}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600}}>{fmtDate(l.fromDate)}{l.toDate!==l.fromDate?` → ${fmtDate(l.toDate)}`:''}</div>
+                    <div style={{fontSize:12,color:T.txt2}}>{l.reason}</div>
+                  </div>
+                  <Badge color={l.status==="approved"?T.grn:l.status==="rejected"?T.red:T.amber}>{l.status}</Badge>
+                </div>
+              </div>
+            ))
+          }
         </Card>
       </div>
     </div>
@@ -2249,6 +2954,37 @@ function PublicFeedbackForm({ counterName, counters, onSubmit }) {
   );
 }
 
+function FieldStaffPortal({ user, state, setState, logout, toast }) {
+  const [page, setPage] = useState("home");
+  return (
+    <div style={{ minHeight:"100vh", background:T.surf, fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+      <div style={{ background:T.navy, padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ color:"#fff", fontWeight:800, fontSize:16 }}>✨ Benaka Enterprises</div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <span style={{ color:"rgba(255,255,255,.7)", fontSize:12 }}>{user.name}</span>
+          <Btn onClick={logout} variant="ghost" size="sm" style={{ color:"rgba(255,255,255,.7)", border:"1px solid rgba(255,255,255,.2)" }}>Sign out</Btn>
+        </div>
+      </div>
+      <div style={{ padding:24, maxWidth:520, margin:"0 auto" }}>
+        {page==="home" && (
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>👋</div>
+            <div style={{ fontSize:20, fontWeight:800, marginBottom:4 }}>Hello, {user.name}</div>
+            <div style={{ color:T.txt2, marginBottom:24 }}>Your attendance is marked by your Executive</div>
+            <Btn onClick={()=>setPage("leave")} variant="amber" size="lg" style={{ width:"100%", justifyContent:"center", marginBottom:12 }}>🗓️ Request Planned Leave</Btn>
+          </div>
+        )}
+        {page==="leave" && (
+          <div>
+            <Btn onClick={()=>setPage("home")} variant="ghost" size="sm" style={{marginBottom:16}}>← Back</Btn>
+            <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="staff"/>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ROOT APP
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2293,14 +3029,7 @@ export default function App() {
       {state.currentUser.role === "office"      && <OfficePortal {...props}/>}
       {state.currentUser.role === "it_admin"    && <ITAdminPortal {...props}/>}
       {state.currentUser.role === "field_staff" && (
-        <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:T.surf, fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
-          <Card style={{ maxWidth:400, textAlign:"center" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>👋</div>
-            <div style={{ fontSize:18, fontWeight:800 }}>Hello, {state.currentUser.name}</div>
-            <div style={{ color:T.txt2, margin:"8px 0 20px" }}>Your attendance is marked by your supervisor. Nothing else to do here!</div>
-            <Btn onClick={logout} variant="ghost" style={{ width:"100%", justifyContent:"center" }}>Sign out</Btn>
-          </Card>
-        </div>
+        <FieldStaffPortal user={state.currentUser} state={state} setState={setState} logout={logout} toast={{show}}/>
       )}
       <Toast/>
     </>
