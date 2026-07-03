@@ -121,7 +121,12 @@ const INITIAL_STATE = {
     { id:"t2", counterId:"c2", supervisorId:"u5", month:"2025-07", dailyTarget:15000, monthlyTarget:375000, setBy:"u2" },
   ],
   feedback: [
-    { id:"f1", counterId:"c1", date:"2025-07-01", from:"Dealership Manager", rating:4, comment:"Good work, timely service", recordedBy:"u2" },
+    { id:"f1", counterId:"c1", counterName:"Whitefield Motors", date:"2025-07-01", submittedAt:"14:32",
+      vehicleNo:"KA01AB1234", serviceType:"WASH", customerName:"Rajesh K", rating:5,
+      comment:"Very good work, clean and quick", source:"public_form" },
+    { id:"f2", counterId:"c2", counterName:"Koramangala Auto", date:"2025-07-01", submittedAt:"16:15",
+      vehicleNo:"KA03CD5678", serviceType:"POLISH", customerName:"Meena R", rating:4,
+      comment:"Good polish, small area was missed near door", source:"public_form" },
   ],
 };
 
@@ -252,6 +257,30 @@ const Table = ({ cols, rows, emptyMsg="No data" }) => (
     </table>
   </div>
 );
+
+// ─── Auto-logout after 10 min inactivity ─────────────────────────────────────
+function useAutoLogout(isLoggedIn, onLogout, minutes = 10) {
+  const timer = useRef(null);
+  const reset = useCallback(() => {
+    clearTimeout(timer.current);
+    if (isLoggedIn) {
+      timer.current = setTimeout(() => {
+        onLogout();
+      }, minutes * 60 * 1000);
+    }
+  }, [isLoggedIn, onLogout, minutes]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const events = ['mousedown','mousemove','keydown','scroll','touchstart','click'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset(); // start the timer
+    return () => {
+      clearTimeout(timer.current);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [isLoggedIn, reset]);
+}
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function useToast() {
@@ -390,11 +419,12 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout }
 function SupervisorPortal({ user, state, setState, toast }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
-    { id:"dashboard", icon:"🏠", label:"Dashboard" },
+    { id:"dashboard",  icon:"🏠", label:"Dashboard" },
     { id:"attendance", icon:"👥", label:"Mark Attendance" },
-    { id:"report", icon:"📋", label:"Daily Report" },
-    { id:"myleaves", icon:"🗓️", label:"My Leaves" },
-    { id:"history", icon:"📁", label:"Report History" },
+    { id:"report",     icon:"📋", label:"Daily Report" },
+    { id:"feedback",   icon:"⭐", label:"Customer Feedback" },
+    { id:"myleaves",   icon:"🗓️", label:"My Leaves" },
+    { id:"history",    icon:"📁", label:"Report History" },
   ];
 
   const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active);
@@ -409,7 +439,8 @@ function SupervisorPortal({ user, state, setState, toast }) {
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
-      {page==="history" && <SupHistory user={user} state={state}/>}
+      {page==="history"   && <SupHistory user={user} state={state}/>}
+      {page==="feedback"  && <SupFeedback user={user} state={state}/>}
     </Shell>
   );
 }
@@ -468,6 +499,57 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SupFeedback({ user, state }) {
+  const myCounter = state.counters.find(c => c.supervisorId === user.id);
+  const fb = state.feedback
+    .filter(f => f.counterId === myCounter?.id || f.counterName === myCounter?.name)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0)/fb.length).toFixed(1) : "—";
+  const feedbackLink = myCounter
+    ? `${window.location.origin}${window.location.pathname}?feedback=${encodeURIComponent(myCounter.name)}`
+    : "";
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Customer Feedback — {myCounter?.name}</div>
+
+      {/* Link to share */}
+      {myCounter && (
+        <Card style={{ marginBottom:16, background:T.navyXL, border:`1px solid ${T.navy}22` }}>
+          <div style={{ fontSize:13, fontWeight:700, color:T.navy, marginBottom:8 }}>📎 Share this feedback link with customers</div>
+          <div style={{ fontFamily:"monospace", fontSize:12, color:T.sky, background:"#fff", border:`1px solid ${T.bdr}`, borderRadius:8, padding:"10px 14px", wordBreak:"break-all", marginBottom:8 }}>
+            {feedbackLink}
+          </div>
+          <div style={{ fontSize:12, color:T.txt2 }}>Send via WhatsApp · Print as QR code · Display at counter</div>
+        </Card>
+      )}
+
+      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
+        <div style={{ fontSize:32, fontWeight:800, color:T.amber }}>⭐ {avg}</div>
+        <div style={{ fontSize:13, color:T.txt2 }}>{fb.length} feedback{fb.length!==1?"s":""} received</div>
+      </div>
+
+      {fb.length === 0
+        ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet. Share the link above with customers after each service.</div></Card>
+        : fb.map(f => (
+          <Card key={f.id} style={{ marginBottom:10, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+              <div style={{ fontSize:16 }}>{"⭐".repeat(f.rating)}<span style={{ fontSize:12, color:T.txt2, marginLeft:6 }}>{fmtDate(f.date)} · {f.submittedAt||""}</span></div>
+              <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}/5</Badge>
+            </div>
+            <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:6 }}>
+              {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
+              {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
+              {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
+            </div>
+            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>"{f.comment}"</div>}
+          </Card>
+        ))
+      }
     </div>
   );
 }
@@ -900,7 +982,7 @@ function ManagerPortal({ user, state, setState, toast }) {
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"    && <MgrPeople user={user} state={state} setState={setState} toast={toast}/>}
       {page==="targets"   && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
-      {page==="feedback"  && <MgrFeedback user={user} state={state} setState={setState} myCounters={myCounters} toast={toast}/>}
+      {page==="feedback"  && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
       {page==="myleaves"  && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
     </Shell>
   );
@@ -1246,62 +1328,119 @@ function MgrTargets({ user, state, setState, mySupervisors, toast }) {
   );
 }
 
-function MgrFeedback({ user, state, setState, myCounters, toast }) {
-  const [cid, setCid] = useState(myCounters[0]?.id||"");
-  const [from, setFrom] = useState("");
-  const [rating, setRating] = useState(4);
-  const [comment, setComment] = useState("");
+function MgrFeedback({ user, state, myCounters }) {
+  const [selCounter, setSelCounter] = useState("all");
+  const [selDate, setSelDate] = useState("");
 
-  const save = () => {
-    if (!comment.trim()) { toast.show("Please enter feedback","error"); return; }
-    const fb = { id:`f_${Date.now()}`, counterId:cid, date:today(), from, rating:Number(rating), comment, recordedBy:user.id };
-    setState(p=>({...p, feedback:[...p.feedback, fb]}));
-    toast.show("Feedback recorded");
-    setFrom(""); setComment(""); setRating(4);
+  let fb = state.feedback.filter(f => myCounters.some(c => c.id === f.counterId || c.name === f.counterName));
+  if (selCounter !== "all") fb = fb.filter(f => f.counterId === selCounter || f.counterName === state.counters.find(c=>c.id===selCounter)?.name);
+  if (selDate) fb = fb.filter(f => f.date === selDate);
+  fb = [...fb].sort((a,b) => b.date.localeCompare(a.date));
+
+  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0)/fb.length).toFixed(1) : "—";
+  const dist = [5,4,3,2,1].map(r => ({ r, count: fb.filter(f=>f.rating===r).length }));
+
+  const feedbackLink = (counterId) => {
+    const counter = state.counters.find(c=>c.id===counterId);
+    if (!counter) return "#";
+    return `?feedback=${encodeURIComponent(counter.name)}`;
   };
-
-  const allFeedback = state.feedback.filter(f=>myCounters.some(c=>c.id===f.counterId));
-  const avgRating = allFeedback.length ? (allFeedback.reduce((s,f)=>s+f.rating,0)/allFeedback.length).toFixed(1) : "—";
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Counter Feedback</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-        <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Record New Feedback</div>
-          <Select label="Counter" value={cid} onChange={setCid} options={myCounters.map(c=>({value:c.id,label:c.name}))}/>
-          <Input label="From (Dealership contact)" value={from} onChange={setFrom} placeholder="e.g. Showroom Manager"/>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:8, textTransform:"uppercase" }}>Rating</label>
-            <div style={{ display:"flex", gap:8 }}>
-              {[1,2,3,4,5].map(r=>(
-                <button key={r} onClick={()=>setRating(r)} style={{ background:"none", border:"none", fontSize:24, cursor:"pointer", opacity:r<=rating?1:.3 }}>⭐</button>
-              ))}
-            </div>
-          </div>
-          <Input label="Comments" value={comment} onChange={setComment} placeholder="Feedback details..."/>
-          <Btn onClick={save}>Save Feedback</Btn>
-        </Card>
-        <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
-            <div style={{ fontSize:14, fontWeight:700 }}>Feedback History</div>
-            <div style={{ fontSize:20, fontWeight:800, color:T.amber }}>⭐ {avgRating}</div>
-          </div>
-          {allFeedback.map(f=>(
-            <div key={f.id} style={{ padding:"10px 0", borderBottom:`1px solid ${T.bdr}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                <b style={{fontSize:13}}>{state.counters.find(c=>c.id===f.counterId)?.name}</b>
-                <span style={{fontSize:12,color:T.txt2}}>{fmtDate(f.date)}</span>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div style={{ fontSize:18, fontWeight:800 }}>Customer Feedback</div>
+          <div style={{ fontSize:13, color:T.txt2 }}>Submitted via public feedback forms</div>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <span style={{ fontSize:28, fontWeight:800, color:T.amber }}>⭐ {avg}</span>
+          <span style={{ fontSize:12, color:T.txt2 }}>avg ({fb.length} reviews)</span>
+        </div>
+      </div>
+
+      {/* Feedback links for counters */}
+      <Card style={{ marginBottom:16, background:T.navyXL, border:`1px solid ${T.navy}22` }}>
+        <div style={{ fontSize:13, fontWeight:700, color:T.navy, marginBottom:10 }}>📎 Public Feedback Form Links — Share these with customers</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))", gap:10 }}>
+          {myCounters.map(c => (
+            <div key={c.id} style={{ background:"#fff", border:`1px solid ${T.bdr}`, borderRadius:8, padding:"10px 14px" }}>
+              <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>{c.name}</div>
+              <div style={{ fontFamily:"monospace", fontSize:11, color:T.sky, background:T.skyL, padding:"4px 8px", borderRadius:5, wordBreak:"break-all" }}>
+                {window.location.origin + feedbackLink(c.id)}
               </div>
-              <div style={{ fontSize:12, color:T.txt2, marginBottom:4 }}>{f.from&&`From: ${f.from} · `}{"⭐".repeat(f.rating)}</div>
-              <div style={{ fontSize:13 }}>"{f.comment}"</div>
+              <div style={{ fontSize:11, color:T.txt3, marginTop:4 }}>Share via WhatsApp / QR / print</div>
             </div>
           ))}
-        </Card>
+        </div>
+      </Card>
+
+      {/* Filters */}
+      <div style={{ display:"flex", gap:12, marginBottom:16, flexWrap:"wrap" }}>
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Counter</label>
+          <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
+            style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+            <option value="all">All counters</option>
+            {myCounters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Date</label>
+          <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)}
+            style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+        </div>
+        {selDate && <div style={{ display:"flex", alignItems:"flex-end" }}>
+          <button onClick={()=>setSelDate("")} style={{ background:"none", border:"none", cursor:"pointer", color:T.txt2, fontSize:13 }}>✕ Clear</button>
+        </div>}
       </div>
+
+      {/* Rating distribution */}
+      {fb.length > 0 && (
+        <Card style={{ marginBottom:16 }}>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Rating breakdown</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+            {dist.map(d => (
+              <div key={d.r} style={{ textAlign:"center" }}>
+                <div style={{ fontSize:20, marginBottom:4 }}>{"⭐".repeat(d.r)}</div>
+                <div style={{ fontSize:22, fontWeight:800, color:d.count>0?T.amber:T.txt3 }}>{d.count}</div>
+                <div style={{ height:6, background:T.surf, borderRadius:3, marginTop:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${fb.length?d.count/fb.length*100:0}%`, background:T.amber, borderRadius:3 }}/>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Individual feedback cards */}
+      {fb.length === 0
+        ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet for selected filters</div></Card>
+        : fb.map(f => (
+          <Card key={f.id} style={{ marginBottom:12, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || state.counters.find(c=>c.id===f.counterId)?.name}</div>
+                <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:16 }}>{"⭐".repeat(f.rating)}</span>
+                <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}/5</Badge>
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:8, marginBottom:8 }}>
+              {f.vehicleNo && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Vehicle: </span><b>{f.vehicleNo}</b></div>}
+              {f.serviceType && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Service: </span><b>{f.serviceType}</b></div>}
+              {f.customerName && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Customer: </span><b>{f.customerName}</b></div>}
+            </div>
+            {f.comment && <div style={{ fontSize:13, color:T.txt, background:T.surf, padding:"8px 12px", borderRadius:7 }}>"{f.comment}"</div>}
+          </Card>
+        ))
+      }
     </div>
   );
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MD PORTAL
@@ -1933,6 +2072,184 @@ function DataMgmt({ state, setState, toast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  PUBLIC FEEDBACK FORM  (no login required)
+// ═══════════════════════════════════════════════════════════════════════════════
+function PublicFeedbackForm({ counterName, counters, onSubmit }) {
+  const counter = counters.find(c => c.name === counterName);
+  const [vehicleNo, setVehicleNo]     = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [serviceType, setServiceType]   = useState("");
+  const [rating, setRating]             = useState(0);
+  const [comment, setComment]           = useState("");
+  const [submitted, setSubmitted]       = useState(false);
+  const [hovered, setHovered]           = useState(0);
+  const [err, setErr]                   = useState("");
+
+  const serviceOptions = [
+    "WASH","PDI.WASH","PDI","AC VENT","GLASS CLEAN","FULL BODY ANTIRUST",
+    "INTERNAL COAT","SERVICE+","UNDERCOAT","DRYWASH","AIRCON SPRAY","VACCUM",
+    "POLISH","INTERIOR","DECARBON","MUFFLER","ANTIRUST","UNDECOAT",
+    "WAX","WINDSHIELD","SILENCER COAT","HANDPOLISH","FULL GLASS","OTHER"
+  ];
+
+  const ratingLabels = { 1:"Poor", 2:"Below average", 3:"Average", 4:"Good", 5:"Excellent" };
+
+  const handleSubmit = () => {
+    if (!rating)       { setErr("Please select a star rating"); return; }
+    if (!vehicleNo.trim()) { setErr("Please enter your vehicle number"); return; }
+    if (!serviceType)  { setErr("Please select the service received"); return; }
+    setErr("");
+    const fb = {
+      id: `f_${Date.now()}`,
+      counterId: counter?.id || "",
+      counterName,
+      date: today(),
+      submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+      vehicleNo: vehicleNo.trim().toUpperCase(),
+      customerName: customerName.trim(),
+      serviceType,
+      rating,
+      comment: comment.trim(),
+      source: "public_form"
+    };
+    onSubmit(fb);
+    setSubmitted(true);
+  };
+
+  if (!counter) return (
+    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg,${T.navy},${T.navyL})`, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ background:"#fff", borderRadius:20, padding:32, maxWidth:400, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>❌</div>
+        <div style={{ fontSize:18, fontWeight:800, marginBottom:8 }}>Invalid feedback link</div>
+        <div style={{ color:T.txt2, fontSize:13 }}>This feedback link is not valid. Please ask the service staff for the correct link.</div>
+      </div>
+    </div>
+  );
+
+  if (submitted) return (
+    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg,${T.navy},${T.navyL})`, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ background:"#fff", borderRadius:20, padding:40, maxWidth:420, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:56, marginBottom:16 }}>🙏</div>
+        <div style={{ fontSize:22, fontWeight:800, color:T.grn, marginBottom:8 }}>Thank you!</div>
+        <div style={{ fontSize:14, color:T.txt2, lineHeight:1.7, marginBottom:24 }}>
+          Your feedback for <b>{counterName}</b> has been recorded.<br/>
+          It helps us serve you better.
+        </div>
+        <div style={{ background:T.grnL, border:`1px solid ${T.grn}44`, borderRadius:12, padding:"12px 16px", fontSize:13, color:T.grn, fontWeight:600 }}>
+          {"⭐".repeat(rating)} {ratingLabels[rating]}
+        </div>
+        <div style={{ marginTop:20, fontSize:12, color:T.txt3 }}>Benaka Enterprises · Auto Polish Services</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg,${T.navy} 0%,${T.navyL} 100%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ width:"100%", maxWidth:460 }}>
+
+        {/* Header */}
+        <div style={{ textAlign:"center", marginBottom:24 }}>
+          <div style={{ width:56, height:56, background:T.amber, borderRadius:14, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:28, marginBottom:12 }}>✨</div>
+          <div style={{ fontSize:20, fontWeight:800, color:"#fff" }}>Benaka Enterprises</div>
+          <div style={{ fontSize:13, color:"rgba(255,255,255,.65)", marginTop:3 }}>Customer Feedback</div>
+        </div>
+
+        <div style={{ background:"#fff", borderRadius:20, padding:28 }}>
+          {/* Counter name */}
+          <div style={{ background:T.navyXL, border:`1px solid ${T.navy}22`, borderRadius:10, padding:"10px 16px", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:20 }}>🏪</span>
+            <div>
+              <div style={{ fontSize:11, color:T.txt2, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em" }}>Service Counter</div>
+              <div style={{ fontSize:15, fontWeight:800, color:T.navy }}>{counterName}</div>
+            </div>
+          </div>
+
+          {/* Star rating — big and prominent */}
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:T.txt2, textTransform:"uppercase", letterSpacing:".04em", marginBottom:12 }}>
+              How was the service? <span style={{ color:T.red }}>*</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"center", gap:6 }}>
+              {[1,2,3,4,5].map(r => (
+                <button key={r}
+                  onClick={() => setRating(r)}
+                  onMouseEnter={() => setHovered(r)}
+                  onMouseLeave={() => setHovered(0)}
+                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:40, transition:"transform .1s",
+                    transform: r <= (hovered||rating) ? "scale(1.15)" : "scale(1)",
+                    filter: r <= (hovered||rating) ? "none" : "grayscale(1) opacity(.35)" }}>
+                  ⭐
+                </button>
+              ))}
+            </div>
+            {(hovered||rating) > 0 && (
+              <div style={{ marginTop:8, fontSize:14, fontWeight:700, color:T.amber }}>
+                {ratingLabels[hovered||rating]}
+              </div>
+            )}
+          </div>
+
+          {/* Vehicle number */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
+              Vehicle Number <span style={{ color:T.red }}>*</span>
+            </label>
+            <input value={vehicleNo} onChange={e=>setVehicleNo(e.target.value.toUpperCase())} placeholder="e.g. KA01AB1234"
+              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:15, fontFamily:"inherit", outline:"none",
+                textTransform:"uppercase", letterSpacing:1, fontWeight:600, boxSizing:"border-box" }}/>
+          </div>
+
+          {/* Service type */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
+              Service Received <span style={{ color:T.red }}>*</span>
+            </label>
+            <select value={serviceType} onChange={e=>setServiceType(e.target.value)}
+              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none", background:"#fff" }}>
+              <option value="">Select service type...</option>
+              {serviceOptions.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Customer name (optional) */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
+              Your Name <span style={{ fontSize:11, fontWeight:400, color:T.txt3 }}>(optional)</span>
+            </label>
+            <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="Your name"
+              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
+          </div>
+
+          {/* Comments */}
+          <div style={{ marginBottom:20 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
+              Comments <span style={{ fontSize:11, fontWeight:400, color:T.txt3 }}>(optional)</span>
+            </label>
+            <textarea value={comment} onChange={e=>setComment(e.target.value)}
+              placeholder="Tell us what we did well or how we can improve..."
+              rows={3}
+              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none", resize:"vertical", boxSizing:"border-box" }}/>
+          </div>
+
+          {err && <div style={{ background:T.redL, border:`1px solid ${T.red}44`, borderRadius:8, padding:"10px 14px", fontSize:13, color:T.red, marginBottom:14 }}>{err}</div>}
+
+          <button onClick={handleSubmit}
+            style={{ width:"100%", padding:"13px", background:T.navy, color:"#fff", border:"none", borderRadius:10, fontSize:16, fontWeight:800, cursor:"pointer", transition:"background .15s" }}
+            onMouseEnter={e=>e.target.style.background=T.navyL}
+            onMouseLeave={e=>e.target.style.background=T.navy}>
+            Submit Feedback →
+          </button>
+
+          <div style={{ textAlign:"center", fontSize:11, color:T.txt3, marginTop:14 }}>
+            Benaka Enterprises · Auto Polish Services
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  ROOT APP
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
@@ -1944,9 +2261,20 @@ export default function App() {
     setState(p => ({ ...p, passwords: p.passwords || INITIAL_STATE.passwords }));
   }, []);
 
-  const login = (user) => setState(p => ({ ...p, currentUser: user }));
-  const logout = () => setState(p => ({ ...p, currentUser: null }));
-  const stateWithLogout = { ...state };
+  const login  = (user) => setState(p => ({ ...p, currentUser: user }));
+  const logout = useCallback(() => setState(p => ({ ...p, currentUser: null })), []);
+
+  // Auto-logout after 10 minutes of inactivity
+  useAutoLogout(!!state.currentUser, logout, 10);
+
+  // ── Public feedback form detection ─────────────────────────────────────────
+  const params     = new URLSearchParams(window.location.search);
+  const fbCounter  = params.get("feedback");
+  if (fbCounter) {
+    const handleFbSubmit = (fb) => setState(p => ({ ...p, feedback: [...(p.feedback||[]), fb] }));
+    return <PublicFeedbackForm counterName={decodeURIComponent(fbCounter)} counters={state.counters} onSubmit={handleFbSubmit}/>;
+  }
+  // ───────────────────────────────────────────────────────────────────────────
 
   if (!state.currentUser) {
     return <>
