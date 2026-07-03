@@ -2472,8 +2472,7 @@ function SalaryView({ user, state, setState, toast, viewScope }) {
       return { Name:u.name, Role:ROLE_LABELS[u.role], Month:month, Basic:sal?.basicSalary||0, Allowances:sal?.allowances||0, Deductions:sal?.deductions||0, NetSalary:sal?.netSalary||0, PaidOn:sal?.paidOn||'', Note:sal?.note||'' };
     });
     const h = Object.keys(rows[0]);
-    const csv = [h.join(','),...rows.map(r=>h.map(k=>`"${r[k]}"`).join(','))].join('
-');
+    const csv = [h.join(','),...rows.map(r=>h.map(k=>`"${r[k]}"`).join(','))].join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
     a.download = `salaries_${month}.csv`; a.click();
     toast.show('Salary report exported');
