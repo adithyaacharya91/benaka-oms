@@ -28,24 +28,54 @@ const T = {
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 const INITIAL_STATE = {
   users: [
-    { id:"u1", empId:"MD001",   name:"Adithya Acharya",   role:"md",         email:"adithyaacharya@gmail.com", phone:"9900000001", active:true, managerId:null },
-    { id:"u2", empId:"MGR001",  name:"Pinto Sir",         role:"manager",    email:"pinto@benaka.com",          phone:"9900000002", active:true, managerId:"u1" },
-    { id:"u3", empId:"MGR002",  name:"Raghavendra Bhat",  role:"manager",    email:"raghu@benaka.com",          phone:"9900000003", active:true, managerId:"u1" },
-    { id:"u4", empId:"SUP001",  name:"Suresh Kumar",      role:"supervisor", email:"suresh@benaka.com",         phone:"9900000004", active:true, managerId:"u2", counter:"Whitefield Motors" },
-    { id:"u5", empId:"SUP002",  name:"Kavya Reddy",       role:"supervisor", email:"kavya@benaka.com",          phone:"9900000005", active:true, managerId:"u2", counter:"Koramangala Auto" },
-    { id:"u6", empId:"SUP003",  name:"Rajan Pillai",      role:"supervisor", email:"rajan@benaka.com",          phone:"9900000006", active:true, managerId:"u3", counter:"HSR Motors" },
-    { id:"u7", empId:"OFF001",  name:"Meena D'Souza",     role:"office",     email:"meena@benaka.com",          phone:"9900000007", active:true, managerId:"u2" },
-    { id:"u8", empId:"IT001",   name:"Vikram Nair",       role:"it_admin",   email:"vikram@benaka.com",         phone:"9900000008", active:true, managerId:"u1" },
-    { id:"u9", empId:"SF001",   name:"Ramesh B",          role:"field_staff",email:"",                          phone:"9900000009", active:true, managerId:"u4", counter:"Whitefield Motors" },
-    { id:"u10",empId:"SF002",   name:"Anand K",           role:"field_staff",email:"",                          phone:"9900000010", active:true, managerId:"u4", counter:"Whitefield Motors" },
-    { id:"u11",empId:"SF003",   name:"Priya S",           role:"field_staff",email:"",                          phone:"9900000011", active:true, managerId:"u5", counter:"Koramangala Auto" },
-    { id:"u12",empId:"SF004",   name:"Gopal R",           role:"field_staff",email:"",                          phone:"9900000012", active:true, managerId:"u6", counter:"HSR Motors" },
+    { id:"u_md", empId:"MD001", name:"Adithya Acharya", role:"md", email:"adithyaacharya@gmail.com", phone:"", dob:"", joining:"", weddingAnniversary:"", active:true, managerId:null, counter:"OFFICE" },
+    { id:"u1", empId:"MGR001", name:"Cyril Pinto", role:"manager", email:"cyril.pinto@benaka.com", phone:"", dob:"1977-04-01", joining:"2003-08-10", weddingAnniversary:"2001-04-13", active:true, managerId:"u_md", counter:"OFFICE" },
+    { id:"u2", empId:"EXE002", name:"Gururaj", role:"supervisor", email:"gururaj@benaka.com", phone:"", dob:"1978-06-24", joining:"2009-05-04", weddingAnniversary:"2008-09-04", active:true, managerId:"u1", counter:"OFFICE" },
+    { id:"u3", empId:"OFF003", name:"Geetha Pinto", role:"office", email:"geetha.pinto@benaka.com", phone:"", dob:"1982-08-07", joining:"2009-04-01", weddingAnniversary:"2001-04-13", active:true, managerId:"u1", counter:"OFFICE" },
+    { id:"u4", empId:"OFF004", name:"Prathima M", role:"office", email:"prathima.m@benaka.com", phone:"", dob:"1992-07-22", joining:"2014-06-19", weddingAnniversary:"2015-04-06", active:true, managerId:"u1", counter:"OFFICE" },
+    { id:"u5", empId:"OFF005", name:"Jayashri B", role:"office", email:"jayashri.b@benaka.com", phone:"", dob:"1983-03-15", joining:"2024-02-05", weddingAnniversary:"2011-10-16", active:true, managerId:"u1", counter:"OFFICE" },
+    { id:"u6", empId:"EXE006", name:"Shekhar", role:"supervisor", email:"shekhar@benaka.com", phone:"", dob:"1990-05-25", joining:"2010-02-15", weddingAnniversary:"", active:true, managerId:"u1", counter:"PAI SALES MANGALORE" },
+    { id:"u7", empId:"WRK007", name:"Ragavendra Acharya", role:"field_staff", email:"", phone:"", dob:"1979-08-15", joining:"2016-10-14", weddingAnniversary:"2010-11-14", active:true, managerId:"u6", counter:"PAI SALES MANGALORE" },
+    { id:"u8", empId:"WRK008", name:"Shiva (Akash)", role:"field_staff", email:"", phone:"", dob:"2005-01-06", joining:"2023-03-16", weddingAnniversary:"", active:true, managerId:"u6", counter:"PAI SALES MANGALORE" },
+    { id:"u9", empId:"WRK009", name:"Manvith", role:"field_staff", email:"", phone:"", dob:"2009-07-24", joining:"2026-06-02", weddingAnniversary:"", active:true, managerId:"u6", counter:"PAI SALES MANGALORE" },
+    { id:"u10", empId:"EXE010", name:"Roopesh", role:"supervisor", email:"roopesh@benaka.com", phone:"", dob:"1981-09-04", joining:"2010-06-02", weddingAnniversary:"2014-12-01", active:true, managerId:"u1", counter:"PAI SALES UDUPI" },
+    { id:"u11", empId:"EXE011", name:"Vijesh Sagar", role:"supervisor", email:"vijesh.sagar@benaka.com", phone:"", dob:"1990-04-13", joining:"2009-03-01", weddingAnniversary:"2024-12-22", active:true, managerId:"u1", counter:"BHARATH AUTO CARS" },
+    { id:"u12", empId:"WRK012", name:"Balakrishnan", role:"field_staff", email:"", phone:"", dob:"1961-03-17", joining:"2015-04-01", weddingAnniversary:"1983-09-17", active:true, managerId:"u1", counter:"HONDA PVS" },
+    { id:"u13", empId:"WRK013", name:"Prashanth", role:"field_staff", email:"", phone:"", dob:"1989-05-10", joining:"2026-02-04", weddingAnniversary:"", active:true, managerId:"u1", counter:"HONDA PVS" },
+    { id:"u14", empId:"WRK014", name:"Vinod", role:"field_staff", email:"", phone:"", dob:"2005-07-28", joining:"2026-01-12", weddingAnniversary:"", active:true, managerId:"u1", counter:"PAI SALES NISSAN" },
+    { id:"u15", empId:"WRK015", name:"Shashanth", role:"field_staff", email:"", phone:"", dob:"2006-04-11", joining:"2025-03-15", weddingAnniversary:"", active:true, managerId:"u1", counter:"PAI SALES NISSAN" },
+    { id:"u16", empId:"EXE016", name:"Dinesh Acharya", role:"supervisor", email:"dinesh.acharya@benaka.com", phone:"", dob:"1980-10-17", joining:"2018-05-14", weddingAnniversary:"2014-12-03", active:true, managerId:"u1", counter:"HONDA BELTHANGADY" },
+    { id:"u17", empId:"EXE017", name:"Abhishek", role:"supervisor", email:"abhishek@benaka.com", phone:"", dob:"1990-10-16", joining:"2020-12-01", weddingAnniversary:"2024-04-28", active:true, managerId:"u1", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u18", empId:"WRK018", name:"Keshava", role:"field_staff", email:"", phone:"", dob:"1962-01-01", joining:"2023-01-11", weddingAnniversary:"", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u19", empId:"WRK019", name:"Ramakrishna", role:"field_staff", email:"", phone:"", dob:"1977-10-19", joining:"2017-07-01", weddingAnniversary:"2000-05-13", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u20", empId:"WRK020", name:"Sukumar", role:"field_staff", email:"", phone:"", dob:"1960-10-21", joining:"2013-10-16", weddingAnniversary:"", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u21", empId:"WRK021", name:"Mohini", role:"field_staff", email:"", phone:"", dob:"1985-03-08", joining:"2023-11-01", weddingAnniversary:"", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u22", empId:"WRK022", name:"Bharath", role:"field_staff", email:"", phone:"", dob:"2006-10-28", joining:"2025-09-02", weddingAnniversary:"", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u23", empId:"WRK023", name:"Gangadhar", role:"field_staff", email:"", phone:"", dob:"1966-05-10", joining:"2010-04-02", weddingAnniversary:"", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u24", empId:"WRK024", name:"Rakesh", role:"field_staff", email:"", phone:"", dob:"1989-06-13", joining:"2025-02-05", weddingAnniversary:"", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u25", empId:"WRK025", name:"Latha", role:"field_staff", email:"", phone:"", dob:"1979-07-26", joining:"2025-10-07", weddingAnniversary:"2000-03-13", active:true, managerId:"u17", counter:"AUTOMATRIX MANGALORE" },
+    { id:"u26", empId:"EXE026", name:"Dhanush D V", role:"supervisor", email:"dhanush.d.v@benaka.com", phone:"", dob:"1998-09-28", joining:"2017-09-01", weddingAnniversary:"", active:true, managerId:"u1", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u27", empId:"WRK027", name:"Sathish", role:"field_staff", email:"", phone:"", dob:"1978-07-15", joining:"2024-05-21", weddingAnniversary:"2009-12-02", active:true, managerId:"u26", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u28", empId:"WRK028", name:"Vijayalakshmi", role:"field_staff", email:"", phone:"", dob:"1986-09-27", joining:"2023-04-01", weddingAnniversary:"2004-02-25", active:true, managerId:"u26", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u29", empId:"WRK029", name:"Priya", role:"field_staff", email:"", phone:"", dob:"1986-09-03", joining:"2025-01-01", weddingAnniversary:"2012-11-08", active:true, managerId:"u26", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u30", empId:"WRK030", name:"Dinesh", role:"field_staff", email:"", phone:"", dob:"1974-07-25", joining:"2025-05-19", weddingAnniversary:"", active:true, managerId:"u26", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u31", empId:"WRK031", name:"Vasanth", role:"field_staff", email:"", phone:"", dob:"1973-01-01", joining:"2025-12-01", weddingAnniversary:"2007-02-21", active:true, managerId:"u26", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u32", empId:"WRK032", name:"Sunil", role:"field_staff", email:"", phone:"", dob:"1980-05-09", joining:"2025-05-19", weddingAnniversary:"", active:true, managerId:"u26", counter:"AUTOMATRIX PUTTUR" },
+    { id:"u33", empId:"WRK033", name:"Hemanth", role:"field_staff", email:"", phone:"", dob:"2003-06-15", joining:"2025-03-03", weddingAnniversary:"", active:true, managerId:"u1", counter:"OFFICE/COUNTER" },
+    { id:"u_it", empId:"IT001", name:"Vikram Nair", role:"it_admin", email:"vikram@benaka.com", phone:"", dob:"", joining:"", weddingAnniversary:"", active:true, managerId:"u_md", counter:"OFFICE" },
   ],
-  passwords: { MD001:"md@123", MGR001:"pinto@123", MGR002:"raghu@123", SUP001:"suresh@123", SUP002:"kavya@123", SUP003:"rajan@123", OFF001:"meena@123", IT001:"vikram@123", SF001:"ramesh@123", SF002:"anand@123", SF003:"priya@123", SF004:"gopal@123" },
+  passwords: { "MD001":"md@123", "MGR001":"cyril@123", "EXE002":"gururaj@123", "OFF003":"geetha@123", "OFF004":"prathima@123", "OFF005":"jayashri@123", "EXE006":"shekhar@123", "WRK007":"ragavendra@123", "WRK008":"shiva@123", "WRK009":"manvith@123", "EXE010":"roopesh@123", "EXE011":"vijesh@123", "WRK012":"balakrishnan@123", "WRK013":"prashanth@123", "WRK014":"vinod@123", "WRK015":"shashanth@123", "EXE016":"dinesh@123", "EXE017":"abhishek@123", "WRK018":"keshava@123", "WRK019":"ramakrishna@123", "WRK020":"sukumar@123", "WRK021":"mohini@123", "WRK022":"bharath@123", "WRK023":"gangadhar@123", "WRK024":"rakesh@123", "WRK025":"latha@123", "EXE026":"dhanush@123", "WRK027":"sathish@123", "WRK028":"vijayalakshmi@123", "WRK029":"priya@123", "WRK030":"dinesh@123", "WRK031":"vasanth@123", "WRK032":"sunil@123", "WRK033":"hemanth@123", "IT001":"vikram@123" },
   counters: [
-    { id:"c1", name:"Whitefield Motors",  supervisorId:"u4", dealership:"Whitefield Toyota", city:"Bengaluru" },
-    { id:"c2", name:"Koramangala Auto",   supervisorId:"u5", dealership:"Koramangala Honda", city:"Bengaluru" },
-    { id:"c3", name:"HSR Motors",         supervisorId:"u6", dealership:"HSR Maruti",        city:"Bengaluru" },
+    { id:"c1", name:"OFFICE", supervisorId:"u1", dealership:"OFFICE", city:"Karnataka" },
+    { id:"c2", name:"PAI SALES MANGALORE", supervisorId:"u6", dealership:"PAI SALES MANGALORE", city:"Karnataka" },
+    { id:"c3", name:"PAI SALES UDUPI", supervisorId:"u10", dealership:"PAI SALES UDUPI", city:"Karnataka" },
+    { id:"c4", name:"BHARATH AUTO CARS", supervisorId:"u11", dealership:"BHARATH AUTO CARS", city:"Karnataka" },
+    { id:"c5", name:"HONDA PVS", supervisorId:"", dealership:"HONDA PVS", city:"Karnataka" },
+    { id:"c6", name:"PAI SALES NISSAN", supervisorId:"", dealership:"PAI SALES NISSAN", city:"Karnataka" },
+    { id:"c7", name:"HONDA BELTHANGADY", supervisorId:"u16", dealership:"HONDA BELTHANGADY", city:"Karnataka" },
+    { id:"c8", name:"AUTOMATRIX MANGALORE", supervisorId:"u17", dealership:"AUTOMATRIX MANGALORE", city:"Karnataka" },
+    { id:"c9", name:"AUTOMATRIX PUTTUR", supervisorId:"u26", dealership:"AUTOMATRIX PUTTUR", city:"Karnataka" },
+    { id:"c10", name:"OFFICE/COUNTER", supervisorId:"u1", dealership:"OFFICE/COUNTER", city:"Karnataka" },
   ],
   workTypes: [
     { id:"wt01", name:"WASH",               defaultRate:130  },
@@ -79,76 +109,17 @@ const INITIAL_STATE = {
     { id:"wt28", name:"AIR FRESHENER",       defaultRate:120,  category:"sales" },
     { id:"wt29", name:"TYRE SHINE",          defaultRate:180,  category:"sales" },
   ],
-  attendance: [
-    { id:"a1", date:"2025-07-01", supervisorId:"u4", staffId:"u9",  status:"present", reason:"", markedAt:"09:05" },
-    { id:"a2", date:"2025-07-01", supervisorId:"u4", staffId:"u10", status:"absent",  reason:"Sick leave", markedAt:"09:05" },
-    { id:"a3", date:"2025-07-01", supervisorId:"u5", staffId:"u11", status:"present", reason:"", markedAt:"09:10" },
-    { id:"a4", date:"2025-07-01", supervisorId:"u6", staffId:"u12", status:"present", reason:"", markedAt:"09:15" },
-  ],
-  serviceReports: [
-    { id:"sr1", date:"2025-07-01", supervisorId:"u4", submittedAt:"18:30", status:"submitted", notes:"Smooth day",
-      counters:[
-        { counterName:"Whitefield Motors", entries:[
-          { workTypeId:"wt01", workTypeName:"WASH",        vehicles:23, rate:130, amount:2990 },
-          { workTypeId:"wt02", workTypeName:"PDI.WASH",    vehicles:6,  rate:100, amount:600  },
-          { workTypeId:"wt03", workTypeName:"PDI",         vehicles:6,  rate:200, amount:1200 },
-          { workTypeId:"wt04", workTypeName:"AC VENT",     vehicles:7,  rate:300, amount:2100 },
-          { workTypeId:"wt05", workTypeName:"GLASS CLEAN", vehicles:11, rate:475, amount:5225 },
-          { workTypeId:"wt07", workTypeName:"INTERNAL COAT",vehicles:1, rate:1000,amount:1000 },
-          { workTypeId:"wt08", workTypeName:"SERVICE+",    vehicles:8,  rate:200, amount:1600 },
-          { workTypeId:"wt09", workTypeName:"UNDERCOAT",   vehicles:0,  rate:1209,amount:0    },
-        ]},
-      ], totalAmount:14715 },
-    { id:"sr2", date:"2025-07-01", supervisorId:"u5", submittedAt:"18:45", status:"submitted", notes:"",
-      counters:[
-        { counterName:"Koramangala Auto", entries:[
-          { workTypeId:"wt15", workTypeName:"DECARBON",    vehicles:4,  rate:275, amount:1100 },
-          { workTypeId:"wt16", workTypeName:"MUFFLER",     vehicles:3,  rate:220, amount:660  },
-          { workTypeId:"wt17", workTypeName:"ANTIRUST",    vehicles:1,  rate:100, amount:100  },
-          { workTypeId:"wt13", workTypeName:"POLISH",      vehicles:3,  rate:175, amount:525  },
-          { workTypeId:"wt18", workTypeName:"UNDECOAT",    vehicles:0,  rate:300, amount:0    },
-        ]},
-      ], totalAmount:2385 },
-    { id:"sr3", date:"2025-06-30", supervisorId:"u4", submittedAt:"18:20", status:"submitted", notes:"",
-      counters:[
-        { counterName:"Whitefield Motors", entries:[
-          { workTypeId:"wt01", workTypeName:"WASH",        vehicles:15, rate:182, amount:2730 },
-          { workTypeId:"wt04", workTypeName:"AC VENT",     vehicles:5,  rate:300, amount:1500 },
-          { workTypeId:"wt05", workTypeName:"GLASS CLEAN", vehicles:2,  rate:475, amount:950  },
-          { workTypeId:"wt19", workTypeName:"WAX",         vehicles:2,  rate:200, amount:400  },
-        ]},
-      ], totalAmount:5580 },
-  ],
-  leaves: [
-    { id:"l1", userId:"u4", role:"supervisor", date:"2025-07-05", toDate:"2025-07-05", type:"sick", reason:"Fever", status:"pending",  approverId:"u2" },
-    { id:"l2", userId:"u2", role:"manager",    date:"2025-07-10", toDate:"2025-07-11", type:"personal", reason:"Family event", status:"pending", approverId:"u1" },
-  ],
-  targets: [
-    { id:"t1", counterId:"c1", supervisorId:"u4", month:"2025-07", dailyTarget:12000, monthlyTarget:300000, setBy:"u2" },
-    { id:"t2", counterId:"c2", supervisorId:"u5", month:"2025-07", dailyTarget:15000, monthlyTarget:375000, setBy:"u2" },
-  ],
-  feedback: [
-    { id:"f1", counterId:"c1", counterName:"Whitefield Motors", date:"2025-07-01", submittedAt:"14:32",
-      vehicleNo:"KA01AB1234", serviceType:"WASH", customerName:"Rajesh K", rating:5,
-      comment:"Very good work, clean and quick", source:"public_form" },
-    { id:"f2", counterId:"c2", counterName:"Koramangala Auto", date:"2025-07-01", submittedAt:"16:15",
-      vehicleNo:"KA03CD5678", serviceType:"POLISH", customerName:"Meena R", rating:4,
-      comment:"Good polish, small area was missed near door", source:"public_form" },
-  ],
+  attendance: [],
+  serviceReports: [],
+  leaves: [],
+  targets: [],
+  feedback: [],
   // Salary records: { id, userId, month, basicSalary, allowances, deductions, netSalary, paidOn, paidBy, note }
-  salaries: [
-    { id:"sal1", userId:"u4", month:"2025-07", basicSalary:18000, allowances:2000, deductions:500, netSalary:19500, paidOn:"2025-07-01", paidBy:"u2", note:"" },
-    { id:"sal2", userId:"u5", month:"2025-07", basicSalary:18000, allowances:2000, deductions:0,   netSalary:20000, paidOn:"2025-07-01", paidBy:"u2", note:"" },
-    { id:"sal3", userId:"u6", month:"2025-07", basicSalary:18000, allowances:2000, deductions:0,   netSalary:20000, paidOn:"2025-07-01", paidBy:"u3", note:"" },
-    { id:"sal4", userId:"u9", month:"2025-07", basicSalary:12000, allowances:1000, deductions:0,   netSalary:13000, paidOn:"2025-07-01", paidBy:"u4", note:"" },
-    { id:"sal5", userId:"u10",month:"2025-07", basicSalary:12000, allowances:1000, deductions:500, netSalary:12500, paidOn:"2025-07-01", paidBy:"u4", note:"" },
-  ],
+  salaries: [],
   // Collection reports: { id, date, supervisorId, counterName, bankEntries:[{bank,description,amount}], expenses:[{description,sbiAmount,kblAmount}] }
   collectionReports: [],
   // Planned leaves (staff → executive approval flow)
-  plannedLeaves: [
-    { id:"pl1", userId:"u9", staffName:"Ramesh B", supervisorId:"u4", fromDate:"2025-07-10", toDate:"2025-07-10", reason:"Personal work", status:"pending", appliedOn:"2025-07-03" },
-  ],
+  plannedLeaves: [],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -303,6 +274,55 @@ function useAutoLogout(isLoggedIn, onLogout, minutes = 10) {
   }, [isLoggedIn, reset]);
 }
 
+
+// ─── Birthday notification system ────────────────────────────────────────────
+function useBirthdayNotifications(state, currentUser) {
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!['md','manager','supervisor'].includes(currentUser.role)) return;
+
+    const todayStr = today();
+    const mm_dd = todayStr.slice(5); // MM-DD
+
+    const birthdayPeople = state.users.filter(u => {
+      if (!u.dob) return false;
+      return u.dob.slice(5) === mm_dd; // matches MM-DD
+    });
+
+    if (birthdayPeople.length === 0) return;
+
+    // Show in-app notification
+    const names = birthdayPeople.map(u => u.name).join(', ');
+    const key = `bday_notified_${todayStr}`;
+    if (localStorage.getItem(key)) return; // already notified today
+    localStorage.setItem(key, '1');
+
+    // Slight delay so app has rendered
+    setTimeout(() => {
+      alert(`🎂 Birthday Today!
+
+${names}
+
+Wishing them a Happy Birthday! 🎉`);
+    }, 1500);
+  }, [currentUser?.id]);
+}
+
+// ─── Birthday banner component ────────────────────────────────────────────────
+function BirthdayBanner({ state }) {
+  const todayMD = today().slice(5);
+  const bdays = state.users.filter(u => u.dob && u.dob.slice(5) === todayMD);
+  if (bdays.length === 0) return null;
+  return (
+    <div style={{ background:"linear-gradient(90deg,#FF6B6B,#FF8E53,#FFC107)", padding:"8px 20px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+      <span style={{ fontSize:18 }}>🎂</span>
+      <span style={{ color:"#fff", fontWeight:700, fontSize:13 }}>
+        Birthday today: {bdays.map(u=>u.name).join(', ')} — Wish them well!
+      </span>
+    </div>
+  );
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function useToast() {
   const [toasts, setToasts] = useState([]);
@@ -365,7 +385,7 @@ function LoginScreen({ onLogin, users, passwords }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SHELL / NAV
 // ═══════════════════════════════════════════════════════════════════════════════
-function Shell({ user, children, activePage, setActivePage, navItems, onLogout }) {
+function Shell({ user, children, activePage, setActivePage, navItems, onLogout, state }) {
   const [sideOpen, setSideOpen] = useState(true);
 
   return (
@@ -427,6 +447,8 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout }
           </div>
         </div>
 
+        {/* Birthday banner */}
+        <BirthdayBanner state={state}/>
         {/* Page content */}
         <div style={{ flex:1, padding:24, overflowY:"auto" }}>{children}</div>
       </div>
@@ -449,6 +471,7 @@ function SupervisorPortal({ user, state, setState, toast }) {
     { id:"feedback",     icon:"⭐", label:"Customer Feedback" },
     { id:"myleaves",     icon:"🌿", label:"My Leave" },
     { id:"history",      icon:"📁", label:"Report History" },
+    { id:"directory",    icon:"👤", label:"Staff Directory" },
   ];
 
   const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active);
@@ -458,7 +481,7 @@ function SupervisorPortal({ user, state, setState, toast }) {
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
-    <Shell user={user} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard" && <SupDashboard user={user} state={state} myStaff={myStaff} myCounter={myCounter} todayRevenue={todayRevenue} todayAtt={todayAtt} setPage={setPage}/>}
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -468,6 +491,7 @@ function SupervisorPortal({ user, state, setState, toast }) {
       {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"    && <CounterAnalysis user={user} state={state} counterFilter={myCounter?.name}/>}
       {page==="staffleaves" && <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="executive"/>}
+      {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
   );
 }
@@ -1022,13 +1046,14 @@ function ManagerPortal({ user, state, setState, toast }) {
     { id:"targets",     icon:"🎯", label:"Set Targets" },
     { id:"feedback",    icon:"💬", label:"Feedback" },
     { id:"myleaves",    icon:"🌿", label:"My Leave" },
+    { id:"directory",   icon:"👤", label:"Staff Directory" },
   ];
 
   const mySupervisors = state.users.filter(u=>u.managerId===user.id&&u.role==="supervisor"&&u.active);
   const myCounters = state.counters.filter(c=>mySupervisors.some(s=>s.id===c.supervisorId));
 
   return (
-    <Shell user={user} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
@@ -1039,6 +1064,7 @@ function ManagerPortal({ user, state, setState, toast }) {
       {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
+      {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
   );
 }
@@ -1527,15 +1553,17 @@ function MDPortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard"  && <MDDashboard user={user} state={state}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
       {page==="financial"  && <MDFinancial state={state}/>}
       {page==="operations" && <MDOperations state={state}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
+      {page==="directory"   && <StaffDirectory state={state}/>}
       {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
+      {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
   );
 }
@@ -1736,7 +1764,7 @@ function OfficePortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="reports"    && <OfficeReports state={state}/>}
       {page==="attendance" && <OfficeAttendance state={state}/>}
       {page==="export"     && <OfficeExport state={state} toast={toast}/>}
@@ -1869,7 +1897,7 @@ function ITAdminPortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="users"     && <UserMgmt state={state} setState={setState} toast={toast}/>}
       {page==="counters"  && <CounterMgmt state={state} setState={setState} toast={toast}/>}
       {page==="worktypes" && <WorkTypeMgmt state={state} setState={setState} toast={toast}/>}
@@ -1886,8 +1914,8 @@ function UserMgmt({ state, setState, toast }) {
   const [form, setForm] = useState({ empId:"", name:"", role:"field_staff", email:"", phone:"", managerId:"", counter:"" });
   const [newPwd, setNewPwd] = useState("");
 
-  const openNew = () => { setEditing(null); setForm({ empId:"", name:"", role:"field_staff", email:"", phone:"", managerId:"", counter:"" }); setNewPwd(""); setModal(true); };
-  const openEdit = (u) => { setEditing(u); setForm({ empId:u.empId, name:u.name, role:u.role, email:u.email||"", phone:u.phone||"", managerId:u.managerId||"", counter:u.counter||"" }); setNewPwd(""); setModal(true); };
+  const openNew = () => { setEditing(null); setForm({ empId:"", name:"", role:"field_staff", email:"", phone:"", managerId:"", counter:"", dob:"", joining:"", weddingAnniversary:"" }); setNewPwd(""); setModal(true); };
+  const openEdit = (u) => { setEditing(u); setForm({ empId:u.empId, name:u.name, role:u.role, email:u.email||"", phone:u.phone||"", managerId:u.managerId||"", counter:u.counter||"", dob:u.dob||"", joining:u.joining||"", weddingAnniversary:u.weddingAnniversary||"" }); setNewPwd(""); setModal(true); };
 
   const save = () => {
     if (!form.empId||!form.name) { toast.show("ID and Name required","error"); return; }
@@ -1899,7 +1927,7 @@ function UserMgmt({ state, setState, toast }) {
       toast.show("User updated");
     } else {
       if (state.users.find(u=>u.empId===form.empId)) { toast.show("Employee ID already exists","error"); return; }
-      const newUser = { id:`u_${Date.now()}`, ...form, active:true };
+      const newUser = { id:`u_${Date.now()}`, ...form, dob:form.dob||"", joining:form.joining||"", weddingAnniversary:form.weddingAnniversary||"", active:true };
       setState(p=>({ ...p, users:[...p.users, newUser], passwords:{...p.passwords,[form.empId]:newPwd||"pass@123"} }));
       toast.show(`User created · Default password: ${newPwd||"pass@123"}`);
     }
@@ -1931,6 +1959,8 @@ function UserMgmt({ state, setState, toast }) {
         {key:"name",label:"Name",render:r=><b>{r.name}</b>},
         {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]}>{ROLE_LABELS[r.role]}</Badge>},
         {key:"manager",label:"Reports To",render:r=>state.users.find(u=>u.id===r.managerId)?.name||"—"},
+        {key:"dob",label:"D.O.B",render:r=>r.dob?r.dob.split("-").reverse().join("."):"—"},
+        {key:"joining",label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("."):"—"},
         {key:"phone",label:"Phone"},
         {key:"status",label:"Status",render:r=><Badge color={r.active?T.grn:T.red}>{r.active?"Active":"Inactive"}</Badge>},
         {key:"actions",label:"Actions",render:r=>(
@@ -1953,6 +1983,11 @@ function UserMgmt({ state, setState, toast }) {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <Input label="Email" value={form.email} onChange={v=>setForm(p=>({...p,email:v}))}/>
           <Input label="Phone" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))}/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+          <Input label="Date of Birth" type="date" value={form.dob||""} onChange={v=>setForm(p=>({...p,dob:v}))}/>
+          <Input label="Date of Joining" type="date" value={form.joining||""} onChange={v=>setForm(p=>({...p,joining:v}))}/>
+          <Input label="Wedding Anniversary" type="date" value={form.weddingAnniversary||""} onChange={v=>setForm(p=>({...p,weddingAnniversary:v}))}/>
         </div>
         <Input label={editing?"New Password (leave blank to keep)":"Password"} type="password" value={newPwd} onChange={setNewPwd} placeholder={editing?"Leave blank to keep current":"Default: pass@123"}/>
         <div style={{ display:"flex", gap:8, marginTop:8 }}>
@@ -2775,6 +2810,104 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
   );
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STAFF DIRECTORY
+// ═══════════════════════════════════════════════════════════════════════════════
+function StaffDirectory({ state }) {
+  const [search, setSearch] = useState("");
+  const [filterCounter, setFilterCounter] = useState("all");
+  const todayMD = today().slice(5);
+
+  const filtered = state.users.filter(u => {
+    if (!u.name) return false;
+    if (search && !u.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterCounter !== "all" && u.counter !== filterCounter) return false;
+    return true;
+  });
+
+  const counters = ["all", ...new Set(state.users.map(u=>u.counter).filter(Boolean))];
+  const isBdayToday = (u) => u.dob && u.dob.slice(5) === todayMD;
+  const yearsOfService = (joining) => {
+    if (!joining) return "";
+    const j = new Date(joining);
+    const now = new Date();
+    const yrs = Math.floor((now - j) / (365.25*24*3600*1000));
+    return yrs > 0 ? `${yrs} yr${yrs>1?'s':''}` : "< 1 yr";
+  };
+
+  // Upcoming birthdays (next 7 days)
+  const upcoming = state.users.filter(u => {
+    if (!u.dob) return false;
+    const bday = new Date(new Date().getFullYear() + "-" + u.dob.slice(5));
+    const diff = Math.ceil((bday - new Date()) / (24*3600*1000));
+    return diff >= 0 && diff <= 7;
+  }).sort((a,b) => a.dob.slice(5).localeCompare(b.dob.slice(5)));
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Staff Directory</div>
+      <div style={{ fontSize:13, color:T.txt2, marginBottom:20 }}>{state.users.filter(u=>u.active).length} active staff</div>
+
+      {/* Upcoming birthdays */}
+      {upcoming.length > 0 && (
+        <div style={{ background:"linear-gradient(135deg,#FF6B6B,#FF8E53)", borderRadius:12, padding:16, marginBottom:20, color:"#fff" }}>
+          <div style={{ fontWeight:800, fontSize:14, marginBottom:10 }}>🎂 Upcoming birthdays (next 7 days)</div>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            {upcoming.map(u => (
+              <div key={u.id} style={{ background:"rgba(255,255,255,.2)", borderRadius:8, padding:"8px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:13 }}>{u.name}</div>
+                <div style={{ fontSize:11, opacity:.85 }}>{u.dob?.split("-").reverse().join(".")} · {u.counter}</div>
+                {isBdayToday(u) && <div style={{ fontSize:11, fontWeight:800, marginTop:2 }}>🎉 TODAY!</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name..."
+          style={{ padding:"8px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none", width:200 }}/>
+        <select value={filterCounter} onChange={e=>setFilterCounter(e.target.value)}
+          style={{ padding:"8px 12px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+          {counters.map(c=><option key={c} value={c}>{c==="all"?"All Counters":c}</option>)}
+        </select>
+      </div>
+
+      <div style={{ overflowX:"auto", border:`1px solid ${T.bdr}`, borderRadius:10 }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <thead>
+            <tr style={{ background:T.surf }}>
+              {["Sl","Name","Designation","Counter","D.O.B","Joining","Service","Wedding Anniv."].map(h=>(
+                <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", borderBottom:`1px solid ${T.bdr}`, whiteSpace:"nowrap" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((u, i) => (
+              <tr key={u.id} style={{ background: isBdayToday(u) ? "#FFF3CD" : i%2===0?T.card:T.surf }}>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, color:T.txt3 }}>{i+1}</td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, fontWeight:700 }}>
+                  {u.name} {isBdayToday(u) && "🎂"}
+                </td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>
+                  <Badge color={ROLE_COLORS[u.role]}>{ROLE_LABELS[u.role]}</Badge>
+                </td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, color:T.txt2 }}>{u.counter||"—"}</td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>{u.dob?u.dob.split("-").reverse().join("."):"—"}</td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>{u.joining?u.joining.split("-").reverse().join("."):"—"}</td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, color:T.txt2 }}>{yearsOfService(u.joining)}</td>
+                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>{u.weddingAnniversary?u.weddingAnniversary.split("-").reverse().join("."):"—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PUBLIC FEEDBACK FORM  (no login required)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3001,6 +3134,9 @@ export default function App() {
 
   // Auto-logout after 10 minutes of inactivity
   useAutoLogout(!!state.currentUser, logout, 10);
+
+  // Birthday notifications for MD, Manager, Executive
+  useBirthdayNotifications(state, state.currentUser);
 
   // ── Public feedback form detection ─────────────────────────────────────────
   const params     = new URLSearchParams(window.location.search);
