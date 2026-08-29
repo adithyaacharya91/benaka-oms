@@ -1129,26 +1129,38 @@ function SupFeedback({ user, state }) {
 
 function SupAttendance({ user, state, setState, myStaff, toast }) {
   const [tab, setTab] = useState("mark");
-  const [date, setDate] = useState(today());
   const [histDate, setHistDate] = useState(today());
-  const [records, setRecords] = useState({});
-  const [reasons, setReasons] = useState({});
-  // Track whether user has made manual changes (prevent useEffect from overwriting)
+
+  // Keep attendance form state fully LOCAL — never overwritten by syncs or re-renders
+  // loadDate tracks which date the form was last loaded for
+  const [loadDate, setLoadDate] = useState(today());
+  const [records, setRecords] = useState(() => {
+    // Initialize once from saved attendance for today
+    const r = {};
+    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===today()).forEach(a=>{ r[a.staffId]=a.status; });
+    return r;
+  });
+  const [reasons, setReasons] = useState(() => {
+    const r = {};
+    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===today()).forEach(a=>{ r[a.staffId]=a.reason||""; });
+    return r;
+  });
   const [dirty, setDirty] = useState(false);
 
   const allToMark = [user, ...myStaff];
 
-  // Only reload from saved data when DATE changes, not when state.attendance changes
-  // (state.attendance changes after save, which would wipe the just-saved selections)
-  useEffect(() => {
-    const existing = {}; const existingR = {};
-    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===date).forEach(a=>{
-      existing[a.staffId] = a.status; existingR[a.staffId] = a.reason||"";
+  // Only reload form when user explicitly picks a different date
+  const changeDate = (newDate) => {
+    if (newDate === loadDate) return;
+    const r = {}; const rs = {};
+    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===newDate).forEach(a=>{
+      r[a.staffId]=a.status; rs[a.staffId]=a.reason||"";
     });
-    setRecords(existing);
-    setReasons(existingR);
+    setRecords(r);
+    setReasons(rs);
+    setLoadDate(newDate);
     setDirty(false);
-  }, [date, user.id]); // ← removed state.attendance dependency — only reload on date change
+  };
 
   const setStatus = (staffId, status) => {
     setRecords(p => ({...p, [staffId]: status}));
@@ -1162,15 +1174,15 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
 
   const save = () => {
     const newAtts = allToMark.map(s => ({
-      id: `att_${user.id}_${s.id}_${date}`,
-      date, supervisorId:user.id, staffId:s.id,
+      id: `att_${user.id}_${s.id}_${loadDate}`,
+      date: loadDate, supervisorId:user.id, staffId:s.id,
       status: records[s.id] || "present",
       reason: reasons[s.id] || "",
       markedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
     }));
-    setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===date)),...newAtts] }));
+    setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===loadDate)),...newAtts] }));
     setDirty(false);
-    toast.show("Attendance saved for " + date);
+    toast.show("Attendance saved for " + loadDate);
   };
 
   const histAtt = state.attendance.filter(a=>a.supervisorId===user.id&&a.date===histDate);
@@ -1191,7 +1203,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
 
       {tab==="mark" && (
         <Card style={{ maxWidth:680 }}>
-          <Input label="Date" type="date" value={date} onChange={setDate}/>
+          <Input label="Date" type="date" value={loadDate} onChange={changeDate}/>
           <div style={{ marginBottom:10 }}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 200px 1fr", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, marginBottom:8 }}>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Staff Member</div>
@@ -1210,7 +1222,10 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
               </div>
             ))}
           </div>
-          <Btn onClick={save} variant={dirty?"amber":"primary"}>{dirty?"⚠️ Unsaved changes — Save Now":"Save Attendance"}</Btn>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginTop:12}}>
+            <div style={{fontSize:12,color:T.txt2}}>Marking for: <b>{fmtDate(loadDate)}</b></div>
+            <Btn onClick={save} variant={dirty?"amber":"primary"}>{dirty?"⚠️ Save Changes":"Save Attendance"}</Btn>
+          </div>
         </Card>
       )}
 
@@ -2670,7 +2685,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
       <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Enter Counter Report</div>
       <Card style={{ marginBottom:16 }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-          <Input label="Date" type="date" value={date} onChange={setDate}/>
+          <Input label="Date" type="date" value={loadDate} onChange={changeDate}/>
           <div>
             <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Executive / Counter</label>
             <select value={selSupervisor} onChange={e=>setSelSupervisor(e.target.value)}
