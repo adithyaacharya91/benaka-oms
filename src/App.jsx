@@ -1124,7 +1124,7 @@ function SupFeedback({ user, state }) {
               {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
               {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
             </div>
-            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>"{f.comment}"</div>}
+            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>&ldquo;{f.comment}&rdquo;</div>}
           </Card>
         ))}
       </div>
