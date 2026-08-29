@@ -1133,34 +1133,50 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
   const [histDate, setHistDate] = useState(today());
   const [records, setRecords] = useState({});
   const [reasons, setReasons] = useState({});
+  // Track whether user has made manual changes (prevent useEffect from overwriting)
+  const [dirty, setDirty] = useState(false);
 
-  // All staff to mark = own user + field staff
   const allToMark = [user, ...myStaff];
 
+  // Only reload from saved data when DATE changes, not when state.attendance changes
+  // (state.attendance changes after save, which would wipe the just-saved selections)
   useEffect(() => {
     const existing = {}; const existingR = {};
     state.attendance.filter(a=>a.supervisorId===user.id&&a.date===date).forEach(a=>{
       existing[a.staffId] = a.status; existingR[a.staffId] = a.reason||"";
     });
-    setRecords(existing); setReasons(existingR);
-  }, [date, state.attendance, user.id]);
+    setRecords(existing);
+    setReasons(existingR);
+    setDirty(false);
+  }, [date, user.id]); // ← removed state.attendance dependency — only reload on date change
+
+  const setStatus = (staffId, status) => {
+    setRecords(p => ({...p, [staffId]: status}));
+    setDirty(true);
+  };
+
+  const setReason = (staffId, reason) => {
+    setReasons(p => ({...p, [staffId]: reason}));
+    setDirty(true);
+  };
 
   const save = () => {
     const newAtts = allToMark.map(s => ({
       id: `att_${user.id}_${s.id}_${date}`,
       date, supervisorId:user.id, staffId:s.id,
-      status: records[s.id]||"present",
-      reason: reasons[s.id]||"",
+      status: records[s.id] || "present",
+      reason: reasons[s.id] || "",
       markedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
     }));
     setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===date)),...newAtts] }));
+    setDirty(false);
     toast.show("Attendance saved for " + date);
   };
 
   const histAtt = state.attendance.filter(a=>a.supervisorId===user.id&&a.date===histDate);
 
   const statusBtn = (id, st) => (
-    <button onClick={()=>setRecords(p=>({...p,[id]:st}))} style={{
+    <button onClick={()=>setStatus(id, st)} style={{
       padding:"5px 10px", borderRadius:6, border:`1px solid ${records[id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amber):T.bdrS}`,
       background:records[id]===st?(st==="present"?T.grnL:st==="absent"?T.redL:T.amberL):"transparent",
       color:records[id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amberD):T.txt2,
@@ -1188,13 +1204,13 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                 <div style={{ display:"flex", gap:4 }}>
                   {["present","absent","half_day"].map(st=>statusBtn(s.id,st))}
                 </div>
-                <input value={reasons[s.id]||""} onChange={e=>setReasons(p=>({...p,[s.id]:e.target.value}))}
+                <input value={reasons[s.id]||""} onChange={e=>setReason(s.id, e.target.value)}
                   placeholder={records[s.id]==="absent"?"Reason required":"Optional"}
                   style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:6, fontSize:13, fontFamily:"inherit", outline:"none", background:records[s.id]==="absent"?T.redL:"#fff" }}/>
               </div>
             ))}
           </div>
-          <Btn onClick={save}>Save Attendance</Btn>
+          <Btn onClick={save} variant={dirty?"amber":"primary"}>{dirty?"⚠️ Unsaved changes — Save Now":"Save Attendance"}</Btn>
         </Card>
       )}
 
