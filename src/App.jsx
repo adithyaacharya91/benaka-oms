@@ -317,11 +317,42 @@ const reportHasCounterId = (r, cid, countersArr) => {
 
 function useLocalStorage(key, init) {
   const [val, setVal] = useState(() => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : init; }
+    try {
+      const s = localStorage.getItem(key);
+      if (!s) return init;
+      const cached = JSON.parse(s);
+      // Load any IT Admin overrides from separate key (persists across devices via Supabase)
+      const overrides = (() => {
+        try { const o = localStorage.getItem("benaka_overrides"); return o ? JSON.parse(o) : {}; }
+        catch { return {}; }
+      })();
+      // Merge: INITIAL_STATE base + IT Admin overrides, keep operational data from cache
+      const mergedUsers     = overrides.users     || INITIAL_STATE.users;
+      const mergedPasswords = overrides.passwords || INITIAL_STATE.passwords;
+      const mergedCounters  = overrides.counters  || INITIAL_STATE.counters;
+      const mergedWorkTypes = overrides.workTypes || INITIAL_STATE.workTypes;
+      return {
+        ...cached,
+        users:     mergedUsers,
+        passwords: mergedPasswords,
+        counters:  mergedCounters,
+        workTypes: mergedWorkTypes,
+      };
+    }
     catch { return init; }
   });
   const set = useCallback(v => {
-    setVal(p => { const nv = typeof v === "function" ? v(p) : v; localStorage.setItem(key, JSON.stringify(nv)); return nv; });
+    setVal(p => {
+      const nv = typeof v === "function" ? v(p) : v;
+      localStorage.setItem(key, JSON.stringify(nv));
+      // If structural data changed, persist overrides separately
+      if (nv.users !== p.users || nv.passwords !== p.passwords ||
+          nv.counters !== p.counters || nv.workTypes !== p.workTypes) {
+        const overrides = { users: nv.users, passwords: nv.passwords, counters: nv.counters, workTypes: nv.workTypes };
+        localStorage.setItem("benaka_overrides", JSON.stringify(overrides));
+      }
+      return nv;
+    });
   }, [key]);
   return [val, set];
 }
@@ -641,6 +672,11 @@ function LoginScreen({ onLogin, users, passwords }) {
           <Input label="Password" type="password" value={pwd} onChange={v=>{setPwd(v);setErr("")}} placeholder="Your password" />
 
           <Btn onClick={doLogin} size="lg" style={{ width:"100%", justifyContent:"center" }}>Sign in →</Btn>
+          <div style={{ textAlign:"center", marginTop:14 }}>
+            <button onClick={()=>{ localStorage.clear(); window.location.reload(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:T.txt3, textDecoration:"underline" }}>
+              Having trouble logging in? Clear cache and reload
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -4035,24 +4071,8 @@ export default function App() {
   // Supabase real-time sync
   const { synced, syncStatus, syncFromCloud, isConfigured } = useSupabaseSync(state, setState);
 
-  // ── ALWAYS sync structural data from INITIAL_STATE on every load ──────────
-  // This ensures users/passwords/counters/workTypes are consistent across ALL
-  // devices. If IT Admin makes changes, those are stored separately and merged.
-  useEffect(() => {
-    setState(p => {
-      // Check if IT Admin has made local edits (tracked by version stamp)
-      const hasLocalEdits = p._configVersion && p._configVersion > 0;
-      if (hasLocalEdits) return p; // respect local IT Admin edits
-      // Otherwise always use INITIAL_STATE structural data
-      return {
-        ...p,
-        users:      INITIAL_STATE.users,
-        passwords:  INITIAL_STATE.passwords,
-        counters:   INITIAL_STATE.counters,
-        workTypes:  INITIAL_STATE.workTypes,
-      };
-    });
-  }, []);
+  // Structural data (users/passwords/counters/workTypes) is always loaded
+  // from INITIAL_STATE synchronously in useLocalStorage — no async effect needed
 
   const login  = (user) => setState(p => ({ ...p, currentUser: user }));
   const logout = useCallback(() => setState(p => ({ ...p, currentUser: null })), []);
