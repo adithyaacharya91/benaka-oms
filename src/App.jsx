@@ -708,7 +708,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
       {page==="history"     && <SupHistory user={user} state={state}/>}
       {page==="feedback"    && <SupFeedback user={user} state={state}/>}
-      {page==="analysis"    && <CounterAnalysis user={user} state={state} counterFilter={myCounter?.name}/>}
+      {page==="analysis"    && <CounterAnalysis user={user} state={state} myCounterIds={state.counters.filter(c=>c.supervisorId===user.id).map(c=>c.id)}/>}
       {page==="staffleaves" && <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="executive"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
@@ -1431,14 +1431,14 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Counter Performance — Today</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
-            const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name||r.supervisorId===c.supervisorId);
+            const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month);
             const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0)/tgt.dailyTarget*100)) : null;
             return (
               <div key={c.id} style={{ border:`1px solid ${T.bdr}`, borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
-                <div style={{ fontSize:11, color:T.txt2, marginBottom:8 }}>Sup: {sup?.name}</div>
+                <div style={{ fontSize:11, color:T.txt2, marginBottom:8 }}>{sup?.name||"—"}</div>
                 <div style={{ fontSize:20, fontWeight:800, color:T.amber }}>{fmtCurr(rep?.totalAmount||0)}</div>
                 {tgt && <>
                   <div style={{ height:6, background:T.surf, borderRadius:3, margin:"8px 0 4px", overflow:"hidden" }}>
@@ -1477,9 +1477,10 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
   // Revenue by work type
   const wtRevenue = {};
-  relevantReports.forEach(r=>reportAllEntries(r).forEach(e=>{
-    wtRevenue[e.workTypeName] = (wtRevenue[e.workTypeName]||0)+e.amount;
-  }));
+  relevantReports.forEach(r=>{
+    const allE = r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+    allE.forEach(e=>{ wtRevenue[e.workTypeName]=(wtRevenue[e.workTypeName]||0)+(Number(e.amount)||0); });
+  });
   const wtArr = Object.entries(wtRevenue).sort((a,b)=>b[1]-a[1]);
   const maxWt = wtArr[0]?.[1]||1;
 
@@ -1499,7 +1500,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
           <Table cols={[
             {key:"counter",label:"Counters",render:r=>reportCounterNames(r)},
             {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
-            {key:"vehicles",label:"Vehicles",render:r=>reportVehicles(r)},
+            {key:"vehicles",label:"Vehicles",render:r=>{ const allE=r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]); return allE.reduce((s,e)=>s+(Number(e.vehicles)||0),0); }},
             {key:"totalAmount",label:"Revenue",render:r=><b style={{color:T.amber}}>{fmtCurr(r.totalAmount)}</b>},
             {key:"submittedAt",label:"Submitted"},
             {key:"status",label:"Status",render:r=><Badge color={T.grn}>{r.status}</Badge>},
@@ -1938,12 +1939,18 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
 
   // Counter stats
+  // Helper for MD dashboard
+  const mdGetEntries = (r) => r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(x=>x.entries||[]);
+  const mdIsSales = (e) => e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName);
+
   const counterStats = state.counters.map(c => {
-    const reps = reports.filter(r=>r.counterId===c.id||r.counterName===c.name||r.supervisorId===c.supervisorId);
-    const svcTotal = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((ss,e)=>ss+e.amount,0)+s,0);
-    const salTotal = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((ss,e)=>ss+e.amount,0)+s,0);
-    const total = reps.reduce((s,r)=>s+r.totalAmount,0);
-    const vehicles = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).reduce((ss,e)=>ss+(Number(e.vehicles)||0),0)+s,0);
+    // Match reports to THIS specific counter (not all of supervisor's counters)
+    const reps = reports.filter(r => r.counterId===c.id || r.counterName===c.name);
+    const allE = reps.flatMap(r => mdGetEntries(r));
+    const svcTotal = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const salTotal = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const total = svcTotal + salTotal;
+    const vehicles = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
     const days = new Set(reps.map(r=>r.date)).size;
     const sup = state.users.find(u=>u.id===c.supervisorId);
     const todayRep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
@@ -2048,7 +2055,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
               <div>
                 <div style={{ fontWeight:800, fontSize:13 }}>{c.name}</div>
-                <div style={{ fontSize:11, color:T.txt2 }}>{c.sup?.name||"No executive"}</div>
+                <div style={{ fontSize:11, color:T.txt2 }}>{c.sup?.name}{c.sup?" ("+ROLE_LABELS[c.sup.role]+")":""}</div>
               </div>
               <Badge color={c.todayRep?T.grn:T.red}>{c.todayRep?"✓ Reported":"⏳ Pending"}</Badge>
             </div>
@@ -2138,9 +2145,10 @@ function MDDashboard({ user, state, syncFromCloud }) {
               </tr></thead>
               <tbody>
                 {todayReports.map((r,i) => {
-                  const cname = (r.counters||[])[0]?.counterName||state.users.find(u=>u.id===r.supervisorId)?.counter||"—";
-                  const svcT = (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+e.amount,0);
-                  const salT = (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+e.amount,0);
+                  const cname = r.counterName || (r.counters||[])[0]?.counterName || state.users.find(u=>u.id===r.supervisorId)?.counter||"—";
+                  const allE = mdGetEntries(r);
+                  const svcT = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                  const salT = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
                   return <tr key={r.id}>
                     <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:600 }}>{cname}</td>
                     <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right" }}>{fmtCurr(svcT)}</td>
@@ -2927,8 +2935,9 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
 
   // Service totals from daily reports for this date
   const dayReports = allReports.filter(r=>r.date===date);
-  const serviceEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>!['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].some(s=>e.workTypeName===s));
-  const salesEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].some(s=>e.workTypeName===s));
+  const allRptEntries = (r) => r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+  const serviceEntries = (r) => allRptEntries(r).filter(e=>e.type!=="sales"&&!['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName));
+  const salesEntries   = (r) => allRptEntries(r).filter(e=>e.type==="sales"||['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName));
 
   const absent = attendance.filter(a=>a.date===date&&a.status==='absent');
 
@@ -3289,7 +3298,7 @@ function SalaryView({ user, state, setState, toast, viewScope }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  COUNTER-WISE ANALYSIS (shared by Executive/Manager/MD)
 // ═══════════════════════════════════════════════════════════════════════════════
-function CounterAnalysis({ user, state, counterFilter }) {
+function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
   const [range, setRange] = useState("month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -3316,44 +3325,53 @@ function CounterAnalysis({ user, state, counterFilter }) {
 
   const [from, to] = getDateRange();
 
+  // Helper: get all entries from a report (supports both old counters[] and new entries[])
+  const getAllEntries = (r) => {
+    if (r.entries && r.entries.length > 0) return r.entries;
+    return (r.counters||[]).flatMap(c=>c.entries||[]);
+  };
+  const isSalesEntry = (e) => e.type==="sales" || ['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName);
+
   const filteredReports = state.serviceReports.filter(r => {
     if (from && r.date < from) return false;
     if (to && r.date > to) return false;
-    if (counterFilter) {
-      const sup = state.users.find(u=>u.id===r.supervisorId);
-      if (sup?.counter !== counterFilter && !(r.counters||[]).some(c=>c.counterName===counterFilter)) return false;
+    // Executive: filter to only their counters (by ID array)
+    if (myCounterIds && myCounterIds.length > 0) {
+      if (!myCounterIds.includes(r.counterId)) return false;
+    }
+    // Single counter filter (for viewing one specific counter)
+    if (counterFilter && !myCounterIds) {
+      if (r.counterId !== state.counters.find(c=>c.name===counterFilter)?.id && r.counterName !== counterFilter) return false;
     }
     return true;
   });
 
-  const serviceEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>{
-    const wt = state.workTypes.find(w=>w.id===e.workTypeId);
-    return wt?.category !== 'sales' && !['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName);
-  });
-  const salesEntries = (r) => (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>{
-    const wt = state.workTypes.find(w=>w.id===e.workTypeId);
-    return wt?.category === 'sales' || ['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName);
-  });
+  // Build per-counter stats — each report is now ONE counter
+  const visibleCounters = myCounterIds
+    ? state.counters.filter(c => myCounterIds.includes(c.id))
+    : counterFilter
+      ? state.counters.filter(c => c.name === counterFilter)
+      : state.counters;
 
-  // Build per-counter stats
-  const counterStats = state.counters.map(c => {
-    const reps = filteredReports.filter(r=>r.counterId===c.id||r.counterName===c.name);
-    const svcTotal = reps.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0);
-    const salTotal = reps.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0);
+  const counterStats = visibleCounters.map(c => {
+    const reps = filteredReports.filter(r => r.counterId===c.id || r.counterName===c.name);
+    const allE = reps.flatMap(r => getAllEntries(r));
+    const svcTotal = allE.filter(e=>!isSalesEntry(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const salTotal = allE.filter(e=>isSalesEntry(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
     const total = svcTotal + salTotal;
-    const vehicles = reps.reduce((s,r)=>s+(r.counters||[]).flatMap(c=>c.entries||[]).reduce((ss,e)=>ss+(Number(e.vehicles)||0),0),0);
+    const vehicles = allE.filter(e=>!isSalesEntry(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
     const days = new Set(reps.map(r=>r.date)).size;
     const dailyAvg = days ? Math.round(total/days) : 0;
-    return { ...c, svcTotal, salTotal, total, vehicles, days, dailyAvg };
-  }).filter(c => !counterFilter || c.name === counterFilter);
+    return { ...c, svcTotal, salTotal, total, vehicles, days, dailyAvg, repCount: reps.length };
+  });
 
   const grandTotal = counterStats.reduce((s,c)=>s+c.total,0);
   const maxTotal = Math.max(...counterStats.map(c=>c.total),1);
 
   // Work type breakdown
   const wtMap = {};
-  filteredReports.forEach(r=>(r.counters||[]).flatMap(c=>c.entries||[]).forEach(e=>{
-    if(e.vehicles>0) wtMap[e.workTypeName]=(wtMap[e.workTypeName]||0)+e.amount;
+  filteredReports.forEach(r=>getAllEntries(r).forEach(e=>{
+    if((e.vehicles>0||e.amount>0) && !isSalesEntry(e)) wtMap[e.workTypeName]=(wtMap[e.workTypeName]||0)+(Number(e.amount)||0);
   }));
   const wtArr = Object.entries(wtMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const maxWt = wtArr[0]?.[1]||1;
