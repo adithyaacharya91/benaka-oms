@@ -439,7 +439,12 @@ const INITIAL_STATE = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ROLE_LABELS = { md:"MD", manager:"Manager", supervisor:"Executive", office:"Office Staff", it_admin:"IT Admin", field_staff:"Field Staff" };
 const ROLE_COLORS = { md:"#6D28D9", manager:"#0369A1", supervisor:"#0F2B4A", office:"#15803D", it_admin:"#B87D18", field_staff:"#475569" };
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => {
+  const now = new Date();
+  // IST = UTC+5:30 = +330 minutes
+  const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+  return ist.toISOString().split("T")[0];
+};
 const fmtDate = d => d ? new Date(d).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
 const fmtCurr = n => "₹" + Number(n||0).toLocaleString("en-IN");
 
@@ -1121,8 +1126,8 @@ function SupFeedback({ user, state }) {
             </div>
             {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>"{f.comment}"</div>}
           </Card>
-        ))
-      }
+        ))}
+      </div>
     </div>
   );
 }
@@ -1130,71 +1135,60 @@ function SupFeedback({ user, state }) {
 function SupAttendance({ user, state, setState, myStaff, toast }) {
   const [tab, setTab] = useState("mark");
   const [histDate, setHistDate] = useState(today());
+  const [displayDate, setDisplayDate] = useState(today());
 
-  // Keep attendance form state fully LOCAL — never overwritten by syncs or re-renders
-  // loadDate tracks which date the form was last loaded for
-  const [loadDate, setLoadDate] = useState(today());
-  const [records, setRecords] = useState(() => {
-    // Initialize once from saved attendance for today
-    const r = {};
-    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===today()).forEach(a=>{ r[a.staffId]=a.status; });
-    return r;
-  });
-  const [reasons, setReasons] = useState(() => {
-    const r = {};
-    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===today()).forEach(a=>{ r[a.staffId]=a.reason||""; });
-    return r;
-  });
+  // Store selections in refs so 30s Supabase sync re-renders NEVER wipe them
+  const recordsRef = useRef({});
+  const reasonsRef = useRef({});
+  const workingDate = useRef(today());
+  const [formTick, setFormTick] = useState(0); // increment to force button re-render
   const [dirty, setDirty] = useState(false);
+  const initialLoadDone = useRef(false);
 
   const allToMark = [user, ...myStaff];
 
-  // Only reload form when user explicitly picks a different date
-  const changeDate = (newDate) => {
-    if (newDate === loadDate) return;
+  const loadDate = (date, attendanceData) => {
+    const src = attendanceData || state.attendance;
     const r = {}; const rs = {};
-    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===newDate).forEach(a=>{
-      r[a.staffId]=a.status; rs[a.staffId]=a.reason||"";
+    src.filter(a => a.supervisorId===user.id && a.date===date).forEach(a => {
+      r[a.staffId] = a.status; rs[a.staffId] = a.reason||"";
     });
-    setRecords(r);
-    setReasons(rs);
-    setLoadDate(newDate);
+    recordsRef.current = r;
+    reasonsRef.current = rs;
+    workingDate.current = date;
+    setDisplayDate(date);
+    setFormTick(t => t+1);
     setDirty(false);
   };
 
-  const setStatus = (staffId, status) => {
-    setRecords(p => ({...p, [staffId]: status}));
-    setDirty(true);
-  };
+  // Load once on mount only — the ref guard prevents re-runs on every sync
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    loadDate(today());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setReason = (staffId, reason) => {
-    setReasons(p => ({...p, [staffId]: reason}));
+  const setStatus = (staffId, status) => {
+    recordsRef.current = { ...recordsRef.current, [staffId]: status };
+    setFormTick(t => t+1);
     setDirty(true);
   };
 
   const save = () => {
+    const d = workingDate.current;
     const newAtts = allToMark.map(s => ({
-      id: `att_${user.id}_${s.id}_${loadDate}`,
-      date: loadDate, supervisorId:user.id, staffId:s.id,
-      status: records[s.id] || "present",
-      reason: reasons[s.id] || "",
+      id: `att_${user.id}_${s.id}_${d}`,
+      date: d, supervisorId: user.id, staffId: s.id,
+      status: recordsRef.current[s.id] || "present",
+      reason: reasonsRef.current[s.id] || "",
       markedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
     }));
-    setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===loadDate)),...newAtts] }));
+    setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===d)),...newAtts] }));
     setDirty(false);
-    toast.show("Attendance saved for " + loadDate);
+    toast.show("Attendance saved for " + d);
   };
 
-  const histAtt = state.attendance.filter(a=>a.supervisorId===user.id&&a.date===histDate);
-
-  const statusBtn = (id, st) => (
-    <button onClick={()=>setStatus(id, st)} style={{
-      padding:"5px 10px", borderRadius:6, border:`1px solid ${records[id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amber):T.bdrS}`,
-      background:records[id]===st?(st==="present"?T.grnL:st==="absent"?T.redL:T.amberL):"transparent",
-      color:records[id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amberD):T.txt2,
-      fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
-    }}>{st==="half_day"?"½":st.charAt(0).toUpperCase()+st.slice(1)}</button>
-  );
+  const histAtt = state.attendance.filter(a => a.supervisorId===user.id && a.date===histDate);
 
   return (
     <div>
@@ -1202,29 +1196,57 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
       <Tabs tabs={[{id:"mark",label:"Mark Attendance"},{id:"history",label:"View Past Records"}]} active={tab} onChange={setTab}/>
 
       {tab==="mark" && (
-        <Card style={{ maxWidth:680 }}>
-          <Input label="Date" type="date" value={loadDate} onChange={changeDate}/>
+        <Card style={{ maxWidth:700 }}>
+          <Input label="Date" type="date" value={displayDate} onChange={d=>loadDate(d)}/>
           <div style={{ marginBottom:10 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 200px 1fr", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, marginBottom:8 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, marginBottom:8 }}>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Staff Member</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Status</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Reason</div>
             </div>
-            {allToMark.map(s => (
-              <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 200px 1fr", gap:8, alignItems:"center", marginBottom:10, background:s.id===user.id?T.navyXL:"transparent", padding:s.id===user.id?"6px 8px":"0 8px", borderRadius:6 }}>
-                <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
-                <div style={{ display:"flex", gap:4 }}>
-                  {["present","absent","half_day"].map(st=>statusBtn(s.id,st))}
+            {allToMark.map(s => {
+              const curStatus = recordsRef.current[s.id];
+              return (
+                <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:10,
+                  background:s.id===user.id?T.navyXL:"transparent", padding:"4px 8px", borderRadius:6 }}>
+                  <div style={{fontSize:14,fontWeight:700}}>
+                    {s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}
+                  </div>
+                  <div style={{ display:"flex", gap:4 }}>
+                    {["present","absent","half_day"].map(status => {
+                      const active = curStatus===status || (!curStatus && status==="present");
+                      return (
+                        <button key={status} onClick={()=>setStatus(s.id, status)} style={{
+                          padding:"5px 10px", borderRadius:6,
+                          border:`1px solid ${active?(status==="present"?T.grn:status==="absent"?T.red:T.amber):T.bdrS}`,
+                          background:active?(status==="present"?T.grnL:status==="absent"?T.redL:T.amberL):"transparent",
+                          color:active?(status==="present"?T.grn:status==="absent"?T.red:T.amberD):T.txt2,
+                          fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
+                        }}>{status==="half_day"?"½ Day":status==="absent"?"Absent":"Present"}</button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    key={`reason_${s.id}_${formTick}`}
+                    defaultValue={reasonsRef.current[s.id]||""}
+                    onChange={e=>{ reasonsRef.current={...reasonsRef.current,[s.id]:e.target.value}; setDirty(true); }}
+                    placeholder={curStatus==="absent"?"Reason required":"Optional"}
+                    style={{ padding:"6px 10px",
+                      border:`1px solid ${curStatus==="absent"?T.red:T.bdrS}`,
+                      borderRadius:6, fontSize:13, fontFamily:"inherit", outline:"none",
+                      background:curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:"#fff" }}/>
                 </div>
-                <input value={reasons[s.id]||""} onChange={e=>setReason(s.id, e.target.value)}
-                  placeholder={records[s.id]==="absent"?"Reason required":"Optional"}
-                  style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:6, fontSize:13, fontFamily:"inherit", outline:"none", background:records[s.id]==="absent"?T.redL:"#fff" }}/>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginTop:12}}>
-            <div style={{fontSize:12,color:T.txt2}}>Marking for: <b>{fmtDate(loadDate)}</b></div>
-            <Btn onClick={save} variant={dirty?"amber":"primary"}>{dirty?"⚠️ Save Changes":"Save Attendance"}</Btn>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginTop:4}}>
+            <div style={{fontSize:12,color:T.txt2}}>
+              Date: <b>{fmtDate(displayDate)}</b>
+              {dirty&&<span style={{color:T.amber,marginLeft:8,fontWeight:700}}>● Unsaved</span>}
+            </div>
+            <Btn onClick={save} variant={dirty?"amber":"primary"}>
+              {dirty?"⚠️ Save Changes":"✅ Save Attendance"}
+            </Btn>
           </div>
         </Card>
       )}
@@ -1233,7 +1255,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
         <div>
           <Input label="Select Date" type="date" value={histDate} onChange={setHistDate} style={{maxWidth:200,marginBottom:16}}/>
           {histAtt.length===0
-            ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No attendance records for {fmtDate(histDate)}</div></Card>
+            ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No records for {fmtDate(histDate)}</div></Card>
             : <Table cols={[
                 {key:"staff",label:"Staff",render:r=>{ const u=state.users.find(u=>u.id===r.staffId); return <b>{u?.name||r.staffId}{r.staffId===user.id?" (You)":""}</b>; }},
                 {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
