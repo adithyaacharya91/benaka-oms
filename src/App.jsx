@@ -776,74 +776,90 @@ function SupFeedback({ user, state }) {
 }
 
 function SupAttendance({ user, state, setState, myStaff, toast }) {
+  const [tab, setTab] = useState("mark");
   const [date, setDate] = useState(today());
+  const [histDate, setHistDate] = useState(today());
   const [records, setRecords] = useState({});
   const [reasons, setReasons] = useState({});
 
+  // All staff to mark = own user + field staff
+  const allToMark = [user, ...myStaff];
+
   useEffect(() => {
-    const existing = {};
-    const existingR = {};
+    const existing = {}; const existingR = {};
     state.attendance.filter(a=>a.supervisorId===user.id&&a.date===date).forEach(a=>{
-      existing[a.staffId] = a.status;
-      existingR[a.staffId] = a.reason||"";
+      existing[a.staffId] = a.status; existingR[a.staffId] = a.reason||"";
     });
-    setRecords(existing);
-    setReasons(existingR);
+    setRecords(existing); setReasons(existingR);
   }, [date, state.attendance, user.id]);
 
   const save = () => {
-    const newAtts = myStaff.map(s => ({
+    const newAtts = allToMark.map(s => ({
       id: `att_${user.id}_${s.id}_${date}`,
       date, supervisorId:user.id, staffId:s.id,
       status: records[s.id]||"present",
       reason: reasons[s.id]||"",
       markedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
     }));
-    setState(p => ({
-      ...p,
-      attendance: [
-        ...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===date)),
-        ...newAtts
-      ]
-    }));
+    setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===date)),...newAtts] }));
     toast.show("Attendance saved for " + date);
   };
 
+  const histAtt = state.attendance.filter(a=>a.supervisorId===user.id&&a.date===histDate);
+
+  const statusBtn = (id, st) => (
+    <button onClick={()=>setRecords(p=>({...p,[id]:st}))} style={{
+      padding:"5px 10px", borderRadius:6, border:`1px solid ${records[id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amber):T.bdrS}`,
+      background:records[id]===st?(st==="present"?T.grnL:st==="absent"?T.redL:T.amberL):"transparent",
+      color:records[id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amberD):T.txt2,
+      fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
+    }}>{st==="half_day"?"½":st.charAt(0).toUpperCase()+st.slice(1)}</button>
+  );
+
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Mark Attendance</div>
-      <Card style={{ maxWidth:600 }}>
-        <Input label="Date" type="date" value={date} onChange={setDate}/>
-        {myStaff.length === 0 ? <div style={{color:T.txt3}}>No field staff assigned to you.</div> :
-          <div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 160px 1fr", gap:8, padding:"8px 0", borderBottom:`1px solid ${T.bdr}`, marginBottom:8 }}>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Attendance</div>
+      <Tabs tabs={[{id:"mark",label:"Mark Attendance"},{id:"history",label:"View Past Records"}]} active={tab} onChange={setTab}/>
+
+      {tab==="mark" && (
+        <Card style={{ maxWidth:680 }}>
+          <Input label="Date" type="date" value={date} onChange={setDate}/>
+          <div style={{ marginBottom:10 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 200px 1fr", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, marginBottom:8 }}>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Staff Member</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Status</div>
-              <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Reason (if absent)</div>
+              <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Reason</div>
             </div>
-            {myStaff.map(s => (
-              <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 160px 1fr", gap:8, alignItems:"center", marginBottom:10 }}>
-                <div style={{fontSize:14,fontWeight:600}}>{s.name}</div>
-                <div style={{ display:"flex", gap:8 }}>
-                  {["present","absent","half_day"].map(st=>(
-                    <button key={st} onClick={()=>setRecords(p=>({...p,[s.id]:st}))} style={{
-                      padding:"5px 10px", borderRadius:6, border:`1px solid ${records[s.id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amber):T.bdrS}`,
-                      background:records[s.id]===st?(st==="present"?T.grnL:st==="absent"?T.redL:T.amberL):"transparent",
-                      color:records[s.id]===st?(st==="present"?T.grn:st==="absent"?T.red:T.amberD):T.txt2,
-                      fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
-                    }}>{st==="half_day"?"½ Day":st.charAt(0).toUpperCase()+st.slice(1)}</button>
-                  ))}
+            {allToMark.map(s => (
+              <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 200px 1fr", gap:8, alignItems:"center", marginBottom:10, background:s.id===user.id?T.navyXL:"transparent", padding:s.id===user.id?"6px 8px":"0 8px", borderRadius:6 }}>
+                <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
+                <div style={{ display:"flex", gap:4 }}>
+                  {["present","absent","half_day"].map(st=>statusBtn(s.id,st))}
                 </div>
                 <input value={reasons[s.id]||""} onChange={e=>setReasons(p=>({...p,[s.id]:e.target.value}))}
-                  placeholder={records[s.id]==="absent"?"Reason required":"Optional note"}
-                  style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:6, fontSize:13, fontFamily:"inherit", outline:"none", background:records[s.id]==="absent"?T.redL:"#fff" }}
-                />
+                  placeholder={records[s.id]==="absent"?"Reason required":"Optional"}
+                  style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:6, fontSize:13, fontFamily:"inherit", outline:"none", background:records[s.id]==="absent"?T.redL:"#fff" }}/>
               </div>
             ))}
-            <Btn onClick={save} style={{marginTop:12}}>Save Attendance</Btn>
           </div>
-        }
-      </Card>
+          <Btn onClick={save}>Save Attendance</Btn>
+        </Card>
+      )}
+
+      {tab==="history" && (
+        <div>
+          <Input label="Select Date" type="date" value={histDate} onChange={setHistDate} style={{maxWidth:200,marginBottom:16}}/>
+          {histAtt.length===0
+            ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No attendance records for {fmtDate(histDate)}</div></Card>
+            : <Table cols={[
+                {key:"staff",label:"Staff",render:r=>{ const u=state.users.find(u=>u.id===r.staffId); return <b>{u?.name||r.staffId}{r.staffId===user.id?" (You)":""}</b>; }},
+                {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
+                {key:"reason",label:"Reason",render:r=>r.reason||"—"},
+                {key:"markedAt",label:"Marked At"},
+              ]} rows={histAtt}/>
+          }
+        </div>
+      )}
     </div>
   );
 }
@@ -860,10 +876,11 @@ function SupReport({ user, state, setState, toast }) {
 
   const existing = state.serviceReports.find(r => r.supervisorId === user.id && r.date === date);
 
-  // Default work type rows — all from master list with 0 vehicles
-  const blankRows = () => state.workTypes.map(wt => ({
-    workTypeId: wt.id, workTypeName: wt.name, vehicles: 0, rate: wt.defaultRate, amount: 0
-  }));
+  const serviceWTs = state.workTypes.filter(w => w.category !== "sales");
+  const salesWTs   = state.workTypes.filter(w => w.category === "sales");
+  // Default work type rows — service types with 0 vehicles
+  const blankRows      = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
+  const blankSalesRows = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, qty:0, amount:0, type:"sales" }));
 
   useEffect(() => {
     if (existing) {
@@ -871,8 +888,8 @@ function SupReport({ user, state, setState, toast }) {
       setNotes(existing.notes || "");
     } else {
       // Pre-load all assigned counters with blank rows
-      const preloaded = myCounters.map(c => ({ counterName: c.name, entries: blankRows() }));
-      setReportCounters(preloaded.length ? preloaded : [{ counterName: "", entries: blankRows() }]);
+      const preloaded = myCounters.map(c => ({ counterName: c.name, entries: blankRows(), salesEntries: blankSalesRows() }));
+      setReportCounters(preloaded.length ? preloaded : [{ counterName: "", entries: blankRows(), salesEntries: blankSalesRows() }]);
       setNotes("");
     }
   }, [date, state.workTypes.length]);
@@ -891,15 +908,17 @@ function SupReport({ user, state, setState, toast }) {
     });
   };
 
-  const addCounterBlock = () => setReportCounters(p => [...p, { counterName: "", entries: blankRows() }]);
+  const addCounterBlock = () => setReportCounters(p => [...p, { counterName: "", entries: blankRows(), salesEntries: blankSalesRows() }]);
   const removeCounterBlock = (ci) => setReportCounters(p => p.filter((_,i)=>i!==ci));
   const setCounterName = (ci, name) => setReportCounters(p => p.map((c,i)=>i===ci?{...c,counterName:name}:c));
 
   const addRow = (ci) => setReportCounters(p => p.map((c,i)=>i===ci?{...c,entries:[...c.entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0}]}:c));
   const removeRow = (ci, ei) => setReportCounters(p => p.map((c,i)=>i!==ci?c:{...c,entries:c.entries.filter((_,j)=>j!==ei)}));
 
-  const grandTotal = reportCounters.reduce((s,c)=>s+c.entries.reduce((ss,e)=>ss+(Number(e.amount)||0),0),0);
-  const counterTotal = (c) => c.entries.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const counterServiceTotal = (c) => (c.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const counterSalesTotal = (c) => (c.salesEntries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const grandTotal = reportCounters.reduce((s,c)=>s+counterServiceTotal(c)+counterSalesTotal(c),0);
+  // counterTotal replaced by counterServiceTotal + counterSalesTotal above
 
   const submit = () => {
     if (reportCounters.some(c=>!c.counterName.trim())) { toast.show("All counter names must be filled","error"); return; }
@@ -907,7 +926,7 @@ function SupReport({ user, state, setState, toast }) {
       id: existing?.id || `sr_${Date.now()}`,
       date, supervisorId: user.id,
       submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
-      counters: reportCounters,
+      counters: reportCounters.map(c => ({ ...c, entries:[...(c.entries||[]),...(c.salesEntries||[]).map(e=>({...e,vehicles:0,rate:0}))] })),
       totalAmount: grandTotal,
       notes, status: "submitted"
     };
@@ -1067,7 +1086,51 @@ function SupReport({ user, state, setState, toast }) {
             </table>
           </div>
           <div style={{ marginTop:10 }}>
-            <Btn onClick={()=>addRow(ci)} size="sm" variant="ghost">+ Add Work Type Row</Btn>
+            <Btn onClick={()=>addRow(ci)} size="sm" variant="ghost">+ Add Service Row</Btn>
+          </div>
+
+          {/* SALES SECTION */}
+          <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${T.bdr}` }}>
+            <div style={{ fontSize:12,fontWeight:800,color:T.grn,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🛒 Sales — Amount only (no rate card)</div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                <thead><tr style={{ background:T.grnL }}>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Product</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:150,fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Amount (₹)</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",width:32 }}></th>
+                </tr></thead>
+                <tbody>
+                  {(counter.salesEntries||[]).map((e,ei)=>(
+                    <tr key={ei} style={{ background:e.amount>0?"#F0FDF4":"#fff" }}>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                        <div style={{ display:"flex", gap:6 }}>
+                          <select value={e.workTypeId||""} onChange={ev=>{ const wt=salesWTs.find(w=>w.id===ev.target.value); setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt?.id||"",workTypeName:wt?.name||row.workTypeName})})); }}
+                            style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",flex:1 }}>
+                            <option value="">Select product...</option>
+                            {salesWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
+                          </select>
+                          <input value={e.workTypeName||""} onChange={ev=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).map((row,ri)=>ri!==ei?row:{...row,workTypeName:ev.target.value})}))}
+                            placeholder="Custom product" style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",flex:1 }}/>
+                        </div>
+                      </td>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                        <input type="number" value={e.amount||0} onChange={ev=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).map((row,ri)=>ri!==ei?row:{...row,amount:Number(ev.target.value)})}))} min={0}
+                          style={{ width:"100%",padding:"4px 8px",border:`1px solid ${e.amount>0?T.grn:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"right",background:e.amount>0?T.grnL:"#fff",fontWeight:e.amount>0?700:400 }}/>
+                      </td>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"4px",textAlign:"center" }}>
+                        <button onClick={()=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).filter((_,j)=>j!==ei)}))} style={{ background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14 }}>×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr style={{ background:T.grnL }}>
+                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,color:T.grn }}>SALES TOTAL</td>
+                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.grn,textAlign:"right" }}>{counterSalesTotal(counter).toLocaleString("en-IN")}</td>
+                  <td style={{ border:`1px solid ${T.bdr}` }}></td>
+                </tr></tfoot>
+              </table>
+            </div>
+            <Btn onClick={()=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:[...(cx.salesEntries||[]),{workTypeId:"",workTypeName:"",amount:0,type:"sales"}]}))} size="sm" variant="ghost" style={{marginTop:8}}>+ Add Sales Row</Btn>
           </div>
         </Card>
       ))}
@@ -1095,30 +1158,58 @@ function SupHistory({ user, state }) {
       {myReports.length === 0 ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports submitted yet</div></Card> :
         myReports.map(r => (
           <Card key={r.id} style={{ marginBottom:12, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
               <div>
                 <div style={{ fontWeight:700 }}>{fmtDate(r.date)}</div>
                 <div style={{ fontSize:12, color:T.txt2 }}>{(r.counters||[]).length} counter(s) · Submitted {r.submittedAt}</div>
+                {/* Counter-wise totals inline */}
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:6 }}>
+                  {(r.counters||[]).map((c,ci)=>{
+                    const svc = (c.entries||[]).filter(e=>e.type!=="sales"&&!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                    const sal = (c.entries||[]).filter(e=>e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                    return <div key={ci} style={{ background:T.navyXL,borderRadius:6,padding:"3px 10px",fontSize:12 }}>
+                      <span style={{ fontWeight:700,color:T.navy }}>{c.counterName}</span>
+                      <span style={{ color:T.txt2,marginLeft:4 }}>Svc: <b>{fmtCurr(svc)}</b></span>
+                      {sal>0&&<span style={{ color:T.grn,marginLeft:4 }}>Sales: <b>{fmtCurr(sal)}</b></span>}
+                    </div>;
+                  })}
+                </div>
               </div>
               <div style={{ textAlign:"right" }}>
                 <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
                 <Badge color={T.grn}>Submitted</Badge>
+                <div style={{ fontSize:11, color:T.txt3, marginTop:2 }}>{expanded===r.id?"▲ collapse":"▼ expand"}</div>
               </div>
             </div>
             {expanded===r.id && (
               <div style={{ marginTop:14, borderTop:`1px solid ${T.bdr}`, paddingTop:14 }}>
-                {(r.counters||[]).map((c,ci)=>(
-                  <div key={ci} style={{ marginBottom:14 }}>
-                    <div style={{ fontWeight:700, fontSize:13, marginBottom:6, color:T.navy }}>📍 {c.counterName}</div>
-                    <Table cols={[
-                      {key:"workTypeName",label:"Work"},
-                      {key:"vehicles",label:"Vehicles"},
-                      {key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},
-                      {key:"amount",label:"Amount",render:e=><b>{fmtCurr(e.amount)}</b>},
-                    ]} rows={c.entries.filter(e=>e.vehicles>0)}/>
-                  </div>
-                ))}
-                {r.notes && <div style={{marginTop:8,fontSize:13,color:T.txt2}}>📝 {r.notes}</div>}
+                {(r.counters||[]).map((c,ci)=>{
+                  const svcEntries = (c.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)&&e.vehicles>0);
+                  const salEntries = (c.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)&&e.amount>0);
+                  return <div key={ci} style={{ marginBottom:16, background:T.surf, borderRadius:8, padding:12 }}>
+                    <div style={{ fontWeight:800, fontSize:13, marginBottom:8, color:T.navy }}>📍 {c.counterName}</div>
+                    {svcEntries.length>0&&<>
+                      <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4}}>SERVICES</div>
+                      <Table cols={[
+                        {key:"workTypeName",label:"Work"},
+                        {key:"vehicles",label:"Veh"},
+                        {key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},
+                        {key:"amount",label:"Amount",render:e=><b style={{color:T.navy}}>{fmtCurr(e.amount)}</b>},
+                      ]} rows={svcEntries}/>
+                    </>}
+                    {salEntries.length>0&&<>
+                      <div style={{fontSize:11,fontWeight:700,color:T.grn,marginTop:8,marginBottom:4}}>SALES</div>
+                      <Table cols={[
+                        {key:"workTypeName",label:"Product"},
+                        {key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>},
+                      ]} rows={salEntries}/>
+                    </>}
+                    <div style={{fontSize:12,fontWeight:700,color:T.amber,textAlign:"right",marginTop:8}}>
+                      Counter Total: {fmtCurr((c.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0))}
+                    </div>
+                  </div>;
+                })}
+                {r.notes && <div style={{fontSize:13,color:T.txt2}}>📝 {r.notes}</div>}
               </div>
             )}
           </Card>
@@ -1699,11 +1790,18 @@ function MgrFeedback({ user, state, myCounters }) {
 function MDPortal({ user, state, setState, toast, syncFromCloud }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
-    { id:"dashboard", icon:"🏆", label:"Executive Summary" },
-    { id:"financial", icon:"💰", label:"Financial Trends" },
-    { id:"operations",icon:"🏪", label:"Operations" },
-    { id:"leaves",    icon:"✅", label:"Manager Leaves" },
-    { id:"people",    icon:"👥", label:"Full Org" },
+    { id:"dashboard",   icon:"🏆", label:"Live Dashboard" },
+    { id:"collection",  icon:"📊", label:"Collection Report" },
+    { id:"analysis",    icon:"📈", label:"Counter Analysis" },
+    { id:"reports",     icon:"📋", label:"All Reports" },
+    { id:"financial",   icon:"💰", label:"Financial Trends" },
+    { id:"operations",  icon:"🏪", label:"Operations" },
+    { id:"salary",      icon:"💳", label:"Salary & P&L" },
+    { id:"attendance",  icon:"🗓️", label:"All Attendance" },
+    { id:"leaves",      icon:"✅", label:"Leave Approvals" },
+    { id:"feedback",    icon:"💬", label:"All Feedback" },
+    { id:"people",      icon:"👥", label:"Full Org" },
+    { id:"directory",   icon:"👤", label:"Staff Directory" },
   ];
 
   return (
@@ -1720,6 +1818,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud }) {
       {page==="directory"   && <StaffDirectory state={state}/>}
       {page==="reports"     && <AllReports state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
+      {page==="attendance"  && <MDAttendance state={state}/>}
     </Shell>
   );
 }
@@ -2096,17 +2195,206 @@ function MDPeople({ state, setState, toast }) {
 function OfficePortal({ user, state, setState, toast }) {
   const [page, setPage] = useState("reports");
   const navItems = [
-    { id:"reports",    icon:"📋", label:"Service Reports" },
-    { id:"attendance", icon:"👥", label:"Attendance" },
+    { id:"reports",    icon:"📋", label:"View Reports" },
+    { id:"enter",      icon:"✏️", label:"Enter Report" },
+    { id:"attendance", icon:"👥", label:"View Attendance" },
     { id:"export",     icon:"📥", label:"Export Data" },
+    { id:"directory",  icon:"👤", label:"Staff Directory" },
   ];
 
   return (
     <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="reports"    && <OfficeReports state={state}/>}
+      {page==="enter"      && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance" && <OfficeAttendance state={state}/>}
       {page==="export"     && <OfficeExport state={state} toast={toast}/>}
+      {page==="directory"  && <StaffDirectory state={state}/>}
     </Shell>
+  );
+}
+
+
+// ─── Office: Enter Report (mirrors SupReport but for office staff) ─────────────
+function OfficeEnterReport({ user, state, setState, toast }) {
+  const [date, setDate] = useState(today());
+  const [selSupervisor, setSelSupervisor] = useState("");
+  const [reportCounters, setReportCounters] = useState([]);
+  const [notes, setNotes] = useState("");
+
+  const executives = state.users.filter(u => u.role === "supervisor" && u.active);
+  const serviceWTs = state.workTypes.filter(w => w.category !== "sales");
+  const salesWTs   = state.workTypes.filter(w => w.category === "sales");
+
+  const blankServiceRows = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
+  const blankSalesRows   = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, qty:0, amount:0, type:"sales" }));
+
+  useEffect(() => {
+    if (!selSupervisor) return;
+    const existing = state.serviceReports.find(r => r.supervisorId === selSupervisor && r.date === date);
+    if (existing) {
+      setReportCounters(existing.counters || []);
+      setNotes(existing.notes || "");
+    } else {
+      const myCtrs = state.counters.filter(c => c.supervisorId === selSupervisor);
+      setReportCounters(myCtrs.length ? myCtrs.map(c => ({ counterName:c.name, entries:blankServiceRows(), salesEntries:blankSalesRows() })) : [{ counterName:"", entries:blankServiceRows(), salesEntries:blankSalesRows() }]);
+      setNotes("");
+    }
+  }, [date, selSupervisor]);
+
+  const updateEntry = (ci, ei, field, val, isSales=false) => {
+    setReportCounters(p => p.map((c, cidx) => cidx !== ci ? c : {
+      ...c,
+      [isSales?"salesEntries":"entries"]: (isSales?c.salesEntries:c.entries).map((e, eidx) => {
+        if (eidx !== ei) return e;
+        const u = { ...e, [field]: field==="workTypeName" ? val : Number(val) };
+        if (!isSales && (field==="vehicles"||field==="rate")) u.amount = (Number(u.vehicles)||0)*(Number(u.rate)||0);
+        if (isSales && field==="amount") u.amount = Number(val);
+        return u;
+      })
+    }));
+  };
+
+  const counterServiceTotal = (c) => (c.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const counterSalesTotal   = (c) => (c.salesEntries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const grandTotal = reportCounters.reduce((s,c)=>s+counterServiceTotal(c)+counterSalesTotal(c),0);
+
+  const submit = () => {
+    if (!selSupervisor) { toast.show("Select an executive first","error"); return; }
+    const report = {
+      id: `sr_${selSupervisor}_${date}`,
+      date, supervisorId:selSupervisor,
+      submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+      counters: reportCounters.map(c => ({ ...c, entries:[...(c.entries||[]),...(c.salesEntries||[])] })),
+      totalAmount: grandTotal, notes, status:"submitted"
+    };
+    setState(p=>({ ...p, serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id), report] }));
+    toast.show("Report submitted for " + executives.find(u=>u.id===selSupervisor)?.name);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Enter Counter Report</div>
+      <Card style={{ marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+          <Input label="Date" type="date" value={date} onChange={setDate}/>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Executive / Counter</label>
+            <select value={selSupervisor} onChange={e=>setSelSupervisor(e.target.value)}
+              style={{ width:"100%", padding:"9px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none" }}>
+              <option value="">Select executive...</option>
+              {executives.map(u=><option key={u.id} value={u.id}>{u.name} — {u.counter}</option>)}
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {selSupervisor && reportCounters.map((counter, ci) => (
+        <Card key={ci} style={{ marginBottom:16, borderTop:`3px solid ${T.amber}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+            <div style={{ width:26,height:26,background:T.navy,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800 }}>{ci+1}</div>
+            <div style={{ flex:1 }}>
+              <select value={counter.counterName} onChange={e=>setReportCounters(p=>p.map((c,i)=>i===ci?{...c,counterName:e.target.value}:c))}
+                style={{ padding:"7px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", marginRight:8 }}>
+                <option value="">Select counter...</option>
+                {state.counters.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+              <input value={counter.counterName} onChange={e=>setReportCounters(p=>p.map((c,i)=>i===ci?{...c,counterName:e.target.value}:c))}
+                placeholder="Or type counter name" style={{ padding:"7px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", width:180 }}/>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:11,color:T.txt2,fontWeight:700,textTransform:"uppercase" }}>Counter Total</div>
+              <div style={{ fontSize:18,fontWeight:800,color:T.amber }}>₹{(counterServiceTotal(counter)+counterSalesTotal(counter)).toLocaleString("en-IN")}</div>
+            </div>
+          </div>
+
+          {/* SERVICE rows */}
+          <div style={{ fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🔧 Services</div>
+          <div style={{ overflowX:"auto", marginBottom:16 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead><tr style={{ background:T.surf }}>
+                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Work Type</th>
+                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:80,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Vehicles</th>
+                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:100,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Rate (₹)</th>
+                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:110,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Amount (₹)</th>
+              </tr></thead>
+              <tbody>
+                {(counter.entries||[]).map((e,ei)=>(
+                  <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
+                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                      <select value={e.workTypeId} onChange={ev=>{ const wt=state.workTypes.find(w=>w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
+                        style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:"100%" }}>
+                        <option value="">Select...</option>
+                        {serviceWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                      <input type="number" value={e.vehicles} onChange={ev=>updateEntry(ci,ei,"vehicles",ev.target.value)} min={0}
+                        style={{ width:"100%",padding:"4px 6px",border:`1px solid ${e.vehicles>0?T.amber:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center",background:e.vehicles>0?T.amberL:"#fff",fontWeight:e.vehicles>0?700:400 }}/>
+                    </td>
+                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                      <input type="number" value={e.rate} onChange={ev=>updateEntry(ci,ei,"rate",ev.target.value)} min={0}
+                        style={{ width:"100%",padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center" }}/>
+                    </td>
+                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 12px",textAlign:"right",fontWeight:700,color:e.amount>0?T.navy:T.txt3 }}>{e.amount>0?e.amount.toLocaleString("en-IN"):"0"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr style={{ background:T.navyXL }}>
+                <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy }}>SERVICE TOTAL</td>
+                <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.navy,textAlign:"right" }}>{counterServiceTotal(counter).toLocaleString("en-IN")}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+
+          {/* SALES rows */}
+          <div style={{ fontSize:12,fontWeight:800,color:T.grn,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🛒 Sales (Amount only — no rate card)</div>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead><tr style={{ background:T.grnL }}>
+                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Product</th>
+                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:140,fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Amount (₹)</th>
+              </tr></thead>
+              <tbody>
+                {(counter.salesEntries||[]).map((e,ei)=>(
+                  <tr key={ei} style={{ background:e.amount>0?"#F0FDF4":"#fff" }}>
+                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                      <select value={e.workTypeId} onChange={ev=>{ const wt=state.workTypes.find(w=>w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,salesEntries:c.salesEntries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name})})); }}
+                        style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",marginRight:6 }}>
+                        <option value="">Select product...</option>
+                        {salesWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
+                      </select>
+                      <input value={e.workTypeName} onChange={ev=>setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,salesEntries:c.salesEntries.map((row,ri)=>ri!==ei?row:{...row,workTypeName:ev.target.value})}))}
+                        placeholder="Or type product name" style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:140 }}/>
+                    </td>
+                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                      <input type="number" value={e.amount} onChange={ev=>updateEntry(ci,ei,"amount",ev.target.value,true)} min={0}
+                        style={{ width:"100%",padding:"4px 8px",border:`1px solid ${e.amount>0?T.grn:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"right",background:e.amount>0?T.grnL:"#fff",fontWeight:e.amount>0?700:400 }}/>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr style={{ background:T.grnL }}>
+                <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,color:T.grn }}>SALES TOTAL</td>
+                <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.grn,textAlign:"right" }}>{counterSalesTotal(counter).toLocaleString("en-IN")}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </Card>
+      ))}
+
+      {selSupervisor && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+          <Btn onClick={()=>setReportCounters(p=>[...p,{counterName:"",entries:blankServiceRows(),salesEntries:blankSalesRows()}])} variant="outline">+ Add Counter</Btn>
+          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+            <div style={{ background:T.navy,padding:"12px 20px",borderRadius:10,color:"#fff",textAlign:"right" }}>
+              <div style={{ fontSize:11,opacity:.6,textTransform:"uppercase" }}>Grand Total</div>
+              <div style={{ fontSize:22,fontWeight:800,color:T.amber }}>₹{grandTotal.toLocaleString("en-IN")}</div>
+            </div>
+            <Btn onClick={submit} variant="amber" size="lg">Submit Report</Btn>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3479,6 +3767,59 @@ function MDFeedbackAll({ state }) {
         </Card>
       ))}
       {state.feedback.length===0 && <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet</div></Card>}
+    </div>
+  );
+}
+
+
+// ─── MD: All Attendance view ──────────────────────────────────────────────────
+function MDAttendance({ state }) {
+  const [date, setDate] = useState(today());
+  const [filterCounter, setFilterCounter] = useState("all");
+
+  const att = state.attendance.filter(a => {
+    if (a.date !== date) return false;
+    if (filterCounter !== "all") {
+      const sup = state.users.find(u=>u.id===a.supervisorId);
+      return sup?.counter === filterCounter;
+    }
+    return true;
+  });
+
+  const counters = ["all", ...new Set(state.users.filter(u=>u.role==="supervisor").map(u=>u.counter).filter(Boolean))];
+  const presentCount = att.filter(a=>a.status==="present").length;
+  const absentCount  = att.filter(a=>a.status==="absent").length;
+  const halfCount    = att.filter(a=>a.status==="half_day").length;
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>All Attendance</div>
+      <div style={{ display:"flex", gap:12, marginBottom:16, flexWrap:"wrap" }}>
+        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:180}}/>
+        <div>
+          <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Counter</label>
+          <select value={filterCounter} onChange={e=>setFilterCounter(e.target.value)}
+            style={{ padding:"8px 12px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+            {counters.map(c=><option key={c} value={c}>{c==="all"?"All Counters":c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:12, marginBottom:20 }}>
+        <StatCard label="Present" value={presentCount} color={T.grn} icon="✅"/>
+        <StatCard label="Absent"  value={absentCount}  color={T.red} icon="❌"/>
+        <StatCard label="Half Day" value={halfCount}   color={T.amber} icon="½"/>
+        <StatCard label="Total"   value={att.length}   color={T.navy} icon="👥"/>
+      </div>
+
+      <Table cols={[
+        {key:"staff",     label:"Staff",     render:r=><b>{state.users.find(u=>u.id===r.staffId)?.name||r.staffId}</b>},
+        {key:"counter",   label:"Counter",   render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
+        {key:"supervisor",label:"Executive", render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
+        {key:"status",    label:"Status",    render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
+        {key:"reason",    label:"Reason",    render:r=>r.reason||"—"},
+        {key:"markedAt",  label:"Marked At"},
+      ]} rows={att} emptyMsg="No attendance records for this date"/>
     </div>
   );
 }
