@@ -660,26 +660,62 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function LoginScreen({ onLogin, users, passwords }) {
+function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
   const [empId, setEmpId] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const doLogin = () => {
-    const user = users.find(u => u.empId === empId.trim().toUpperCase() && u.active);
-    if (!user) { setErr("Employee ID not found or account is inactive."); return; }
-    if (passwords[empId.trim().toUpperCase()] !== pwd) { setErr("Incorrect password."); return; }
+  const doLogin = async () => {
+    const id = empId.trim().toUpperCase();
+    if (!id || !pwd) { setErr("Please enter your Employee ID and password."); return; }
+    setLoading(true);
+    setErr("");
+
+    // Step 1: Always fetch latest users/passwords directly from Supabase
+    let liveUsers = users;
+    let livePwds  = passwords;
+    try {
+      const config = await DB.getConfig();
+      if (Array.isArray(config.users) && config.users.length > 0) {
+        liveUsers = config.users;
+        livePwds  = Array.isArray(config.passwords)
+          ? Object.fromEntries(config.passwords.map(r => [r.emp_id, r.pwd]))
+          : passwords;
+        // Seed if empty
+        if (config.users.length === 0) {
+          await DB.seedUsersIfEmpty(INITIAL_STATE.users, INITIAL_STATE.passwords);
+          liveUsers = INITIAL_STATE.users;
+          livePwds  = INITIAL_STATE.passwords;
+        }
+        // Notify parent to update its state with fresh users
+        if (onUsersLoaded) onUsersLoaded(liveUsers, livePwds);
+      }
+    } catch(e) {
+      console.warn("Could not fetch from DB, using local users:", e);
+      // Fall through to local users — offline mode
+    }
+
+    // Step 2: Check credentials against live (or local) data
+    const user = liveUsers.find(u => u.empId === id && u.active);
+    if (!user) {
+      setErr("Employee ID not found or account is inactive.");
+      setLoading(false); return;
+    }
+    if (livePwds[id] !== pwd) {
+      setErr("Incorrect password.");
+      setLoading(false); return;
+    }
+    setLoading(false);
     onLogin(user);
   };
 
   return (
     <div style={{ minHeight:"100vh", background:`linear-gradient(135deg, ${T.navy} 0%, ${T.navyL} 60%, #1a4a6b 100%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div style={{ width:"100%", maxWidth:400 }}>
-        {/* Logo */}
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ width:64, height:64, background:T.amber, borderRadius:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:32, marginBottom:12 }}>✨</div>
           <div style={{ fontSize:24, fontWeight:800, color:"#fff" }}>Benaka Enterprises</div>
-
         </div>
 
         <div style={{ background:T.card, borderRadius:20, padding:32 }}>
@@ -688,13 +724,16 @@ function LoginScreen({ onLogin, users, passwords }) {
 
           {err && <div style={{ background:T.redL, border:`1px solid ${T.red}44`, borderRadius:8, padding:"10px 14px", fontSize:13, color:T.red, marginBottom:16 }}>{err}</div>}
 
-          <Input label="Employee ID" value={empId} onChange={v=>{setEmpId(v);setErr("")}} placeholder="e.g. SUP001" />
+          <Input label="Employee ID" value={empId} onChange={v=>{setEmpId(v);setErr("")}} placeholder="e.g. MGR001" />
           <Input label="Password" type="password" value={pwd} onChange={v=>{setPwd(v);setErr("")}} placeholder="Your password" />
 
-          <Btn onClick={doLogin} size="lg" style={{ width:"100%", justifyContent:"center" }}>Sign in →</Btn>
+          <Btn onClick={doLogin} disabled={loading} size="lg" style={{ width:"100%", justifyContent:"center" }}>
+            {loading ? "Checking..." : "Sign in →"}
+          </Btn>
           <div style={{ textAlign:"center", marginTop:14 }}>
-            <button onClick={()=>{ localStorage.clear(); window.location.reload(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:T.txt3, textDecoration:"underline" }}>
-              Having trouble logging in? Clear cache and reload
+            <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
+              style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:T.txt3, textDecoration:"underline" }}>
+              Having trouble? Clear cache &amp; reload
             </button>
           </div>
         </div>
@@ -2789,17 +2828,23 @@ function UserMgmt({ state, setState, toast }) {
   const save = () => {
     if (!form.empId||!form.name) { toast.show("ID and Name required","error"); return; }
     if (editing) {
-      setState(p=>({ ...p,
-        users: p.users.map(u=>u.id===editing.id?{...u,...form}:u),
-        passwords: newPwd ? {...p.passwords,[form.empId]:newPwd} : p.passwords,
-        _configVersion: (p._configVersion||0) + 1,
-      }));
-      toast.show("User updated");
+      const updatedUsers = state.users.map(u=>u.id===editing.id?{...u,...form}:u);
+      const updatedPwds  = newPwd ? {...state.passwords,[form.empId]:newPwd} : state.passwords;
+      // Push to Supabase immediately so other devices get it
+      DB.upsertUsers(updatedUsers).catch(console.error);
+      DB.upsertPasswords(updatedPwds).catch(console.error);
+      setState(p=>({ ...p, users: updatedUsers, passwords: updatedPwds, _configVersion:(p._configVersion||0)+1 }));
+      toast.show("User updated — synced to cloud ✅");
     } else {
       if (state.users.find(u=>u.empId===form.empId)) { toast.show("Employee ID already exists","error"); return; }
       const newUser = { id:`u_${Date.now()}`, ...form, dob:form.dob||"", joining:form.joining||"", weddingAnniversary:form.weddingAnniversary||"", active:true };
-      setState(p=>({ ...p, users:[...p.users, newUser], passwords:{...p.passwords,[form.empId]:newPwd||"pass@123"}, _configVersion: (p._configVersion||0) + 1 }));
-      toast.show(`User created · Default password: ${newPwd||"pass@123"}`);
+      const newUsers = [...state.users, newUser];
+      const newPwds2 = {...state.passwords, [form.empId]: newPwd||"pass@123"};
+      // Push to Supabase immediately
+      DB.upsertUsers(newUsers).catch(console.error);
+      DB.upsertPasswords(newPwds2).catch(console.error);
+      setState(p=>({ ...p, users: newUsers, passwords: newPwds2, _configVersion:(p._configVersion||0)+1 }));
+      toast.show(`User created · Password: ${newPwd||"pass@123"} — synced to cloud ✅`);
     }
     setModal(false);
   };
@@ -4158,8 +4203,16 @@ export default function App() {
   // ───────────────────────────────────────────────────────────────────────────
 
   if (!state.currentUser) {
+    const handleUsersLoaded = (freshUsers, freshPwds) => {
+      setState(p => ({ ...p, users: freshUsers, passwords: freshPwds }));
+    };
     return <ErrorBoundary>
-      <LoginScreen onLogin={login} users={state.users} passwords={state.passwords || INITIAL_STATE.passwords}/>
+      <LoginScreen
+        onLogin={login}
+        users={state.users}
+        passwords={state.passwords || INITIAL_STATE.passwords}
+        onUsersLoaded={handleUsersLoaded}
+      />
       <Toast/>
     </ErrorBoundary>;
   }
