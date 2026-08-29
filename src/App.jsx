@@ -46,7 +46,19 @@ const DB = {
     return r.json();
   },
   async upsertReport(report) {
-    const row = { id: report.id, date: report.date, supervisor_id: report.supervisorId, submitted_at: report.submittedAt, counters: report.counters, total_amount: report.totalAmount, notes: report.notes, status: report.status };
+    const row = {
+      id: report.id,
+      date: report.date,
+      supervisor_id: report.supervisorId,
+      counter_id: report.counterId || null,
+      counter_name: report.counterName || null,
+      submitted_at: report.submittedAt,
+      counters: report.counters || [],
+      entries: report.entries || [],
+      total_amount: report.totalAmount,
+      notes: report.notes,
+      status: report.status
+    };
     return supabase.from("service_reports").upsert(row);
   },
   // Attendance
@@ -102,33 +114,53 @@ function useSupabaseSync(localState, setLocalState) {
   const [synced, setSynced] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | ok | error | offline
 
-  const isConfigured = SUPABASE_URL !== "https://hrqyuxwpxiffyqolpgdo.supabase.co";
+  const isConfigured = true; // Supabase is configured
 
   const syncFromCloud = useCallback(async () => {
-    if (!isConfigured) { setSyncStatus("offline"); setSynced(true); return; }
     setSyncStatus("syncing");
     try {
       const [reports, attendance, leaves, feedback, salaries, collReports] = await Promise.all([
         DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(), DB.getSalaries(), DB.getCollectionReports()
       ]);
-      // Map snake_case DB columns back to camelCase for the app
-      const mapReport = r => ({ id:r.id, date:r.date, supervisorId:r.supervisor_id, submittedAt:r.submitted_at, counters:r.counters||[], totalAmount:r.total_amount, notes:r.notes, status:r.status });
-      const mapAtt = a => ({ id:a.id, date:a.date, supervisorId:a.supervisor_id, staffId:a.staff_id, status:a.status, reason:a.reason, markedAt:a.marked_at });
+
+      // Check if tables exist — Supabase returns {code:"42P01"} if table missing
+      const tablesExist = Array.isArray(reports);
+      if (!tablesExist) {
+        console.warn("Supabase tables not yet created. Run supabase-setup.sql first.", reports);
+        setSyncStatus("setup_needed");
+        setSynced(true);
+        return;
+      }
+
+      const mapReport = r => ({
+        id: r.id, date: r.date, supervisorId: r.supervisor_id,
+        submittedAt: r.submitted_at, counters: r.counters||[],
+        counterId: r.counter_id, counterName: r.counter_name,
+        entries: r.entries||[], totalAmount: r.total_amount,
+        notes: r.notes, status: r.status
+      });
+      const mapAtt = a => ({
+        id: a.id, date: a.date, supervisorId: a.supervisor_id,
+        staffId: a.staff_id, status: a.status,
+        reason: a.reason, markedAt: a.marked_at
+      });
+
       setLocalState(p => ({
         ...p,
-        serviceReports: Array.isArray(reports) ? reports.map(mapReport) : p.serviceReports,
-        attendance: Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
-        leaves: Array.isArray(leaves) ? leaves : p.leaves,
-        feedback: Array.isArray(feedback) ? feedback : p.feedback,
-        salaries: Array.isArray(salaries) ? salaries : p.salaries,
-        collectionReports: Array.isArray(collReports) ? collReports : p.collectionReports,
+        serviceReports:    reports.map(mapReport),
+        attendance:        attendance.map ? attendance.map(mapAtt) : p.attendance,
+        leaves:            Array.isArray(leaves)     ? leaves     : p.leaves,
+        feedback:          Array.isArray(feedback)   ? feedback   : p.feedback,
+        salaries:          Array.isArray(salaries)   ? salaries   : p.salaries,
+        collectionReports: Array.isArray(collReports)? collReports: p.collectionReports,
       }));
       setSyncStatus("ok");
     } catch(e) {
+      console.error("Sync error:", e);
       setSyncStatus("error");
     }
     setSynced(true);
-  }, [isConfigured]);
+  }, []);
 
   useEffect(() => { syncFromCloud(); }, []);
 
@@ -623,13 +655,16 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
 
         {/* Sync status bar */}
         {syncStatus && syncStatus !== "idle" && (
-          <div style={{ background: syncStatus==="ok"?T.grnL : syncStatus==="syncing"?"#EFF6FF" : syncStatus==="offline"?"#FEF3DC" : T.redL,
-            padding:"4px 20px", fontSize:11, fontWeight:700, color: syncStatus==="ok"?T.grn : syncStatus==="syncing"?T.pri : syncStatus==="offline"?T.amberD : T.red,
-            display:"flex", alignItems:"center", gap:6 }}>
-            {syncStatus==="ok" && "✅ All devices in sync"}
-            {syncStatus==="syncing" && "🔄 Syncing..."}
-            {syncStatus==="offline" && "⚠️ Offline mode — changes saved locally only"}
-            {syncStatus==="error" && "❌ Sync error — working offline"}
+          <div style={{ background: syncStatus==="ok"?T.grnL : syncStatus==="syncing"?"#EFF6FF" : syncStatus==="setup_needed"?"#FEF3DC" : syncStatus==="offline"?"#FEF3DC" : T.redL,
+            padding:"5px 20px", fontSize:11, fontWeight:700, color: syncStatus==="ok"?T.grn : syncStatus==="syncing"?"#0369A1" : syncStatus==="setup_needed"?T.amberD : syncStatus==="offline"?T.amberD : T.red,
+            display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
+            <span>
+              {syncStatus==="ok"           && "✅ All devices in sync — data saved to cloud"}
+              {syncStatus==="syncing"      && "🔄 Syncing with database..."}
+              {syncStatus==="setup_needed" && "⚠️ Database tables not set up — run supabase-setup.sql in Supabase SQL Editor"}
+              {syncStatus==="offline"      && "⚠️ Offline mode — changes saved locally only"}
+              {syncStatus==="error"        && "❌ Could not reach database — working offline"}
+            </span>
           </div>
         )}
         {/* Birthday banner */}
@@ -673,7 +708,6 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
       {page==="history"     && <SupHistory user={user} state={state}/>}
       {page==="feedback"    && <SupFeedback user={user} state={state}/>}
-      {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"    && <CounterAnalysis user={user} state={state} counterFilter={myCounter?.name}/>}
       {page==="staffleaves" && <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="executive"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
@@ -897,364 +931,365 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
 
 function SupReport({ user, state, setState, toast }) {
   const [date, setDate] = useState(today());
-  const [reportCounters, setReportCounters] = useState([]);
-  const [notes, setNotes] = useState("");
-
-  // All counters this supervisor manages
+  // Each counter gets its own tab
   const myCounters = state.counters.filter(c => c.supervisorId === user.id);
-  // Also include any counter named in user profile
-  const supervisorCounterNames = myCounters.map(c=>c.name);
-
-  const existing = state.serviceReports.find(r => r.supervisorId === user.id && r.date === date);
+  const [activeCounter, setActiveCounter] = useState(myCounters[0]?.id || "");
 
   const serviceWTs = state.workTypes.filter(w => w.category !== "sales");
   const salesWTs   = state.workTypes.filter(w => w.category === "sales");
-  // Default work type rows — service types with 0 vehicles
-  const blankRows      = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
-  const blankSalesRows = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, qty:0, amount:0, type:"sales" }));
+  const blankServiceRows = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
+  const blankSalesRows   = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, amount:0, type:"sales" }));
 
+  // Per-counter local state: { [counterId]: { entries, salesEntries } }
+  const [counterData, setCounterData] = useState({});
+
+  // Load existing report data for each counter when date changes
   useEffect(() => {
-    if (existing) {
-      // Restore existing report — ensure salesEntries are split out
-      const restoredCounters = (existing.counters || []).map(c => ({
-        ...c,
-        entries: (c.entries||[]).filter(e => !["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) && e.type!=="sales"),
-        salesEntries: (c.entries||[]).filter(e => ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) || e.type==="sales"),
-      }));
-      setReportCounters(restoredCounters);
-      setNotes(existing.notes || "");
-    } else {
-      // Pre-load all assigned counters with blank rows
-      const preloaded = myCounters.map(c => ({ counterName: c.name, entries: blankRows(), salesEntries: blankSalesRows() }));
-      setReportCounters(preloaded.length ? preloaded : [{ counterName: "", entries: blankRows(), salesEntries: blankSalesRows() }]);
-      setNotes("");
-    }
-  }, [date, state.workTypes.length]);
+    const newData = {};
+    myCounters.forEach(c => {
+      const existing = state.serviceReports.find(r =>
+        r.counterId === c.id && r.supervisorId === user.id && r.date === date
+      );
+      if (existing) {
+        newData[c.id] = {
+          entries: (existing.entries||[]).filter(e => e.type !== "sales" && !salesWTs.some(w=>w.name===e.workTypeName)),
+          salesEntries: (existing.entries||[]).filter(e => e.type === "sales" || salesWTs.some(w=>w.name===e.workTypeName)),
+          notes: existing.notes || "",
+          submitted: true,
+        };
+      } else {
+        newData[c.id] = { entries: blankServiceRows(), salesEntries: blankSalesRows(), notes: "", submitted: false };
+      }
+    });
+    setCounterData(newData);
+    if (myCounters.length > 0 && !activeCounter) setActiveCounter(myCounters[0].id);
+  }, [date, state.serviceReports.length]);
 
-  const updateEntry = (ci, ei, field, val) => {
-    setReportCounters(p => {
-      const n = p.map((c,idx) => idx !== ci ? c : {
-        ...c, entries: c.entries.map((e, eidx) => {
-          if (eidx !== ei) return e;
-          const updated = { ...e, [field]: field === "workTypeName" ? val : Number(val) };
-          if (field === "vehicles" || field === "rate") updated.amount = (Number(updated.vehicles)||0) * (Number(updated.rate)||0);
-          return updated;
-        })
+  const getData = (cid) => counterData[cid] || { entries: blankServiceRows(), salesEntries: blankSalesRows(), notes: "" };
+
+  const updateServiceEntry = (cid, ei, field, val) => {
+    setCounterData(p => {
+      const d = { ...getData(cid) };
+      d.entries = d.entries.map((e,i) => {
+        if (i !== ei) return e;
+        const u = { ...e, [field]: field==="workTypeName"?val:Number(val) };
+        if (field==="vehicles"||field==="rate") u.amount = (Number(u.vehicles)||0)*(Number(u.rate)||0);
+        return u;
       });
-      return n;
+      return { ...p, [cid]: d };
     });
   };
 
-  const addCounterBlock = () => setReportCounters(p => [...p, { counterName: "", entries: blankRows(), salesEntries: blankSalesRows() }]);
-  const removeCounterBlock = (ci) => setReportCounters(p => p.filter((_,i)=>i!==ci));
-  const setCounterName = (ci, name) => setReportCounters(p => p.map((c,i)=>i===ci?{...c,counterName:name}:c));
+  const updateSalesEntry = (cid, ei, field, val) => {
+    setCounterData(p => {
+      const d = { ...getData(cid) };
+      d.salesEntries = d.salesEntries.map((e,i) => i!==ei ? e : { ...e, [field]: field==="amount"?Number(val):val });
+      return { ...p, [cid]: d };
+    });
+  };
 
-  const addRow = (ci) => setReportCounters(p => p.map((c,i)=>i===ci?{...c,entries:[...c.entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0}]}:c));
-  const removeRow = (ci, ei) => setReportCounters(p => p.map((c,i)=>i!==ci?c:{...c,entries:c.entries.filter((_,j)=>j!==ei)}));
+  const setNotes = (cid, val) => setCounterData(p => ({ ...p, [cid]: { ...getData(cid), notes: val } }));
 
-  const counterServiceTotal = (c) => (c.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
-  const counterSalesTotal = (c) => (c.salesEntries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
-  const grandTotal = reportCounters.reduce((s,c)=>s+counterServiceTotal(c)+counterSalesTotal(c),0);
-  // counterTotal replaced by counterServiceTotal + counterSalesTotal above
-
-  const submit = () => {
-    if (reportCounters.some(c=>!c.counterName.trim())) { toast.show("All counter names must be filled","error"); return; }
+  const submitCounter = (counter) => {
+    const d = getData(counter.id);
+    const allEntries = [
+      ...d.entries,
+      ...d.salesEntries.map(e => ({ ...e, vehicles:0, rate:0 }))
+    ];
+    const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0), 0);
     const report = {
-      id: existing?.id || `sr_${Date.now()}`,
-      date, supervisorId: user.id,
+      id: `sr_${user.id}_${counter.id}_${date}`,
+      date,
+      counterId: counter.id,
+      counterName: counter.name,
+      supervisorId: user.id,
       submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
-      counters: reportCounters.map(c => ({ ...c, entries:[...(c.entries||[]),...(c.salesEntries||[]).map(e=>({...e,vehicles:0,rate:0}))] })),
-      totalAmount: grandTotal,
-      notes, status: "submitted"
+      entries: allEntries,
+      // Keep counters[] for backward compat with manager/MD views
+      counters: [{ counterName: counter.name, entries: allEntries }],
+      totalAmount: total,
+      notes: d.notes,
+      status: "submitted"
     };
     setState(p => ({ ...p, serviceReports: [...p.serviceReports.filter(r=>r.id!==report.id), report] }));
-    toast.show(existing ? "Report updated" : "Vehicle report submitted successfully");
+    setCounterData(p => ({ ...p, [counter.id]: { ...getData(counter.id), submitted: true } }));
+    toast.show(`${counter.name} report submitted`);
   };
 
-  const printReport = () => {
+  const printCounter = (counter) => {
+    const d = getData(counter.id);
     const w = window.open("","_blank");
-    const rows = reportCounters.flatMap((c,ci) =>
-      c.entries.map((e,ei) => `<tr>
-        ${ei===0?`<td rowspan="${c.entries.length}" style="border:1px solid #000;padding:4px 8px;font-weight:700;vertical-align:top">${ci+1}</td>
-                  <td rowspan="${c.entries.length}" style="border:1px solid #000;padding:4px 8px;font-weight:700;vertical-align:top">${c.counterName}</td>`:""}
-        <td style="border:1px solid #000;padding:4px 8px">${e.workTypeName}</td>
-        <td style="border:1px solid #000;padding:4px 8px;text-align:center">${e.vehicles}</td>
-        <td style="border:1px solid #000;padding:4px 8px;text-align:center">${e.rate}</td>
-        <td style="border:1px solid #000;padding:4px 8px;text-align:right">${e.amount}</td>
-      </tr>`)
+    const svcRows = d.entries.filter(e=>e.vehicles>0).map(e=>
+      `<tr><td style="border:1px solid #000;padding:5px 8px">${e.workTypeName}</td><td style="border:1px solid #000;padding:5px 8px;text-align:center">${e.vehicles}</td><td style="border:1px solid #000;padding:5px 8px;text-align:center">${e.rate}</td><td style="border:1px solid #000;padding:5px 8px;text-align:right">${e.amount}</td></tr>`
     ).join("");
-    w.document.write(`<html><head><title>Vehicle Report - ${date}</title>
-    <style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}h2,h3{text-align:center;margin:4px 0}</style></head>
-    <body><h2>VEHICLE REPORT</h2><h3>Date: ${date.split("-").reverse().join("-")}</h3><br>
+    const salRows = d.salesEntries.filter(e=>e.amount>0).map(e=>
+      `<tr><td style="border:1px solid #000;padding:5px 8px" colspan="3">${e.workTypeName}</td><td style="border:1px solid #000;padding:5px 8px;text-align:right">${e.amount}</td></tr>`
+    ).join("");
+    const total = [...d.entries,...d.salesEntries].reduce((s,e)=>s+(Number(e.amount)||0),0);
+    w.document.write(`<html><head><title>${counter.name} - ${date}</title>
+    <style>body{font-family:Arial,sans-serif;margin:20px;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:12px}h2,h3{text-align:center;margin:3px 0}</style></head>
+    <body><h2>BENAKA ENTERPRISES</h2><h3>VEHICLE REPORT — ${counter.name.toUpperCase()}</h3><h3>Date: ${date.split("-").reverse().join("-")}</h3><br>
     <table><thead><tr>
-      <th style="border:1px solid #000;padding:6px;background:#f0f0f0">Sl.No</th>
-      <th style="border:1px solid #000;padding:6px;background:#f0f0f0">COUNTER'S NAME</th>
-      <th style="border:1px solid #000;padding:6px;background:#f0f0f0">WORK</th>
-      <th style="border:1px solid #000;padding:6px;background:#f0f0f0">No's of Veh</th>
-      <th style="border:1px solid #000;padding:6px;background:#f0f0f0">RATE</th>
-      <th style="border:1px solid #000;padding:6px;background:#f0f0f0">AMOUNT</th>
-    </tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr><td colspan="5" style="border:1px solid #000;padding:6px;text-align:right;font-weight:700">GRAND TOTAL</td>
-    <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700">₹${grandTotal.toLocaleString("en-IN")}</td></tr></tfoot>
+      <th style="border:1px solid #000;padding:5px;background:#f0f0f0">WORK TYPE</th>
+      <th style="border:1px solid #000;padding:5px;background:#f0f0f0">VEHICLES</th>
+      <th style="border:1px solid #000;padding:5px;background:#f0f0f0">RATE</th>
+      <th style="border:1px solid #000;padding:5px;background:#f0f0f0">AMOUNT</th>
+    </tr></thead><tbody>${svcRows}${salRows}</tbody>
+    <tfoot><tr><td colspan="3" style="border:1px solid #000;padding:5px;text-align:right;font-weight:700">TOTAL</td>
+    <td style="border:1px solid #000;padding:5px;text-align:right;font-weight:700">₹${total.toLocaleString("en-IN")}</td></tr></tfoot>
     </table></body></html>`);
-    w.document.close();
-    w.print();
+    w.document.close(); w.print();
   };
+
+  if (myCounters.length === 0) return (
+    <Card><div style={{color:T.txt3,textAlign:"center",padding:24}}>No counters assigned to you. Contact IT Admin.</div></Card>
+  );
+
+  const activeC = myCounters.find(c=>c.id===activeCounter) || myCounters[0];
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:10 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
         <div>
-          <div style={{ fontSize:18, fontWeight:800 }}>Vehicle Report</div>
-          <div style={{ fontSize:13, color:T.txt2 }}>Daily service report — all counters</div>
+          <div style={{ fontSize:18, fontWeight:800 }}>Daily Vehicle Report</div>
+          <div style={{ fontSize:13, color:T.txt2 }}>Submit one report per counter</div>
         </div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {existing && <Badge color={T.grn}>Submitted — editing</Badge>}
-          <Btn onClick={printReport} variant="ghost" size="sm">🖨 Print / PDF</Btn>
-          <Btn onClick={submit} variant="amber">{existing ? "Update Report" : "Submit Report"}</Btn>
-        </div>
+        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:180}}/>
       </div>
 
-      {/* Work type legend */}
-      <div style={{ display:"flex", gap:8, marginBottom:12, fontSize:12 }}>
-        <Badge color={T.navy}>Service work types</Badge>
-        <Badge color={T.grn}>Sales / Products</Badge>
-        <span style={{color:T.txt3}}>— rates are editable per entry</span>
+      {/* Counter tabs */}
+      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+        {myCounters.map(c => {
+          const d = getData(c.id);
+          const total = [...(d.entries||[]),...(d.salesEntries||[])].reduce((s,e)=>s+(Number(e.amount)||0),0);
+          const isSubmitted = !!state.serviceReports.find(r=>r.counterId===c.id&&r.supervisorId===user.id&&r.date===date);
+          return (
+            <button key={c.id} onClick={()=>setActiveCounter(c.id)} style={{
+              padding:"8px 16px", borderRadius:8, border:`2px solid ${activeCounter===c.id?T.navy:T.bdrS}`,
+              background:activeCounter===c.id?T.navy:"#fff", color:activeCounter===c.id?"#fff":T.txt,
+              fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer", position:"relative"
+            }}>
+              {c.name}
+              {isSubmitted
+                ? <span style={{ marginLeft:6, fontSize:10, background:T.grn, color:"#fff", padding:"1px 5px", borderRadius:10 }}>✓</span>
+                : total>0 ? <span style={{ marginLeft:6, fontSize:10, background:T.amber, color:"#fff", padding:"1px 5px", borderRadius:10 }}>₹{Math.round(total/1000)}k</span>
+                : null
+              }
+            </button>
+          );
+        })}
       </div>
-      {/* Header row */}
-      <Card style={{ marginBottom:16 }}>
-        <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"flex-end" }}>
-          <Input label="Date" type="date" value={date} onChange={setDate} style={{ maxWidth:180 }}/>
-          <div style={{ flex:1 }}>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Notes / Remarks</label>
-            <input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Any notes for today..."
-              style={{ width:"100%", padding:"9px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none" }}/>
-          </div>
-        </div>
-      </Card>
 
-      {/* Counter blocks */}
-      {reportCounters.map((counter, ci) => (
-        <Card key={ci} style={{ marginBottom:16, borderTop:`3px solid ${T.amber}` }}>
-          {/* Counter header */}
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14, flexWrap:"wrap" }}>
-            <div style={{ width:28, height:28, background:T.navy, color:"#fff", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, flexShrink:0 }}>{ci+1}</div>
-            <div style={{ flex:1, minWidth:200 }}>
-              <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Counter Name</label>
+      {/* Active counter form */}
+      {activeC && (() => {
+        const d = getData(activeC.id);
+        const isSubmitted = !!state.serviceReports.find(r=>r.counterId===activeC.id&&r.supervisorId===user.id&&r.date===date);
+        const svcTotal = (d.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const salTotal = (d.salesEntries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        return (
+          <Card style={{ borderTop:`3px solid ${T.amber}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800 }}>{activeC.name}</div>
+                {isSubmitted && <Badge color={T.grn} style={{marginTop:4}}>✓ Submitted for {fmtDate(date)}</Badge>}
+              </div>
               <div style={{ display:"flex", gap:8 }}>
-                <select value={counter.counterName} onChange={e=>setCounterName(ci,e.target.value)}
-                  style={{ flex:1, padding:"7px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}>
-                  <option value="">Select counter...</option>
-                  {state.counters.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-                <input value={counter.counterName} onChange={e=>setCounterName(ci,e.target.value)} placeholder="Or type name"
-                  style={{ flex:1, padding:"7px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+                <Btn onClick={()=>printCounter(activeC)} variant="ghost" size="sm">🖨 Print</Btn>
+                <Btn onClick={()=>submitCounter(activeC)} variant="amber">{isSubmitted?"Update Report":"Submit Report"}</Btn>
               </div>
             </div>
-            <div style={{ marginLeft:"auto", textAlign:"right" }}>
-              <div style={{ fontSize:11, color:T.txt2, fontWeight:700, textTransform:"uppercase" }}>Counter Total</div>
-              <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>₹{(counterServiceTotal(counter)+counterSalesTotal(counter)).toLocaleString("en-IN")}</div>
-            </div>
-            {reportCounters.length > 1 && (
-              <button onClick={()=>removeCounterBlock(ci)} style={{ background:"none", border:"none", cursor:"pointer", color:T.red, fontSize:18, padding:4, flexShrink:0 }}>🗑</button>
-            )}
-          </div>
 
-          {/* Entries table */}
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-              <thead>
-                <tr style={{ background:T.surf }}>
-                  <th style={{ padding:"8px 10px", textAlign:"left", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", minWidth:180 }}>WORK TYPE</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", width:90 }}>No. of Veh</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", width:100 }}>Rate (₹)</th>
-                  <th style={{ padding:"8px 10px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", width:110 }}>Amount (₹)</th>
-                  <th style={{ padding:"8px 10px", border:`1px solid ${T.bdr}`, width:36 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {counter.entries.map((e, ei) => (
-                  <tr key={ei} style={{ background: e.vehicles > 0 ? "#FFFDF7" : "#fff" }}>
-                    <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                      <div style={{ display:"flex", gap:6 }}>
-                        <select value={e.workTypeId} onChange={ev=>{
-                          const wt = state.workTypes.find(w=>w.id===ev.target.value);
-                          if(wt) {
-                            updateEntry(ci,ei,"workTypeName",wt.name);
-                            setTimeout(()=>updateEntry(ci,ei,"workTypeId",ev.target.value),0);
-                            // set rate too
-                            setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ei2)=>ei2!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})}));
-                          }
-                        }}
-                        style={{ flex:1, padding:"4px 6px", border:`1px solid ${T.bdrS}`, borderRadius:5, fontSize:12, fontFamily:"inherit", outline:"none" }}>
-                          <option value="">Pick type...</option>
-                          {state.workTypes.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
-                        </select>
-                        <input value={e.workTypeName} onChange={ev=>updateEntry(ci,ei,"workTypeName",ev.target.value)} placeholder="Custom"
-                          style={{ flex:1, padding:"4px 6px", border:`1px solid ${T.bdrS}`, borderRadius:5, fontSize:12, fontFamily:"inherit", outline:"none", minWidth:80 }}/>
-                      </div>
-                    </td>
-                    <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px", textAlign:"center" }}>
-                      <input type="number" value={e.vehicles} onChange={ev=>updateEntry(ci,ei,"vehicles",ev.target.value)} min={0}
-                        style={{ width:"100%", padding:"4px 6px", border:`1px solid ${e.vehicles>0?T.amber:T.bdrS}`, borderRadius:5, fontSize:13, fontFamily:"inherit", outline:"none", textAlign:"center", fontWeight:e.vehicles>0?700:400, background:e.vehicles>0?T.amberL:"#fff" }}/>
-                    </td>
-                    <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px", textAlign:"center" }}>
-                      <input type="number" value={e.rate} onChange={ev=>updateEntry(ci,ei,"rate",ev.target.value)} min={0}
-                        style={{ width:"100%", padding:"4px 6px", border:`1px solid ${T.bdrS}`, borderRadius:5, fontSize:13, fontFamily:"inherit", outline:"none", textAlign:"center" }}/>
-                    </td>
-                    <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 12px", textAlign:"right", fontWeight:700, color:e.amount>0?T.navy:T.txt3, fontSize:13 }}>
-                      {e.amount > 0 ? e.amount.toLocaleString("en-IN") : "0"}
-                    </td>
-                    <td style={{ border:`1px solid ${T.bdr}`, padding:"4px", textAlign:"center" }}>
-                      <button onClick={()=>removeRow(ci,ei)} style={{ background:"none", border:"none", cursor:"pointer", color:T.red, fontSize:14, lineHeight:1 }}>×</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ background:T.navyXL }}>
-                  <td colSpan={3} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, fontSize:13, color:T.navy, textAlign:"right" }}>COUNTER TOTAL</td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 12px", fontWeight:800, fontSize:14, color:T.amber, textAlign:"right" }}>
-                    {(counterServiceTotal(counter)+counterSalesTotal(counter)).toLocaleString("en-IN")}
-                  </td>
+            {/* SERVICE entries */}
+            <div style={{ fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🔧 Services</div>
+            <div style={{ overflowX:"auto", marginBottom:16 }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                <thead><tr style={{ background:T.surf }}>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Work Type</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:80,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Vehicles</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:100,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Rate (₹)</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:110,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Amount (₹)</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",width:30 }}></th>
+                </tr></thead>
+                <tbody>
+                  {(d.entries||[]).map((e,ei)=>(
+                    <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                        <div style={{ display:"flex",gap:5 }}>
+                          <select value={e.workTypeId||""} onChange={ev=>{ const wt=serviceWTs.find(w=>w.id===ev.target.value); if(wt) setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:getData(activeC.id).entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})}})); }}
+                            style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none" }}>
+                            <option value="">Select...</option>
+                            {serviceWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
+                          </select>
+                          <input value={e.workTypeName||""} onChange={ev=>updateServiceEntry(activeC.id,ei,"workTypeName",ev.target.value)}
+                            placeholder="Custom" style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",minWidth:70 }}/>
+                        </div>
+                      </td>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                        <input type="number" value={e.vehicles||0} onChange={ev=>updateServiceEntry(activeC.id,ei,"vehicles",ev.target.value)} min={0}
+                          style={{ width:"100%",padding:"4px 6px",border:`1px solid ${e.vehicles>0?T.amber:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center",background:e.vehicles>0?T.amberL:"#fff",fontWeight:e.vehicles>0?700:400 }}/>
+                      </td>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                        <input type="number" value={e.rate||0} onChange={ev=>updateServiceEntry(activeC.id,ei,"rate",ev.target.value)} min={0}
+                          style={{ width:"100%",padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center" }}/>
+                      </td>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 12px",textAlign:"right",fontWeight:700,color:e.amount>0?T.navy:T.txt3 }}>{e.amount>0?e.amount.toLocaleString("en-IN"):"0"}</td>
+                      <td style={{ border:`1px solid ${T.bdr}`,padding:"4px",textAlign:"center" }}>
+                        <button onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:getData(activeC.id).entries.filter((_,j)=>j!==ei)}}))} style={{ background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14 }}>×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr style={{ background:T.navyXL }}>
+                  <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy,fontSize:12 }}>SERVICE TOTAL</td>
+                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.navy,textAlign:"right" }}>{svcTotal.toLocaleString("en-IN")}</td>
                   <td style={{ border:`1px solid ${T.bdr}` }}></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <div style={{ marginTop:10 }}>
-            <Btn onClick={()=>addRow(ci)} size="sm" variant="ghost">+ Add Service Row</Btn>
-          </div>
+                </tr></tfoot>
+              </table>
+            </div>
+            <Btn onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:[...getData(activeC.id).entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}}))} size="sm" variant="ghost" style={{marginBottom:16}}>+ Add Service Row</Btn>
 
-          {/* SALES SECTION */}
-          <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${T.bdr}` }}>
-            <div style={{ fontSize:12,fontWeight:800,color:T.grn,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🛒 Sales — Amount only (no rate card)</div>
+            {/* SALES entries */}
+            <div style={{ fontSize:12,fontWeight:800,color:T.grn,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🛒 Sales — Amount only</div>
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                 <thead><tr style={{ background:T.grnL }}>
                   <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Product</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:150,fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Amount (₹)</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",width:32 }}></th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:160,fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Amount (₹)</th>
+                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",width:30 }}></th>
                 </tr></thead>
                 <tbody>
-                  {(counter.salesEntries||[]).map((e,ei)=>(
+                  {(d.salesEntries||[]).map((e,ei)=>(
                     <tr key={ei} style={{ background:e.amount>0?"#F0FDF4":"#fff" }}>
                       <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <div style={{ display:"flex", gap:6 }}>
-                          <select value={e.workTypeId||""} onChange={ev=>{ const wt=salesWTs.find(w=>w.id===ev.target.value); setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt?.id||"",workTypeName:wt?.name||row.workTypeName})})); }}
-                            style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",flex:1 }}>
+                        <div style={{ display:"flex",gap:5 }}>
+                          <select value={e.workTypeId||""} onChange={ev=>{ const wt=salesWTs.find(w=>w.id===ev.target.value); if(wt) setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),salesEntries:getData(activeC.id).salesEntries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name})}})); }}
+                            style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none" }}>
                             <option value="">Select product...</option>
                             {salesWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
                           </select>
-                          <input value={e.workTypeName||""} onChange={ev=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).map((row,ri)=>ri!==ei?row:{...row,workTypeName:ev.target.value})}))}
-                            placeholder="Custom product" style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",flex:1 }}/>
+                          <input value={e.workTypeName||""} onChange={ev=>updateSalesEntry(activeC.id,ei,"workTypeName",ev.target.value)}
+                            placeholder="Custom" style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",minWidth:70 }}/>
                         </div>
                       </td>
                       <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <input type="number" value={e.amount||0} onChange={ev=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).map((row,ri)=>ri!==ei?row:{...row,amount:Number(ev.target.value)})}))} min={0}
+                        <input type="number" value={e.amount||0} onChange={ev=>updateSalesEntry(activeC.id,ei,"amount",ev.target.value)} min={0}
                           style={{ width:"100%",padding:"4px 8px",border:`1px solid ${e.amount>0?T.grn:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"right",background:e.amount>0?T.grnL:"#fff",fontWeight:e.amount>0?700:400 }}/>
                       </td>
                       <td style={{ border:`1px solid ${T.bdr}`,padding:"4px",textAlign:"center" }}>
-                        <button onClick={()=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:(cx.salesEntries||[]).filter((_,j)=>j!==ei)}))} style={{ background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14 }}>×</button>
+                        <button onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),salesEntries:getData(activeC.id).salesEntries.filter((_,j)=>j!==ei)}}))} style={{ background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14 }}>×</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot><tr style={{ background:T.grnL }}>
                   <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,color:T.grn }}>SALES TOTAL</td>
-                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.grn,textAlign:"right" }}>{counterSalesTotal(counter).toLocaleString("en-IN")}</td>
+                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.grn,textAlign:"right" }}>{salTotal.toLocaleString("en-IN")}</td>
                   <td style={{ border:`1px solid ${T.bdr}` }}></td>
                 </tr></tfoot>
               </table>
             </div>
-            <Btn onClick={()=>setReportCounters(p=>p.map((cx,ci2)=>ci2!==ci?cx:{...cx,salesEntries:[...(cx.salesEntries||[]),{workTypeId:"",workTypeName:"",amount:0,type:"sales"}]}))} size="sm" variant="ghost" style={{marginTop:8}}>+ Add Sales Row</Btn>
-          </div>
-        </Card>
-      ))}
+            <Btn onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),salesEntries:[...getData(activeC.id).salesEntries,{workTypeId:"",workTypeName:"",amount:0,type:"sales"}]}}))} size="sm" variant="ghost" style={{marginTop:8,marginBottom:16}}>+ Add Sales Row</Btn>
 
-      {/* Add counter + Grand total */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginTop:8 }}>
-        <Btn onClick={addCounterBlock} variant="outline">+ Add Another Counter</Btn>
-        <div style={{ background:T.navy, padding:"14px 24px", borderRadius:10, textAlign:"right", color:"#fff" }}>
-          <div style={{ fontSize:11, opacity:.7, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Grand Total — All Counters</div>
-          <div style={{ fontSize:26, fontWeight:800, color:T.amber, marginTop:2 }}>₹{grandTotal.toLocaleString("en-IN")}</div>
-        </div>
-      </div>
+            {/* Notes + grand total */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:12, flexWrap:"wrap", marginTop:8 }}>
+              <div style={{ flex:1, minWidth:200 }}>
+                <label style={{ display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase" }}>Notes</label>
+                <input value={d.notes||""} onChange={e=>setNotes(activeC.id,e.target.value)} placeholder="Any notes for today..."
+                  style={{ width:"100%",padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box" }}/>
+              </div>
+              <div style={{ background:T.navy,padding:"12px 20px",borderRadius:10,color:"#fff",textAlign:"right" }}>
+                <div style={{ fontSize:11,opacity:.6,textTransform:"uppercase" }}>Counter Total</div>
+                <div style={{ fontSize:22,fontWeight:800,color:T.amber }}>₹{(svcTotal+salTotal).toLocaleString("en-IN")}</div>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
 
 
 function SupHistory({ user, state }) {
-  const myReports = state.serviceReports.filter(r=>r.supervisorId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const [selCounter, setSelCounter] = useState("all");
   const [expanded, setExpanded] = useState(null);
+  const myCounters = state.counters.filter(c => c.supervisorId === user.id);
+
+  const myReports = state.serviceReports
+    .filter(r => r.supervisorId === user.id)
+    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === myCounters.find(c=>c.id===selCounter)?.name)
+    .sort((a,b) => b.date.localeCompare(a.date) || (a.counterName||"").localeCompare(b.counterName||""));
+
+  const salesWTNames = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"];
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Report History</div>
-      {myReports.length === 0 ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports submitted yet</div></Card> :
-        myReports.map(r => (
-          <Card key={r.id} style={{ marginBottom:12, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-              <div>
-                <div style={{ fontWeight:700 }}>{fmtDate(r.date)}</div>
-                <div style={{ fontSize:12, color:T.txt2 }}>{(r.counters||[]).length} counter(s) · Submitted {r.submittedAt}</div>
-                {/* Counter-wise totals inline */}
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:6 }}>
-                  {(r.counters||[]).map((c,ci)=>{
-                    const svc = (c.entries||[]).filter(e=>e.type!=="sales"&&!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-                    const sal = (c.entries||[]).filter(e=>e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-                    return <div key={ci} style={{ background:T.navyXL,borderRadius:6,padding:"3px 10px",fontSize:12 }}>
-                      <span style={{ fontWeight:700,color:T.navy }}>{c.counterName}</span>
-                      <span style={{ color:T.txt2,marginLeft:4 }}>Svc: <b>{fmtCurr(svc)}</b></span>
-                      {sal>0&&<span style={{ color:T.grn,marginLeft:4 }}>Sales: <b>{fmtCurr(sal)}</b></span>}
-                    </div>;
-                  })}
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Report History</div>
+      {myCounters.length > 1 && (
+        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+          <button onClick={()=>setSelCounter("all")} style={{ padding:"6px 14px",borderRadius:20,border:`1px solid ${selCounter==="all"?T.navy:T.bdrS}`,background:selCounter==="all"?T.navy:"transparent",color:selCounter==="all"?"#fff":T.txt2,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>All Counters</button>
+          {myCounters.map(c=>(
+            <button key={c.id} onClick={()=>setSelCounter(c.id)} style={{ padding:"6px 14px",borderRadius:20,border:`1px solid ${selCounter===c.id?T.amber:T.bdrS}`,background:selCounter===c.id?T.amber:"transparent",color:selCounter===c.id?"#fff":T.txt2,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>{c.name}</button>
+          ))}
+        </div>
+      )}
+      {myReports.length === 0
+        ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports submitted yet</div></Card>
+        : myReports.map(r => {
+          const svcTotal = (r.entries||[]).filter(e=>!salesWTNames.includes(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
+          const salTotal = (r.entries||[]).filter(e=>salesWTNames.includes(e.workTypeName)||e.type==="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
+          return (
+            <Card key={r.id} style={{ marginBottom:10, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
+              <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{r.counterName || r.counters?.[0]?.counterName || "—"}</div>
+                  <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · Submitted {r.submittedAt}</div>
+                  <div style={{ display:"flex", gap:8, marginTop:5 }}>
+                    <span style={{ background:T.navyXL,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700,color:T.navy }}>Svc: {fmtCurr(svcTotal)}</span>
+                    {salTotal>0 && <span style={{ background:T.grnL,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700,color:T.grn }}>Sales: {fmtCurr(salTotal)}</span>}
+                  </div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
+                  <Badge color={T.grn}>Submitted</Badge>
+                  <div style={{ fontSize:10, color:T.txt3, marginTop:2 }}>{expanded===r.id?"▲":"▼"}</div>
                 </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
-                <Badge color={T.grn}>Submitted</Badge>
-                <div style={{ fontSize:11, color:T.txt3, marginTop:2 }}>{expanded===r.id?"▲ collapse":"▼ expand"}</div>
-              </div>
-            </div>
-            {expanded===r.id && (
-              <div style={{ marginTop:14, borderTop:`1px solid ${T.bdr}`, paddingTop:14 }}>
-                {(r.counters||[]).map((c,ci)=>{
-                  const svcEntries = (c.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)&&e.vehicles>0);
-                  const salEntries = (c.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)&&e.amount>0);
-                  return <div key={ci} style={{ marginBottom:16, background:T.surf, borderRadius:8, padding:12 }}>
-                    <div style={{ fontWeight:800, fontSize:13, marginBottom:8, color:T.navy }}>📍 {c.counterName}</div>
-                    {svcEntries.length>0&&<>
-                      <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4}}>SERVICES</div>
-                      <Table cols={[
-                        {key:"workTypeName",label:"Work"},
-                        {key:"vehicles",label:"Veh"},
-                        {key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},
-                        {key:"amount",label:"Amount",render:e=><b style={{color:T.navy}}>{fmtCurr(e.amount)}</b>},
-                      ]} rows={svcEntries}/>
-                    </>}
-                    {salEntries.length>0&&<>
-                      <div style={{fontSize:11,fontWeight:700,color:T.grn,marginTop:8,marginBottom:4}}>SALES</div>
-                      <Table cols={[
-                        {key:"workTypeName",label:"Product"},
-                        {key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>},
-                      ]} rows={salEntries}/>
-                    </>}
-                    <div style={{fontSize:12,fontWeight:700,color:T.amber,textAlign:"right",marginTop:8}}>
-                      Counter Total: {fmtCurr((c.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0))}
-                    </div>
-                  </div>;
-                })}
-                {r.notes && <div style={{fontSize:13,color:T.txt2}}>📝 {r.notes}</div>}
-              </div>
-            )}
-          </Card>
-        ))
+              {expanded===r.id && (
+                <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.bdr}` }}>
+                  {(() => {
+                    const svcEntries = (r.entries||[]).filter(e=>!salesWTNames.includes(e.workTypeName)&&e.type!=="sales"&&e.vehicles>0);
+                    const salEntries = (r.entries||[]).filter(e=>(salesWTNames.includes(e.workTypeName)||e.type==="sales")&&e.amount>0);
+                    return <>
+                      {svcEntries.length>0 && <>
+                        <div style={{fontSize:11,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:6}}>Services</div>
+                        <Table cols={[
+                          {key:"workTypeName",label:"Work"},
+                          {key:"vehicles",label:"Veh"},
+                          {key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},
+                          {key:"amount",label:"Amount",render:e=><b style={{color:T.navy}}>{fmtCurr(e.amount)}</b>},
+                        ]} rows={svcEntries}/>
+                      </>}
+                      {salEntries.length>0 && <>
+                        <div style={{fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase",marginTop:10,marginBottom:6}}>Sales</div>
+                        <Table cols={[
+                          {key:"workTypeName",label:"Product"},
+                          {key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>},
+                        ]} rows={salEntries}/>
+                      </>}
+                      {r.notes && <div style={{marginTop:8,fontSize:13,color:T.txt2}}>📝 {r.notes}</div>}
+                    </>;
+                  })()}
+                </div>
+              )}
+            </Card>
+          );
+        })
       }
     </div>
   );
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  LEAVE PORTAL (shared)
@@ -1396,7 +1431,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Counter Performance — Today</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
-            const rep = todayReports.find(r=>r.supervisorId===c.supervisorId);
+            const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name||r.supervisorId===c.supervisorId);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month);
             const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0)/tgt.dailyTarget*100)) : null;
@@ -1484,7 +1519,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
           <Card style={{ marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Revenue by Counter</div>
             {myCounters.map(c=>{
-              const cr = monthReports.filter(r=>r.supervisorId===c.supervisorId).reduce((s,r)=>s+r.totalAmount,0);
+              const cr = monthReports.filter(r=>r.counterId===c.id||r.counterName===c.name).reduce((s,r)=>s+r.totalAmount,0);
               const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===selMonth)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===selMonth);
               const pct = tgt ? Math.min(100,Math.round(cr/tgt.monthlyTarget*100)) : null;
               return (
@@ -1904,14 +1939,14 @@ function MDDashboard({ user, state, syncFromCloud }) {
 
   // Counter stats
   const counterStats = state.counters.map(c => {
-    const reps = reports.filter(r=>r.supervisorId===c.supervisorId||(r.counters||[]).some(x=>x.counterName===c.name));
+    const reps = reports.filter(r=>r.counterId===c.id||r.counterName===c.name||r.supervisorId===c.supervisorId);
     const svcTotal = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((ss,e)=>ss+e.amount,0)+s,0);
     const salTotal = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((ss,e)=>ss+e.amount,0)+s,0);
     const total = reps.reduce((s,r)=>s+r.totalAmount,0);
     const vehicles = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).reduce((ss,e)=>ss+(Number(e.vehicles)||0),0)+s,0);
     const days = new Set(reps.map(r=>r.date)).size;
     const sup = state.users.find(u=>u.id===c.supervisorId);
-    const todayRep = todayReports.find(r=>r.supervisorId===c.supervisorId||(r.counters||[]).some(x=>x.counterName===c.name));
+    const todayRep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
     return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0 };
   });
 
@@ -2190,7 +2225,7 @@ function MDOperations({ state }) {
           const sup = state.users.find(u=>u.id===c.supervisorId);
           const mgr = state.users.find(u=>u.id===sup?.managerId);
           const staff = state.users.filter(u=>u.managerId===c.supervisorId&&u.role==="field_staff");
-          const reports = state.serviceReports.filter(r=>r.supervisorId===c.supervisorId);
+          const reports = state.serviceReports.filter(r=>r.counterId===c.id||r.counterName===c.name);
           const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
           return (
             <Card key={c.id} style={{ borderTop:`3px solid ${T.amber}` }}>
@@ -3302,7 +3337,7 @@ function CounterAnalysis({ user, state, counterFilter }) {
 
   // Build per-counter stats
   const counterStats = state.counters.map(c => {
-    const reps = filteredReports.filter(r=>r.supervisorId===c.supervisorId||(r.counters||[]).some(x=>x.counterName===c.name));
+    const reps = filteredReports.filter(r=>r.counterId===c.id||r.counterName===c.name);
     const svcTotal = reps.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0);
     const salTotal = reps.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0);
     const total = svcTotal + salTotal;
