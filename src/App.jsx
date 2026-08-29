@@ -107,6 +107,30 @@ const DB = {
   async upsertSalary(sal) {
     return supabase.from("salaries").upsert(sal);
   },
+  // Users & Config
+  async getConfig() {
+    const [users, passwords] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/app_users?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json()),
+      fetch(`${SUPABASE_URL}/rest/v1/app_passwords?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json()),
+    ]);
+    return { users, passwords };
+  },
+  async upsertUsers(users) {
+    return supabase.from("app_users").upsert(users);
+  },
+  async upsertPasswords(passwords) {
+    // passwords is an object {empId: pwd} — convert to rows
+    const rows = Object.entries(passwords).map(([emp_id, pwd]) => ({ emp_id, pwd }));
+    return supabase.from("app_passwords").upsert(rows);
+  },
+  async seedUsersIfEmpty(users, passwords) {
+    // Only seed if table is empty
+    const existing = await fetch(`${SUPABASE_URL}/rest/v1/app_users?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json());
+    if (Array.isArray(existing) && existing.length === 0) {
+      await DB.upsertUsers(users);
+      await DB.upsertPasswords(passwords);
+    }
+  },
 };
 
 // ─── Sync hook — loads all data from Supabase, falls back to localStorage ─────
@@ -119,8 +143,9 @@ function useSupabaseSync(localState, setLocalState) {
   const syncFromCloud = useCallback(async () => {
     setSyncStatus("syncing");
     try {
-      const [reports, attendance, leaves, feedback, salaries, collReports] = await Promise.all([
-        DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(), DB.getSalaries(), DB.getCollectionReports()
+      const [reports, attendance, leaves, feedback, salaries, collReports, config] = await Promise.all([
+        DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(),
+        DB.getSalaries(), DB.getCollectionReports(), DB.getConfig()
       ]);
 
       // Check if tables exist — Supabase returns {code:"42P01"} if table missing
@@ -130,6 +155,11 @@ function useSupabaseSync(localState, setLocalState) {
         setSyncStatus("setup_needed");
         setSynced(true);
         return;
+      }
+
+      // If users table is empty, seed it from INITIAL_STATE
+      if (Array.isArray(config.users) && config.users.length === 0) {
+        await DB.seedUsersIfEmpty(INITIAL_STATE.users, INITIAL_STATE.passwords);
       }
 
       const mapReport = r => ({
@@ -145,14 +175,22 @@ function useSupabaseSync(localState, setLocalState) {
         reason: a.reason, markedAt: a.marked_at
       });
 
+      // Build passwords object from rows
+      const pwdObj = Array.isArray(config.passwords)
+        ? Object.fromEntries(config.passwords.map(r => [r.emp_id, r.pwd]))
+        : null;
+
       setLocalState(p => ({
         ...p,
+        // Users from DB override local cache (cross-device consistency)
+        users:             Array.isArray(config.users) && config.users.length > 0 ? config.users : p.users,
+        passwords:         pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
         serviceReports:    reports.map(mapReport),
-        attendance:        attendance.map ? attendance.map(mapAtt) : p.attendance,
-        leaves:            Array.isArray(leaves)     ? leaves     : p.leaves,
-        feedback:          Array.isArray(feedback)   ? feedback   : p.feedback,
-        salaries:          Array.isArray(salaries)   ? salaries   : p.salaries,
-        collectionReports: Array.isArray(collReports)? collReports: p.collectionReports,
+        attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
+        leaves:            Array.isArray(leaves)      ? leaves      : p.leaves,
+        feedback:          Array.isArray(feedback)    ? feedback    : p.feedback,
+        salaries:          Array.isArray(salaries)    ? salaries    : p.salaries,
+        collectionReports: Array.isArray(collReports) ? collReports : p.collectionReports,
       }));
       setSyncStatus("ok");
     } catch(e) {
@@ -321,38 +359,20 @@ function useLocalStorage(key, init) {
       const s = localStorage.getItem(key);
       if (!s) return init;
       const cached = JSON.parse(s);
-      // Load any IT Admin overrides from separate key (persists across devices via Supabase)
-      const overrides = (() => {
-        try { const o = localStorage.getItem("benaka_overrides"); return o ? JSON.parse(o) : {}; }
-        catch { return {}; }
-      })();
-      // Merge: INITIAL_STATE base + IT Admin overrides, keep operational data from cache
-      const mergedUsers     = overrides.users     || INITIAL_STATE.users;
-      const mergedPasswords = overrides.passwords || INITIAL_STATE.passwords;
-      const mergedCounters  = overrides.counters  || INITIAL_STATE.counters;
-      const mergedWorkTypes = overrides.workTypes || INITIAL_STATE.workTypes;
+      // Start with INITIAL_STATE users/passwords as fallback until DB syncs
+      // DB sync will overwrite these with the live values within seconds of load
       return {
         ...cached,
-        users:     mergedUsers,
-        passwords: mergedPasswords,
-        counters:  mergedCounters,
-        workTypes: mergedWorkTypes,
+        users:     cached.users?.length     ? cached.users     : INITIAL_STATE.users,
+        passwords: Object.keys(cached.passwords||{}).length ? cached.passwords : INITIAL_STATE.passwords,
+        counters:  cached.counters?.length  ? cached.counters  : INITIAL_STATE.counters,
+        workTypes: cached.workTypes?.length ? cached.workTypes : INITIAL_STATE.workTypes,
       };
     }
     catch { return init; }
   });
   const set = useCallback(v => {
-    setVal(p => {
-      const nv = typeof v === "function" ? v(p) : v;
-      localStorage.setItem(key, JSON.stringify(nv));
-      // If structural data changed, persist overrides separately
-      if (nv.users !== p.users || nv.passwords !== p.passwords ||
-          nv.counters !== p.counters || nv.workTypes !== p.workTypes) {
-        const overrides = { users: nv.users, passwords: nv.passwords, counters: nv.counters, workTypes: nv.workTypes };
-        localStorage.setItem("benaka_overrides", JSON.stringify(overrides));
-      }
-      return nv;
-    });
+    setVal(p => { const nv = typeof v === "function" ? v(p) : v; localStorage.setItem(key, JSON.stringify(nv)); return nv; });
   }, [key]);
   return [val, set];
 }
@@ -4115,6 +4135,13 @@ export default function App() {
         if (next.collectionReports !== prev.collectionReports) {
           const newCR = next.collectionReports.filter(r => !prev.collectionReports.find(p=>p.id===r.id));
           newCR.forEach(r => DB.upsertCollectionReport(r).catch(console.error));
+        }
+        // Sync user/password changes to DB immediately
+        if (next.users !== prev.users) {
+          DB.upsertUsers(next.users).catch(console.error);
+        }
+        if (next.passwords !== prev.passwords) {
+          DB.upsertPasswords(next.passwords).catch(console.error);
         }
       }
       return next;
