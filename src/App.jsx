@@ -2735,13 +2735,14 @@ function UserMgmt({ state, setState, toast }) {
     if (editing) {
       setState(p=>({ ...p,
         users: p.users.map(u=>u.id===editing.id?{...u,...form}:u),
-        passwords: newPwd ? {...p.passwords,[form.empId]:newPwd} : p.passwords
+        passwords: newPwd ? {...p.passwords,[form.empId]:newPwd} : p.passwords,
+        _configVersion: (p._configVersion||0) + 1,
       }));
       toast.show("User updated");
     } else {
       if (state.users.find(u=>u.empId===form.empId)) { toast.show("Employee ID already exists","error"); return; }
       const newUser = { id:`u_${Date.now()}`, ...form, dob:form.dob||"", joining:form.joining||"", weddingAnniversary:form.weddingAnniversary||"", active:true };
-      setState(p=>({ ...p, users:[...p.users, newUser], passwords:{...p.passwords,[form.empId]:newPwd||"pass@123"} }));
+      setState(p=>({ ...p, users:[...p.users, newUser], passwords:{...p.passwords,[form.empId]:newPwd||"pass@123"}, _configVersion: (p._configVersion||0) + 1 }));
       toast.show(`User created · Default password: ${newPwd||"pass@123"}`);
     }
     setModal(false);
@@ -2762,9 +2763,12 @@ function UserMgmt({ state, setState, toast }) {
 
   return (
     <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:10 }}>
         <div style={{ fontSize:18, fontWeight:800 }}>User Management</div>
-        <Btn onClick={openNew} variant="amber">+ Add User</Btn>
+        <div style={{ display:"flex", gap:8 }}>
+          <Btn onClick={()=>{ if(confirm("Reset ALL users to the default staff list? Any locally added users will be removed.")) { setState(p=>({...p, users:INITIAL_STATE.users, passwords:INITIAL_STATE.passwords, _configVersion:0})); toast.show("User list reset to default"); }}} variant="ghost" size="sm">↺ Reset to Default</Btn>
+          <Btn onClick={openNew} variant="amber">+ Add User</Btn>
+        </div>
       </div>
 
       <Table cols={[
@@ -2822,7 +2826,7 @@ function CounterMgmt({ state, setState, toast }) {
   const save = () => {
     if (!form.name) { toast.show("Counter name required","error"); return; }
     if (editing) {
-      setState(p=>({ ...p, counters:p.counters.map(c=>c.id===editing.id?{...c,...form}:c) }));
+      setState(p=>({ ...p, counters:p.counters.map(c=>c.id===editing.id?{...c,...form}:c), _configVersion:(p._configVersion||0)+1 }));
       toast.show("Counter updated");
     } else {
       setState(p=>({ ...p, counters:[...p.counters,{ id:`c_${Date.now()}`,...form }] }));
@@ -2879,10 +2883,10 @@ function WorkTypeMgmt({ state, setState, toast }) {
   const save = () => {
     if (!name) { toast.show("Name required","error"); return; }
     if (editing) {
-      setState(p=>({ ...p, workTypes:p.workTypes.map(w=>w.id===editing.id?{...w,name,defaultRate:Number(rate),category:editCat}:w) }));
+      setState(p=>({ ...p, workTypes:p.workTypes.map(w=>w.id===editing.id?{...w,name,defaultRate:Number(rate),category:editCat}:w), _configVersion:(p._configVersion||0)+1 }));
       toast.show("Work type updated");
     } else {
-      setState(p=>({ ...p, workTypes:[...p.workTypes,{ id:`wt_${Date.now()}`, name, defaultRate:Number(rate), category:editCat||"service" }] }));
+      setState(p=>({ ...p, workTypes:[...p.workTypes,{ id:`wt_${Date.now()}`, name, defaultRate:Number(rate), category:editCat||"service" }], _configVersion:(p._configVersion||0)+1 }));
       toast.show("Work type added");
     }
     setModal(false);
@@ -4031,9 +4035,23 @@ export default function App() {
   // Supabase real-time sync
   const { synced, syncStatus, syncFromCloud, isConfigured } = useSupabaseSync(state, setState);
 
-  // Ensure passwords persist
+  // ── ALWAYS sync structural data from INITIAL_STATE on every load ──────────
+  // This ensures users/passwords/counters/workTypes are consistent across ALL
+  // devices. If IT Admin makes changes, those are stored separately and merged.
   useEffect(() => {
-    setState(p => ({ ...p, passwords: p.passwords || INITIAL_STATE.passwords }));
+    setState(p => {
+      // Check if IT Admin has made local edits (tracked by version stamp)
+      const hasLocalEdits = p._configVersion && p._configVersion > 0;
+      if (hasLocalEdits) return p; // respect local IT Admin edits
+      // Otherwise always use INITIAL_STATE structural data
+      return {
+        ...p,
+        users:      INITIAL_STATE.users,
+        passwords:  INITIAL_STATE.passwords,
+        counters:   INITIAL_STATE.counters,
+        workTypes:  INITIAL_STATE.workTypes,
+      };
+    });
   }, []);
 
   const login  = (user) => setState(p => ({ ...p, currentUser: user }));
