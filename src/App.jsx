@@ -1829,7 +1829,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Reports & Analytics</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Reports &amp; Analytics</div>
       <Tabs tabs={[{id:"daily",label:"Daily View"},{id:"monthly",label:"Monthly"},{id:"analysis",label:"Analysis"}]} active={tab} onChange={setTab}/>
 
       {tab==="daily" && (
@@ -1975,7 +1975,7 @@ function MgrPeople({ user, state, setState, toast }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>People & Counters</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>People &amp; Counters</div>
       <Tabs tabs={[{id:"supervisors",label:"Supervisors"},{id:"fieldstaff",label:"Field Staff"},{id:"counters",label:"Counters"}]} active={tab} onChange={setTab}/>
 
       {tab==="supervisors" && (
@@ -3160,7 +3160,7 @@ function WorkTypeMgmt({ state, setState, toast }) {
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
-        <div style={{ fontSize:18, fontWeight:800 }}>Work Types & Rates</div>
+        <div style={{ fontSize:18, fontWeight:800 }}>Work Types &amp; Rates</div>
         <Btn onClick={()=>{setEditing(null);setName("");setRate("");setModal(true)}} variant="amber">+ Add Work Type</Btn>
       </div>
       <div style={{ fontSize:12, color:T.txt2, marginBottom:14 }}>These are the default rates. Supervisors can override per-report.</div>
@@ -3362,7 +3362,7 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
 
       {/* SERVICE SUMMARY */}
       <Card style={{ marginBottom:12 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase", letterSpacing:".04em" }}>Service & Sales Summary</div>
+        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase", letterSpacing:".04em" }}>Service &amp; Sales Summary</div>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
             <thead>
@@ -3595,7 +3595,7 @@ function SalaryView({ user, state, setState, toast, viewScope }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Salary & Payroll</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Salary &amp; Payroll</div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:20 }}>
         <StatCard label="Month Revenue" value={fmtCurr(monthRevenue)} color={T.amber}/>
