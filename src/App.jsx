@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
 // Supabase credentials — configured for benakaoms project
@@ -487,6 +487,37 @@ function useToast() {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  LOGIN
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error("App crash:", error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#F7F9FC", fontFamily:"system-ui, sans-serif", padding:24 }}>
+          <div style={{ background:"#fff", border:"1px solid #E2E8F0", borderRadius:16, padding:32, maxWidth:520, width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>⚠️</div>
+            <div style={{ fontSize:20, fontWeight:800, color:"#0F2B4A", marginBottom:8 }}>Something went wrong</div>
+            <div style={{ fontSize:13, color:"#475569", marginBottom:20, lineHeight:1.7 }}>
+              The app encountered an error. Please refresh the page.<br/>
+              If it keeps happening, contact IT Admin.
+            </div>
+            <div style={{ background:"#F1F5F9", borderRadius:8, padding:"10px 14px", fontSize:11, fontFamily:"monospace", color:"#DC2626", textAlign:"left", marginBottom:20, wordBreak:"break-all" }}>
+              {this.state.error?.message || "Unknown error"}
+            </div>
+            <button onClick={()=>window.location.reload()} style={{ background:"#0F2B4A", color:"#fff", border:"none", borderRadius:8, padding:"10px 20px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+              🔄 Refresh Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function LoginScreen({ onLogin, users, passwords }) {
   const [empId, setEmpId] = useState("");
   const [pwd, setPwd] = useState("");
@@ -613,7 +644,7 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SUPERVISOR PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function SupervisorPortal({ user, state, setState, toast }) {
+function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
     { id:"dashboard",    icon:"🏠", label:"Dashboard" },
@@ -635,7 +666,7 @@ function SupervisorPortal({ user, state, setState, toast }) {
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
-    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard" && <SupDashboard user={user} state={state} myStaff={myStaff} myCounter={myCounter} todayRevenue={todayRevenue} todayAtt={todayAtt} setPage={setPage}/>}
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -884,7 +915,13 @@ function SupReport({ user, state, setState, toast }) {
 
   useEffect(() => {
     if (existing) {
-      setReportCounters(existing.counters || []);
+      // Restore existing report — ensure salesEntries are split out
+      const restoredCounters = (existing.counters || []).map(c => ({
+        ...c,
+        entries: (c.entries||[]).filter(e => !["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) && e.type!=="sales"),
+        salesEntries: (c.entries||[]).filter(e => ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) || e.type==="sales"),
+      }));
+      setReportCounters(restoredCounters);
       setNotes(existing.notes || "");
     } else {
       // Pre-load all assigned counters with blank rows
@@ -1016,7 +1053,7 @@ function SupReport({ user, state, setState, toast }) {
             </div>
             <div style={{ marginLeft:"auto", textAlign:"right" }}>
               <div style={{ fontSize:11, color:T.txt2, fontWeight:700, textTransform:"uppercase" }}>Counter Total</div>
-              <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>₹{counterTotal(counter).toLocaleString("en-IN")}</div>
+              <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>₹{(counterServiceTotal(counter)+counterSalesTotal(counter)).toLocaleString("en-IN")}</div>
             </div>
             {reportCounters.length > 1 && (
               <button onClick={()=>removeCounterBlock(ci)} style={{ background:"none", border:"none", cursor:"pointer", color:T.red, fontSize:18, padding:4, flexShrink:0 }}>🗑</button>
@@ -1078,7 +1115,7 @@ function SupReport({ user, state, setState, toast }) {
                 <tr style={{ background:T.navyXL }}>
                   <td colSpan={3} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, fontSize:13, color:T.navy, textAlign:"right" }}>COUNTER TOTAL</td>
                   <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 12px", fontWeight:800, fontSize:14, color:T.amber, textAlign:"right" }}>
-                    {counterTotal(counter).toLocaleString("en-IN")}
+                    {(counterServiceTotal(counter)+counterSalesTotal(counter)).toLocaleString("en-IN")}
                   </td>
                   <td style={{ border:`1px solid ${T.bdr}` }}></td>
                 </tr>
@@ -1278,7 +1315,7 @@ function LeavePortal({ user, state, setState, toast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MANAGER PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function ManagerPortal({ user, state, setState, toast }) {
+function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
     { id:"dashboard",   icon:"🏠", label:"Dashboard" },
@@ -1298,7 +1335,7 @@ function ManagerPortal({ user, state, setState, toast }) {
   const myCounters = state.counters.filter(c=>mySupervisors.some(s=>s.id===c.supervisorId));
 
   return (
-    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
@@ -1787,7 +1824,7 @@ function MgrFeedback({ user, state, myCounters }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MD PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function MDPortal({ user, state, setState, toast, syncFromCloud }) {
+function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
     { id:"dashboard",   icon:"🏆", label:"Live Dashboard" },
@@ -1805,7 +1842,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud }) {
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
@@ -1815,7 +1852,6 @@ function MDPortal({ user, state, setState, toast, syncFromCloud }) {
       {page==="directory"   && <StaffDirectory state={state}/>}
       {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
-      {page==="directory"   && <StaffDirectory state={state}/>}
       {page==="reports"     && <AllReports state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
@@ -2192,7 +2228,7 @@ function MDPeople({ state, setState, toast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  OFFICE PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function OfficePortal({ user, state, setState, toast }) {
+function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("reports");
   const navItems = [
     { id:"reports",    icon:"📋", label:"View Reports" },
@@ -2203,7 +2239,7 @@ function OfficePortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="reports"    && <OfficeReports state={state}/>}
       {page==="enter"      && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance" && <OfficeAttendance state={state}/>}
@@ -2232,7 +2268,13 @@ function OfficeEnterReport({ user, state, setState, toast }) {
     if (!selSupervisor) return;
     const existing = state.serviceReports.find(r => r.supervisorId === selSupervisor && r.date === date);
     if (existing) {
-      setReportCounters(existing.counters || []);
+      // Restore existing report — ensure salesEntries are split out
+      const restoredCounters = (existing.counters || []).map(c => ({
+        ...c,
+        entries: (c.entries||[]).filter(e => !["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) && e.type!=="sales"),
+        salesEntries: (c.entries||[]).filter(e => ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) || e.type==="sales"),
+      }));
+      setReportCounters(restoredCounters);
       setNotes(existing.notes || "");
     } else {
       const myCtrs = state.counters.filter(c => c.supervisorId === selSupervisor);
@@ -2511,7 +2553,7 @@ function OfficeExport({ state, toast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  IT ADMIN PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function ITAdminPortal({ user, state, setState, toast }) {
+function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("users");
   const navItems = [
     { id:"users",     icon:"👤", label:"User Management" },
@@ -2523,7 +2565,7 @@ function ITAdminPortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="users"     && <UserMgmt state={state} setState={setState} toast={toast}/>}
       {page==="counters"  && <CounterMgmt state={state} setState={setState} toast={toast}/>}
       {page==="worktypes" && <WorkTypeMgmt state={state} setState={setState} toast={toast}/>}
@@ -3891,30 +3933,30 @@ export default function App() {
   const fbCounter  = params.get("feedback");
   if (fbCounter) {
     const handleFbSubmit = (fb) => setState(p => ({ ...p, feedback: [...(p.feedback||[]), fb] }));
-    return <PublicFeedbackForm counterName={decodeURIComponent(fbCounter)} counters={state.counters} onSubmit={handleFbSubmit}/>;
+    return <ErrorBoundary><PublicFeedbackForm counterName={decodeURIComponent(fbCounter)} counters={state.counters} onSubmit={handleFbSubmit}/></ErrorBoundary>;
   }
   // ───────────────────────────────────────────────────────────────────────────
 
   if (!state.currentUser) {
-    return <>
+    return <ErrorBoundary>
       <LoginScreen onLogin={login} users={state.users} passwords={state.passwords || INITIAL_STATE.passwords}/>
       <Toast/>
-    </>;
+    </ErrorBoundary>;
   }
 
-  const props = { user: state.currentUser, state, setState: dbSetState, toast: { show }, syncFromCloud };
+  const props = { user: state.currentUser, state, setState: dbSetState, toast: { show }, syncFromCloud, syncStatus };
 
   return (
-    <>
+    <ErrorBoundary>
       {state.currentUser.role === "supervisor"  && <SupervisorPortal {...props}/>}
       {state.currentUser.role === "manager"     && <ManagerPortal {...props}/>}
       {state.currentUser.role === "md"          && <MDPortal {...props}/>}
       {state.currentUser.role === "office"      && <OfficePortal {...props}/>}
       {state.currentUser.role === "it_admin"    && <ITAdminPortal {...props}/>}
       {state.currentUser.role === "field_staff" && (
-        <FieldStaffPortal user={state.currentUser} state={state} setState={setState} logout={logout} toast={{show}}/>
+        <FieldStaffPortal user={state.currentUser} state={state} setState={dbSetState} logout={logout} toast={{show}}/>
       )}
       <Toast/>
-    </>
+    </ErrorBoundary>
   );
 }
