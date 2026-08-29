@@ -1940,7 +1940,7 @@ function MgrLeaves({ user, state, setState, toast }) {
                     <div style={{ fontWeight:700, fontSize:15 }}>{applicant?.name}</div>
                     <div style={{ fontSize:12, color:T.txt2 }}>{ROLE_LABELS[applicant?.role]} · {l.type}</div>
                     <div style={{ fontSize:13, margin:"4px 0" }}>{fmtDate(l.date)}{l.toDate!==l.date?` → ${fmtDate(l.toDate)}`:""}</div>
-                    <div style={{ fontSize:13, color:T.txt2 }}>"{l.reason}"</div>
+                    <div style={{ fontSize:13, color:T.txt2 }}>{l.reason}</div>
                   </div>
                   <div style={{ display:"flex", gap:8 }}>
                     <Btn onClick={()=>decide(l.id,"approved")} variant="success" size="sm">✓ Approve</Btn>
@@ -2191,10 +2191,10 @@ function MgrFeedback({ user, state, myCounters }) {
               {f.serviceType && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Service: </span><b>{f.serviceType}</b></div>}
               {f.customerName && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Customer: </span><b>{f.customerName}</b></div>}
             </div>
-            {f.comment && <div style={{ fontSize:13, color:T.txt, background:T.surf, padding:"8px 12px", borderRadius:7 }}>"{f.comment}"</div>}
+            {f.comment && <div style={{ fontSize:13, color:T.txt, background:T.surf, padding:"8px 12px", borderRadius:7 }}>{f.comment}</div>}
           </Card>
-        ))
-      }
+        ))}
+      </div>
     </div>
   );
 }
@@ -3837,7 +3837,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
             <div>
               <div style={{ fontWeight:700, fontSize:15 }}>{l.staffName}</div>
               <div style={{ fontSize:13, color:T.txt2 }}>{fmtDate(l.fromDate)}{l.toDate!==l.fromDate?` → ${fmtDate(l.toDate)}`:''}</div>
-              <div style={{ fontSize:13, marginTop:4 }}>"{l.reason}"</div>
+              <div style={{ fontSize:13, marginTop:4 }}>{l.reason}</div>
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <Btn onClick={()=>decide(l.id,'approved')} variant="success" size="sm">✓ Approve</Btn>
@@ -4220,7 +4220,7 @@ function MDFeedbackAll({ state }) {
             {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
             {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
           </div>
-          {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>"{f.comment}"</div>}
+          {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>{f.comment}</div>}
         </Card>
       ))}
       {state.feedback.length===0 && <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet</div></Card>}
