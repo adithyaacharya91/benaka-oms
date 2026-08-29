@@ -1,5 +1,148 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+// ─── Supabase client ──────────────────────────────────────────────────────────
+// Supabase credentials — configured for benakaoms project
+const SUPABASE_URL = "https://hrqyuxwpxiffyqolpgdo.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhycXl1eHdweGlmZnlxb2xwZ2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTYzOTMsImV4cCI6MjEwMzU5MjM5M30.EOMujy8n-pHPaBcYj8UZe_u2Bfa3IQ02dRPT_ZioKAs";
+
+const supabase = (() => {
+  const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" };
+  const rpc  = (path, body) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method:"POST", headers, body:JSON.stringify(body) }).then(r=>r.json());
+  const get  = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers }).then(r=>r.json());
+  const post = (table, data) => fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method:"POST", headers, body:JSON.stringify(data) }).then(r=>r.json());
+  const patch = (table, filter, data) => fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, { method:"PATCH", headers:{ ...headers, "Prefer":"return=representation"}, body:JSON.stringify(data) }).then(r=>r.json());
+  const del  = (table, filter) => fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, { method:"DELETE", headers }).then(r=>r.json());
+  const from = (table) => ({
+    select: (cols="*") => ({ 
+      eq: (col,val) => get(`${table}?select=${cols}&${col}=eq.${val}`),
+      gte: (col,val) => ({ lte: (c2,v2) => get(`${table}?select=${cols}&${col}=gte.${val}&${c2}=lte.${v2}`) }),
+      order: (col,{ascending=true}={}) => get(`${table}?select=${cols}&order=${col}.${ascending?"asc":"desc"}`),
+      then: (fn) => get(`${table}?select=${cols}`).then(fn)
+    }),
+    insert: (data) => post(table, data),
+    update: (data) => ({ eq: (col,val) => patch(table, `${col}=eq.${val}`, data) }),
+    delete: () => ({ eq: (col,val) => del(table, `${col}=eq.${val}`) }),
+    upsert: (data, opts) => fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method:"POST", headers:{ ...headers, "Prefer":"resolution=merge-duplicates,return=representation"}, body:JSON.stringify(data) }).then(r=>r.json()),
+  });
+  // Real-time via polling (works without WebSocket setup)
+  const subscriptions = {};
+  const subscribe = (table, cb, intervalMs=5000) => {
+    if (subscriptions[table]) clearInterval(subscriptions[table]);
+    subscriptions[table] = setInterval(() => get(`${table}?select=*&order=created_at.desc&limit=1`).then(cb), intervalMs);
+    return () => clearInterval(subscriptions[table]);
+  };
+  return { from, subscribe };
+})();
+
+// ─── DB helpers ───────────────────────────────────────────────────────────────
+const DB = {
+  // Service Reports
+  async getReports(filter={}) {
+    let url = `${SUPABASE_URL}/rest/v1/service_reports?select=*`;
+    if (filter.date) url += `&date=eq.${filter.date}`;
+    if (filter.supervisorId) url += `&supervisor_id=eq.${filter.supervisorId}`;
+    if (filter.fromDate) url += `&date=gte.${filter.fromDate}&date=lte.${filter.toDate||filter.fromDate}`;
+    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertReport(report) {
+    const row = { id: report.id, date: report.date, supervisor_id: report.supervisorId, submitted_at: report.submittedAt, counters: report.counters, total_amount: report.totalAmount, notes: report.notes, status: report.status };
+    return supabase.from("service_reports").upsert(row);
+  },
+  // Attendance
+  async getAttendance(filter={}) {
+    let url = `${SUPABASE_URL}/rest/v1/attendance?select=*`;
+    if (filter.date) url += `&date=eq.${filter.date}`;
+    if (filter.supervisorId) url += `&supervisor_id=eq.${filter.supervisorId}`;
+    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertAttendance(records) {
+    const rows = records.map(a => ({ id: a.id, date: a.date, supervisor_id: a.supervisorId, staff_id: a.staffId, status: a.status, reason: a.reason, marked_at: a.markedAt }));
+    return supabase.from("attendance").upsert(rows);
+  },
+  // Leaves
+  async getLeaves() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/leaves?select=*&order=created_at.desc`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertLeave(leave) {
+    return supabase.from("leaves").upsert(leave);
+  },
+  // Feedback
+  async getFeedback() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/feedback?select=*&order=created_at.desc`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async insertFeedback(fb) {
+    return supabase.from("feedback").insert(fb);
+  },
+  // Collection Reports
+  async getCollectionReports(filter={}) {
+    let url = `${SUPABASE_URL}/rest/v1/collection_reports?select=*`;
+    if (filter.date) url += `&date=eq.${filter.date}`;
+    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertCollectionReport(rep) {
+    return supabase.from("collection_reports").upsert(rep);
+  },
+  // Salaries
+  async getSalaries(month) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/salaries?select=*${month?`&month=eq.${month}`:""}`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertSalary(sal) {
+    return supabase.from("salaries").upsert(sal);
+  },
+};
+
+// ─── Sync hook — loads all data from Supabase, falls back to localStorage ─────
+function useSupabaseSync(localState, setLocalState) {
+  const [synced, setSynced] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | ok | error | offline
+
+  const isConfigured = SUPABASE_URL !== "https://hrqyuxwpxiffyqolpgdo.supabase.co";
+
+  const syncFromCloud = useCallback(async () => {
+    if (!isConfigured) { setSyncStatus("offline"); setSynced(true); return; }
+    setSyncStatus("syncing");
+    try {
+      const [reports, attendance, leaves, feedback, salaries, collReports] = await Promise.all([
+        DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(), DB.getSalaries(), DB.getCollectionReports()
+      ]);
+      // Map snake_case DB columns back to camelCase for the app
+      const mapReport = r => ({ id:r.id, date:r.date, supervisorId:r.supervisor_id, submittedAt:r.submitted_at, counters:r.counters||[], totalAmount:r.total_amount, notes:r.notes, status:r.status });
+      const mapAtt = a => ({ id:a.id, date:a.date, supervisorId:a.supervisor_id, staffId:a.staff_id, status:a.status, reason:a.reason, markedAt:a.marked_at });
+      setLocalState(p => ({
+        ...p,
+        serviceReports: Array.isArray(reports) ? reports.map(mapReport) : p.serviceReports,
+        attendance: Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
+        leaves: Array.isArray(leaves) ? leaves : p.leaves,
+        feedback: Array.isArray(feedback) ? feedback : p.feedback,
+        salaries: Array.isArray(salaries) ? salaries : p.salaries,
+        collectionReports: Array.isArray(collReports) ? collReports : p.collectionReports,
+      }));
+      setSyncStatus("ok");
+    } catch(e) {
+      setSyncStatus("error");
+    }
+    setSynced(true);
+  }, [isConfigured]);
+
+  useEffect(() => { syncFromCloud(); }, []);
+
+  // Poll every 30 seconds for real-time updates
+  useEffect(() => {
+    if (!isConfigured) return;
+    const interval = setInterval(syncFromCloud, 30000);
+    return () => clearInterval(interval);
+  }, [isConfigured, syncFromCloud]);
+
+  return { synced, syncStatus, syncFromCloud, isConfigured };
+}
+
+
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const T = {
   navy:    "#0F2B4A",
@@ -385,7 +528,7 @@ function LoginScreen({ onLogin, users, passwords }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SHELL / NAV
 // ═══════════════════════════════════════════════════════════════════════════════
-function Shell({ user, children, activePage, setActivePage, navItems, onLogout, state }) {
+function Shell({ user, children, activePage, setActivePage, navItems, onLogout, state, syncStatus }) {
   const [sideOpen, setSideOpen] = useState(true);
 
   return (
@@ -447,6 +590,17 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
           </div>
         </div>
 
+        {/* Sync status bar */}
+        {syncStatus && syncStatus !== "idle" && (
+          <div style={{ background: syncStatus==="ok"?T.grnL : syncStatus==="syncing"?"#EFF6FF" : syncStatus==="offline"?"#FEF3DC" : T.redL,
+            padding:"4px 20px", fontSize:11, fontWeight:700, color: syncStatus==="ok"?T.grn : syncStatus==="syncing"?T.pri : syncStatus==="offline"?T.amberD : T.red,
+            display:"flex", alignItems:"center", gap:6 }}>
+            {syncStatus==="ok" && "✅ All devices in sync"}
+            {syncStatus==="syncing" && "🔄 Syncing..."}
+            {syncStatus==="offline" && "⚠️ Offline mode — changes saved locally only"}
+            {syncStatus==="error" && "❌ Sync error — working offline"}
+          </div>
+        )}
         {/* Birthday banner */}
         <BirthdayBanner state={state}/>
         {/* Page content */}
@@ -481,7 +635,7 @@ function SupervisorPortal({ user, state, setState, toast }) {
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
-    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard" && <SupDashboard user={user} state={state} myStaff={myStaff} myCounter={myCounter} todayRevenue={todayRevenue} todayAtt={todayAtt} setPage={setPage}/>}
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -1053,7 +1207,7 @@ function ManagerPortal({ user, state, setState, toast }) {
   const myCounters = state.counters.filter(c=>mySupervisors.some(s=>s.id===c.supervisorId));
 
   return (
-    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
@@ -1542,7 +1696,7 @@ function MgrFeedback({ user, state, myCounters }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MD PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
-function MDPortal({ user, state, setState, toast }) {
+function MDPortal({ user, state, setState, toast, syncFromCloud }) {
   const [page, setPage] = useState("dashboard");
   const navItems = [
     { id:"dashboard", icon:"🏆", label:"Executive Summary" },
@@ -1553,8 +1707,8 @@ function MDPortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
-      {page==="dashboard"  && <MDDashboard user={user} state={state}/>}
+    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+      {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
       {page==="financial"  && <MDFinancial state={state}/>}
@@ -1564,6 +1718,8 @@ function MDPortal({ user, state, setState, toast }) {
       {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
+      {page==="reports"     && <AllReports state={state}/>}
+      {page==="feedback"    && <MDFeedbackAll state={state}/>}
     </Shell>
   );
 }
@@ -1584,75 +1740,257 @@ function MDCollectionReport({ user, state, setState, toast }) {
   );
 }
 
-function MDDashboard({ user, state }) {
-  const allReports = state.serviceReports;
-  const month = today().slice(0,7);
-  const monthReports = allReports.filter(r=>r.date.startsWith(month));
-  const monthRev = monthReports.reduce((s,r)=>s+r.totalAmount,0);
-  const todayRev = allReports.filter(r=>r.date===today()).reduce((s,r)=>s+r.totalAmount,0);
-  const totalAllTime = allReports.reduce((s,r)=>s+r.totalAmount,0);
-  const pendingMgrLeaves = state.leaves.filter(l=>l.approverId===user.id&&l.status==="pending").length;
-  const activeStaff = state.users.filter(u=>u.active).length;
+function MDDashboard({ user, state, syncFromCloud }) {
+  const [dateRange, setDateRange] = useState("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  // Revenue by counter
-  const counterRev = state.counters.map(c=>({
-    name:c.name,
-    rev:allReports.filter(r=>r.supervisorId===c.supervisorId).reduce((s,r)=>s+r.totalAmount,0),
-  })).sort((a,b)=>b.rev-a.rev);
-  const maxRev = counterRev[0]?.rev||1;
+  const getRange = () => {
+    const now = new Date(), y=now.getFullYear(), m=now.getMonth();
+    if (dateRange==="today") return [today(), today()];
+    if (dateRange==="week") {
+      const d = now.getDay(), diff = now.getDate()-d+(d===0?-6:1);
+      const mon = new Date(now); mon.setDate(diff);
+      const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+      return [mon.toISOString().split("T")[0], sun.toISOString().split("T")[0]];
+    }
+    if (dateRange==="month") return [`${y}-${String(m+1).padStart(2,"0")}-01`, `${y}-${String(m+1).padStart(2,"0")}-31`];
+    if (dateRange==="quarter") { const q=Math.floor(m/3); return [`${y}-${String(q*3+1).padStart(2,"0")}-01`,`${y}-${String(Math.min(q*3+3,12)).padStart(2,"0")}-31`]; }
+    if (dateRange==="year") return [`${y}-01-01`, `${y}-12-31`];
+    return [customFrom||today(), customTo||today()];
+  };
+  const [from, to] = getRange();
+
+  const reports = state.serviceReports.filter(r => r.date >= from && r.date <= to);
+  const totalRevenue = reports.reduce((s,r)=>s+r.totalAmount,0);
+  const todayReports = state.serviceReports.filter(r=>r.date===today());
+  const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
+
+  // Counter stats
+  const counterStats = state.counters.map(c => {
+    const reps = reports.filter(r=>r.supervisorId===c.supervisorId||(r.counters||[]).some(x=>x.counterName===c.name));
+    const svcTotal = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((ss,e)=>ss+e.amount,0)+s,0);
+    const salTotal = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((ss,e)=>ss+e.amount,0)+s,0);
+    const total = reps.reduce((s,r)=>s+r.totalAmount,0);
+    const vehicles = reps.reduce((s,r)=>(r.counters||[]).flatMap(x=>x.entries||[]).reduce((ss,e)=>ss+(Number(e.vehicles)||0),0)+s,0);
+    const days = new Set(reps.map(r=>r.date)).size;
+    const sup = state.users.find(u=>u.id===c.supervisorId);
+    const todayRep = todayReports.find(r=>r.supervisorId===c.supervisorId||(r.counters||[]).some(x=>x.counterName===c.name));
+    return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0 };
+  });
+
+  const maxTotal = Math.max(...counterStats.map(c=>c.total),1);
+
+  // Month-over-month growth
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
+  const thisMonthRev = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.totalAmount,0);
+  const lastMonthRev = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)).reduce((s,r)=>s+r.totalAmount,0);
+  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev)/lastMonthRev*100) : 0;
+
+  // Daily revenue for bar chart (last 14 days)
+  const last14 = Array.from({length:14},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().split("T")[0]; });
+  const dailyRevs = last14.map(d => ({ date:d, rev:state.serviceReports.filter(r=>r.date===d).reduce((s,r)=>s+r.totalAmount,0) }));
+  const maxDailyRev = Math.max(...dailyRevs.map(d=>d.rev),1);
+
+  // Absent today
+  const absentToday = state.attendance.filter(a=>a.date===today()&&a.status==="absent");
+
+  // Pending leaves
+  const pendingLeaves = state.leaves.filter(l=>l.approverId===user.id&&l.status==="pending");
+
+  const refresh = () => { syncFromCloud && syncFromCloud(); setLastRefresh(new Date()); };
 
   return (
     <div>
-      <div style={{ background:`linear-gradient(135deg, ${T.navy} 0%, ${T.navyL} 100%)`, borderRadius:16, padding:24, marginBottom:24, color:"#fff" }}>
-        <div style={{ fontSize:12, opacity:.6, fontWeight:600, textTransform:"uppercase", letterSpacing:".05em", marginBottom:4 }}>Executive Dashboard</div>
-        <div style={{ fontSize:26, fontWeight:800 }}>Good day, {user.name.split(" ")[0]}</div>
-        <div style={{ opacity:.7, marginTop:4 }}>{state.counters.length} counters · {activeStaff} active staff · {fmtDate(today())}</div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:16, marginTop:20 }}>
+      {/* Header */}
+      <div style={{ background:`linear-gradient(135deg,${T.navy} 0%,${T.navyL} 100%)`, borderRadius:16, padding:24, marginBottom:20, color:"#fff" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
+          <div>
+            <div style={{ fontSize:11, opacity:.6, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Live Dashboard</div>
+            <div style={{ fontSize:24, fontWeight:800, marginTop:4 }}>Good day, {user.name.split(" ")[0]} 👋</div>
+            <div style={{ opacity:.65, fontSize:13, marginTop:4 }}>{state.counters.length} counters · Last refreshed {lastRefresh.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</div>
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            <button onClick={refresh} style={{ background:"rgba(255,255,255,.15)", border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"7px 14px", color:"#fff", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>🔄 Refresh</button>
+          </div>
+        </div>
+        {/* Key metrics */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginTop:20 }}>
           {[
-            { label:"Today's Revenue", value:fmtCurr(todayRev), icon:"📅" },
-            { label:"This Month", value:fmtCurr(monthRev), icon:"💰" },
-            { label:"All Time", value:fmtCurr(totalAllTime), icon:"🏆" },
-            { label:"Pending Approvals", value:pendingMgrLeaves, icon:"✅" },
+            { l:"Today's Revenue", v:fmtCurr(todayRevenue), i:"📅" },
+            { l:"Period Revenue", v:fmtCurr(totalRevenue), i:"💰" },
+            { l:"Month Growth", v:`${growth>=0?"+":""}${growth}%`, i:"📈", c:growth>=0?"#86EFAC":"#FCA5A5" },
+            { l:"Reports Today", v:`${todayReports.length}/${state.counters.length}`, i:"📋" },
+            { l:"Pending Leaves", v:pendingLeaves.length, i:"✅", c:pendingLeaves.length>0?"#FCA5A5":"#86EFAC" },
+            { l:"Absent Today", v:absentToday.length, i:"👥" },
           ].map(s=>(
-            <div key={s.label} style={{ background:"rgba(255,255,255,.1)", borderRadius:10, padding:"12px 14px" }}>
-              <div style={{ fontSize:10, opacity:.7, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em" }}>{s.label}</div>
-              <div style={{ fontSize:22, fontWeight:800, marginTop:4 }}>{s.value}</div>
-              <div style={{ fontSize:16, marginTop:2, opacity:.6 }}>{s.icon}</div>
+            <div key={s.l} style={{ background:"rgba(255,255,255,.12)", borderRadius:10, padding:"12px 14px" }}>
+              <div style={{ fontSize:10, opacity:.7, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em" }}>{s.l}</div>
+              <div style={{ fontSize:22, fontWeight:800, marginTop:4, color:s.c||"#fff" }}>{s.v}</div>
+              <div style={{ fontSize:16, opacity:.6, marginTop:2 }}>{s.i}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-        <Card>
-          <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Counter Revenue (All Time)</div>
-          {counterRev.map(c=>(
-            <div key={c.name} style={{ marginBottom:10 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                <span style={{fontSize:13}}>{c.name}</span>
-                <b style={{fontSize:13,color:T.amber}}>{fmtCurr(c.rev)}</b>
-              </div>
-              <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${c.rev/maxRev*100}%`, background:T.amber, borderRadius:4 }}/>
-              </div>
+      {/* Date range selector */}
+      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+        {["today","week","month","quarter","year","custom"].map(r=>(
+          <button key={r} onClick={()=>setDateRange(r)} style={{
+            padding:"6px 14px", borderRadius:20, border:`1px solid ${dateRange===r?T.navy:T.bdrS}`,
+            background:dateRange===r?T.navy:"transparent", color:dateRange===r?"#fff":T.txt2,
+            fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit"
+          }}>{r.charAt(0).toUpperCase()+r.slice(1)}</button>
+        ))}
+        {dateRange==="custom" && <>
+          <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+          <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+        </>}
+      </div>
+
+      {/* Revenue trend (last 14 days) */}
+      <Card style={{ marginBottom:20 }}>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Revenue trend — last 14 days</div>
+        <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:80, overflowX:"auto" }}>
+          {dailyRevs.map((d,i) => (
+            <div key={d.date} style={{ flex:"0 0 auto", display:"flex", flexDirection:"column", alignItems:"center", gap:4, minWidth:36 }}>
+              <div style={{ fontSize:9, color:T.txt3, transform:"rotate(-45deg)", whiteSpace:"nowrap", marginBottom:2 }}>{d.date.slice(5)}</div>
+              <div title={fmtCurr(d.rev)} style={{ width:28, background:d.date===today()?T.amber:d.rev>0?T.navy:T.bdr, borderRadius:"3px 3px 0 0", height:`${Math.max(4,Math.round(d.rev/maxDailyRev*60))}px`, cursor:"pointer", transition:"opacity .15s" }}/>
+              {d.rev>0 && <div style={{ fontSize:9, color:T.txt3 }}>₹{Math.round(d.rev/1000)}k</div>}
             </div>
           ))}
-        </Card>
+        </div>
+        <div style={{ display:"flex", gap:12, marginTop:8, fontSize:11, color:T.txt2 }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:12, background:T.amber, borderRadius:2, display:"inline-block" }}/> Today</span>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:12, background:T.navy, borderRadius:2, display:"inline-block" }}/> Other days</span>
+        </div>
+      </Card>
+
+      {/* Counter live status grid */}
+      <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>Counter Status — {dateRange==="today"?"Today":from===to?fmtDate(from):`${fmtDate(from)} → ${fmtDate(to)}`}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:14, marginBottom:20 }}>
+        {counterStats.map(c => (
+          <Card key={c.id} style={{ borderTop:`3px solid ${c.todayRep?T.grn:c.total>0?T.amber:T.bdr}`, padding:16 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+              <div>
+                <div style={{ fontWeight:800, fontSize:13 }}>{c.name}</div>
+                <div style={{ fontSize:11, color:T.txt2 }}>{c.sup?.name||"No executive"}</div>
+              </div>
+              <Badge color={c.todayRep?T.grn:T.red}>{c.todayRep?"✓ Reported":"⏳ Pending"}</Badge>
+            </div>
+            <div style={{ fontSize:22, fontWeight:800, color:T.amber, marginBottom:6 }}>{fmtCurr(c.total)}</div>
+            <div style={{ height:5, background:T.surf, borderRadius:3, overflow:"hidden", marginBottom:8 }}>
+              <div style={{ height:"100%", width:`${c.total/maxTotal*100}%`, background:T.amber, borderRadius:3 }}/>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4, fontSize:11, color:T.txt2 }}>
+              <div><div style={{ fontWeight:700, color:T.navy, fontSize:12 }}>{c.vehicles}</div>Vehicles</div>
+              <div><div style={{ fontWeight:700, color:T.grn, fontSize:12 }}>{fmtCurr(c.salTotal)}</div>Sales</div>
+              <div><div style={{ fontWeight:700, color:T.txt2, fontSize:12 }}>{c.days}d</div>Days</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Growth chart — month over month */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
         <Card>
-          <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Organisation at a Glance</div>
-          {Object.entries(ROLE_LABELS).map(([role,label])=>{
-            const count = state.users.filter(u=>u.role===role&&u.active).length;
-            if (!count) return null;
-            return <div key={role} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:`1px solid ${T.bdr}` }}>
-              <Badge color={ROLE_COLORS[role]}>{label}</Badge>
-              <span style={{ fontWeight:700 }}>{count}</span>
-            </div>;
-          })}
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Month-over-month revenue</div>
+          {(() => {
+            const months = [];
+            for (let i=5; i>=0; i--) {
+              const d = new Date(); d.setMonth(d.getMonth()-i);
+              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+              const rev = state.serviceReports.filter(r=>r.date.startsWith(key)).reduce((s,r)=>s+r.totalAmount,0);
+              months.push({ key, label:`${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear().toString().slice(-2)}`, rev });
+            }
+            const maxR = Math.max(...months.map(m=>m.rev),1);
+            return months.map((m,i) => {
+              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev)/months[i-1].rev*100) : null;
+              return <div key={m.key} style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                  <span style={{ fontSize:12 }}>{m.label}</span>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <b style={{ fontSize:12 }}>{fmtCurr(m.rev)}</b>
+                    {g!==null && <span style={{ fontSize:10, fontWeight:700, color:g>=0?T.grn:T.red }}>{g>=0?"+":""}{g}%</span>}
+                  </div>
+                </div>
+                <div style={{ height:7, background:T.surf, borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${m.rev/maxR*100}%`, background:m.key===thisMonth?T.amber:T.navy, borderRadius:3 }}/>
+                </div>
+              </div>;
+            });
+          })()}
+        </Card>
+
+        <Card>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Today's absent staff</div>
+          {absentToday.length===0
+            ? <div style={{ color:T.grn, fontSize:13, fontWeight:600 }}>✅ All staff present today</div>
+            : absentToday.map(a => {
+              const staff = state.users.find(u=>u.id===a.staffId);
+              const sup = state.users.find(u=>u.id===a.supervisorId);
+              return <div key={a.id} style={{ padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
+                <div style={{ fontWeight:700, fontSize:13 }}>{staff?.name}</div>
+                <div style={{ fontSize:11, color:T.txt2 }}>{sup?.counter} · {a.reason||"No reason given"}</div>
+              </div>;
+            })
+          }
+          <hr style={{ border:`none`, borderTop:`1px solid ${T.bdr}`, margin:"12px 0" }}/>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:8 }}>Pending approvals</div>
+          {pendingLeaves.length===0
+            ? <div style={{ color:T.txt3, fontSize:13 }}>No pending leaves</div>
+            : pendingLeaves.slice(0,3).map(l => {
+              const u = state.users.find(x=>x.id===l.userId);
+              return <div key={l.id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, fontSize:12 }}>
+                <span><b>{u?.name}</b> — {l.type}</span>
+                <Badge color={T.amber}>{l.status}</Badge>
+              </div>;
+            })
+          }
         </Card>
       </div>
+
+      {/* Today's collection summary */}
+      {todayReports.length > 0 && (
+        <Card>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Today's collection — all counters</div>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead><tr style={{ background:T.surf }}>
+                <th style={{ padding:"8px 12px", textAlign:"left", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Counter</th>
+                <th style={{ padding:"8px 12px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Service</th>
+                <th style={{ padding:"8px 12px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Sales</th>
+                <th style={{ padding:"8px 12px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Total</th>
+              </tr></thead>
+              <tbody>
+                {todayReports.map((r,i) => {
+                  const cname = (r.counters||[])[0]?.counterName||state.users.find(u=>u.id===r.supervisorId)?.counter||"—";
+                  const svcT = (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+e.amount,0);
+                  const salT = (r.counters||[]).flatMap(c=>c.entries||[]).filter(e=>["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)).reduce((s,e)=>s+e.amount,0);
+                  return <tr key={r.id}>
+                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:600 }}>{cname}</td>
+                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right" }}>{fmtCurr(svcT)}</td>
+                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right" }}>{fmtCurr(salT)}</td>
+                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right", fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</td>
+                  </tr>;
+                })}
+              </tbody>
+              <tfoot><tr style={{ background:T.navyXL }}>
+                <td colSpan={3} style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:800, color:T.navy, textAlign:"right" }}>GRAND TOTAL</td>
+                <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:800, color:T.amber, textAlign:"right", fontSize:15 }}>{fmtCurr(todayRevenue)}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
+
 
 function MDFinancial({ state }) {
   const allReports = state.serviceReports;
@@ -1764,7 +2102,7 @@ function OfficePortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="reports"    && <OfficeReports state={state}/>}
       {page==="attendance" && <OfficeAttendance state={state}/>}
       {page==="export"     && <OfficeExport state={state} toast={toast}/>}
@@ -1897,7 +2235,7 @@ function ITAdminPortal({ user, state, setState, toast }) {
   ];
 
   return (
-    <Shell user={user} state={state} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={props?.syncStatus||""} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="users"     && <UserMgmt state={state} setState={setState} toast={toast}/>}
       {page==="counters"  && <CounterMgmt state={state} setState={setState} toast={toast}/>}
       {page==="worktypes" && <WorkTypeMgmt state={state} setState={setState} toast={toast}/>}
@@ -2271,7 +2609,7 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
   };
 
   const updateBank = (i,f,v) => setBankEntries(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
-  const updateExp  = (i,f,v) => setExpenses(p=>p.map((r,j)=>j===i?{...r,[f]:v}:v));
+  const updateExp  = (i,f,v) => setExpenses(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
 
   const td = (content, align='left', bold=false, bg='') =>
     `style="border:1px solid ${T.bdr};padding:7px 10px;text-align:${align};font-weight:${bold?700:400};background:${bg||'transparent'};font-size:13px"`;
@@ -3117,12 +3455,43 @@ function FieldStaffPortal({ user, state, setState, logout, toast }) {
   );
 }
 
+
+function MDFeedbackAll({ state }) {
+  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0)/state.feedback.length).toFixed(1) : "—";
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
+        <div style={{ fontSize:18, fontWeight:800 }}>All Customer Feedback</div>
+        <div style={{ fontSize:28, fontWeight:800, color:T.amber }}>⭐ {avg}</div>
+      </div>
+      {[...state.feedback].sort((a,b)=>b.date?.localeCompare(a.date)).map(f=>(
+        <Card key={f.id} style={{ marginBottom:10, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+            <div><b style={{ fontSize:14 }}>{f.counterName}</b><span style={{ fontSize:12, color:T.txt2, marginLeft:8 }}>{fmtDate(f.date)} · {f.submittedAt}</span></div>
+            <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}/5 ⭐</Badge>
+          </div>
+          <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:4 }}>
+            {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
+            {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
+            {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
+          </div>
+          {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>"{f.comment}"</div>}
+        </Card>
+      ))}
+      {state.feedback.length===0 && <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet</div></Card>}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ROOT APP
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [state, setState] = useLocalStorage("benaka_state", { ...INITIAL_STATE, currentUser: null });
   const { show, Toast } = useToast();
+
+  // Supabase real-time sync
+  const { synced, syncStatus, syncFromCloud, isConfigured } = useSupabaseSync(state, setState);
 
   // Ensure passwords persist
   useEffect(() => {
@@ -3137,6 +3506,44 @@ export default function App() {
 
   // Birthday notifications for MD, Manager, Executive
   useBirthdayNotifications(state, state.currentUser);
+
+  // DB-aware setState: writes to Supabase AND local state
+  const dbSetState = useCallback((updater) => {
+    setState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Detect what changed and sync to DB
+      if (isConfigured) {
+        if (next.serviceReports !== prev.serviceReports) {
+          const newReports = next.serviceReports.filter(r => !prev.serviceReports.find(p=>p.id===r.id) || prev.serviceReports.find(p=>p.id===r.id)?.submittedAt !== r.submittedAt);
+          newReports.forEach(r => DB.upsertReport(r).catch(console.error));
+        }
+        if (next.attendance !== prev.attendance) {
+          const newAtts = next.attendance.filter(a => !prev.attendance.find(p=>p.id===a.id));
+          if (newAtts.length) DB.upsertAttendance(newAtts).catch(console.error);
+        }
+        if (next.leaves !== prev.leaves) {
+          const changedLeaves = next.leaves.filter(l => {
+            const old = prev.leaves.find(p=>p.id===l.id);
+            return !old || old.status !== l.status || !old.id;
+          });
+          changedLeaves.forEach(l => DB.upsertLeave(l).catch(console.error));
+        }
+        if (next.feedback !== prev.feedback) {
+          const newFb = next.feedback.filter(f => !prev.feedback.find(p=>p.id===f.id));
+          newFb.forEach(f => DB.insertFeedback(f).catch(console.error));
+        }
+        if (next.salaries !== prev.salaries) {
+          const newSal = next.salaries.filter(s => !prev.salaries.find(p=>p.id===s.id) || prev.salaries.find(p=>p.id===s.id)?.netSalary !== s.netSalary);
+          newSal.forEach(s => DB.upsertSalary(s).catch(console.error));
+        }
+        if (next.collectionReports !== prev.collectionReports) {
+          const newCR = next.collectionReports.filter(r => !prev.collectionReports.find(p=>p.id===r.id));
+          newCR.forEach(r => DB.upsertCollectionReport(r).catch(console.error));
+        }
+      }
+      return next;
+    });
+  }, [isConfigured]);
 
   // ── Public feedback form detection ─────────────────────────────────────────
   const params     = new URLSearchParams(window.location.search);
@@ -3154,7 +3561,7 @@ export default function App() {
     </>;
   }
 
-  const props = { user: state.currentUser, state, setState, toast: { show } };
+  const props = { user: state.currentUser, state, setState: dbSetState, toast: { show }, syncFromCloud };
 
   return (
     <>
