@@ -132,6 +132,59 @@ const DB = {
     }));
     return supabase.from("app_users").upsert(rows);
   },
+  async getCounters() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertCounters(counters) {
+    const rows = counters.map(c => ({
+      id: c.id, name: c.name,
+      supervisor_id: c.supervisorId||null,
+      dealership: c.dealership||"",
+      city: c.city||""
+    }));
+    return supabase.from("app_counters").upsert(rows);
+  },
+  async getWorkTypes() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    return r.json();
+  },
+  async upsertWorkTypes(workTypes) {
+    const rows = workTypes.map(w => ({
+      id: w.id, name: w.name,
+      default_rate: w.defaultRate||0,
+      category: w.category||"service"
+    }));
+    return supabase.from("app_work_types").upsert(rows);
+  },
+  async getPlannedLeaves() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/planned_leaves?select=*&order=created_at.desc`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const data = await r.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(l => ({
+      id: l.id, userId: l.user_id, staffName: l.staff_name,
+      supervisorId: l.supervisor_id, fromDate: l.from_date,
+      toDate: l.to_date, reason: l.reason, status: l.status,
+      appliedOn: l.applied_on, decidedOn: l.decided_on
+    }));
+  },
+  async upsertPlannedLeave(leave) {
+    const row = {
+      id: leave.id, user_id: leave.userId, staff_name: leave.staffName,
+      supervisor_id: leave.supervisorId, from_date: leave.fromDate,
+      to_date: leave.toDate, reason: leave.reason, status: leave.status,
+      applied_on: leave.appliedOn, decided_on: leave.decidedOn||null
+    };
+    return supabase.from("planned_leaves").upsert(row);
+  },
+  async seedConfigIfEmpty() {
+    // Seed counters if empty
+    const ec = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json());
+    if (Array.isArray(ec) && ec.length === 0) await DB.upsertCounters(INITIAL_STATE.counters);
+    // Seed work types if empty
+    const ew = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json());
+    if (Array.isArray(ew) && ew.length === 0) await DB.upsertWorkTypes(INITIAL_STATE.workTypes);
+  },
   async upsertPasswords(passwords) {
     // passwords is an object {empId: pwd} — convert to rows
     const rows = Object.entries(passwords).map(([emp_id, pwd]) => ({ emp_id, pwd }));
@@ -157,9 +210,10 @@ function useSupabaseSync(localState, setLocalState) {
   const syncFromCloud = useCallback(async () => {
     setSyncStatus("syncing");
     try {
-      const [reports, attendance, leaves, feedback, salaries, collReports, config] = await Promise.all([
+      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves] = await Promise.all([
         DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(),
-        DB.getSalaries(), DB.getCollectionReports(), DB.getConfig()
+        DB.getSalaries(), DB.getCollectionReports(), DB.getConfig(),
+        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves()
       ]);
 
       // Check if tables exist — Supabase returns {code:"42P01"} if table missing
@@ -171,10 +225,11 @@ function useSupabaseSync(localState, setLocalState) {
         return;
       }
 
-      // If users table is empty, seed it from INITIAL_STATE
+      // If tables are empty, seed from INITIAL_STATE
       if (Array.isArray(config.users) && config.users.length === 0) {
         await DB.seedUsersIfEmpty(INITIAL_STATE.users, INITIAL_STATE.passwords);
       }
+      await DB.seedConfigIfEmpty();
 
       const mapReport = r => ({
         id: r.id, date: r.date, supervisorId: r.supervisor_id,
@@ -206,10 +261,31 @@ function useSupabaseSync(localState, setLocalState) {
           }))
         : null;
 
+      // Map counters from DB
+      const mappedCounters = Array.isArray(dbCounters) && dbCounters.length > 0
+        ? dbCounters.map(c => ({
+            id: c.id, name: c.name,
+            supervisorId: c.supervisor_id||c.supervisorId||null,
+            dealership: c.dealership||"", city: c.city||""
+          }))
+        : null;
+
+      // Map work types from DB
+      const mappedWorkTypes = Array.isArray(dbWorkTypes) && dbWorkTypes.length > 0
+        ? dbWorkTypes.map(w => ({
+            id: w.id, name: w.name,
+            defaultRate: w.default_rate||w.defaultRate||0,
+            category: w.category||"service"
+          }))
+        : null;
+
       setLocalState(p => ({
         ...p,
-        users:     mappedUsers || p.users,
+        users:     mappedUsers    || p.users,
         passwords: pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
+        counters:  mappedCounters  || p.counters,
+        workTypes: mappedWorkTypes || p.workTypes,
+        plannedLeaves:     Array.isArray(plannedLeaves) ? plannedLeaves : p.plannedLeaves,
         serviceReports:    reports.map(mapReport),
         attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
         leaves:            Array.isArray(leaves)      ? leaves      : p.leaves,
@@ -969,7 +1045,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
-    toast.show("Collection report saved");
+    toast.show("Collection report saved ✅");
   };
 
   // Filter reports by date range and counter
@@ -1604,7 +1680,7 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors }) {
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
-    toast.show("Collection report saved");
+    toast.show("Collection report saved ✅");
   };
   const filteredReports = state.serviceReports.filter(r => r.date >= dr.from && r.date <= dr.to && mySupervisors.some(s=>s.id===r.supervisorId));
   return (
@@ -2116,7 +2192,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:"admin", bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
-    toast.show("Collection report saved");
+    toast.show("Collection report saved ✅");
   };
   const filteredReports = state.serviceReports.filter(r => r.date >= dr.from && r.date <= dr.to);
   return (
@@ -2570,7 +2646,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
       totalAmount: grandTotal, notes, status:"submitted"
     };
     setState(p=>({ ...p, serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id), report] }));
-    toast.show("Report submitted for " + executives.find(u=>u.id===selSupervisor)?.name);
+    toast.show("Report submitted ✅");
   };
 
   return (
@@ -4216,6 +4292,21 @@ export default function App() {
         }
         if (next.passwords !== prev.passwords) {
           DB.upsertPasswords(next.passwords).catch(console.error);
+        }
+        // Sync counter/workType changes to DB immediately
+        if (next.counters !== prev.counters) {
+          DB.upsertCounters(next.counters).catch(console.error);
+        }
+        if (next.workTypes !== prev.workTypes) {
+          DB.upsertWorkTypes(next.workTypes).catch(console.error);
+        }
+        // Sync plannedLeaves
+        if (next.plannedLeaves !== prev.plannedLeaves) {
+          const changed = (next.plannedLeaves||[]).filter(l => {
+            const old = (prev.plannedLeaves||[]).find(p=>p.id===l.id);
+            return !old || old.status !== l.status;
+          });
+          changed.forEach(l => DB.upsertPlannedLeave(l).catch(console.error));
         }
       }
       return next;
