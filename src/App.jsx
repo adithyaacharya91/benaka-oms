@@ -409,6 +409,65 @@ const Tabs = ({ tabs, active, onChange }) => (
   </div>
 );
 
+// ─── DateRangePicker — shared across all portals ──────────────────────────────
+function DateRangePicker({ range, setRange, customFrom, setCustomFrom, customTo, setCustomTo }) {
+  const options = [
+    { id:"today",   label:"Today" },
+    { id:"week",    label:"This Week" },
+    { id:"month",   label:"This Month" },
+    { id:"quarter", label:"Quarter" },
+    { id:"year",    label:"This Year" },
+    { id:"custom",  label:"Custom" },
+  ];
+  return (
+    <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:16 }}>
+      {options.map(o=>(
+        <button key={o.id} onClick={()=>setRange(o.id)} style={{
+          padding:"5px 14px", borderRadius:20, border:`1px solid ${range===o.id?T.navy:T.bdrS}`,
+          background:range===o.id?T.navy:"transparent", color:range===o.id?"#fff":T.txt2,
+          fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s"
+        }}>{o.label}</button>
+      ))}
+      {range==="custom" && <>
+        <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}
+          style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+        <span style={{ fontSize:12, color:T.txt2 }}>→</span>
+        <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}
+          style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+      </>}
+    </div>
+  );
+}
+
+// ─── useDateRange — shared date range logic ───────────────────────────────────
+function useDateRange(defaultRange="today") {
+  const [range, setRange] = useState(defaultRange);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
+
+  const getFromTo = () => {
+    const now = new Date(), y=now.getFullYear(), m=now.getMonth();
+    const pad = n => String(n).padStart(2,"0");
+    if (range==="today")   return [today(), today()];
+    if (range==="week") {
+      const d=now.getDay(), diff=now.getDate()-d+(d===0?-6:1);
+      const mon=new Date(now); mon.setDate(diff);
+      const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+      return [mon.toISOString().split("T")[0], sun.toISOString().split("T")[0]];
+    }
+    if (range==="month")   return [`${y}-${pad(m+1)}-01`, `${y}-${pad(m+1)}-31`];
+    if (range==="quarter") { const q=Math.floor(m/3); return [`${y}-${pad(q*3+1)}-01`,`${y}-${pad(Math.min(q*3+3,12))}-31`]; }
+    if (range==="year")    return [`${y}-01-01`, `${y}-12-31`];
+    return [customFrom||today(), customTo||today()];
+  };
+
+  const [from, to] = getFromTo();
+  const label = { today:"Today", week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", custom:`${customFrom} → ${customTo}` }[range] || "";
+
+  return { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, from, to, label };
+}
+
+
 const Table = ({ cols, rows, emptyMsg="No data" }) => (
   <div style={{ overflowX:"auto", border:`1px solid ${T.bdr}`, borderRadius:10 }}>
     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
@@ -708,6 +767,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
       {page==="history"     && <SupHistory user={user} state={state}/>}
       {page==="feedback"    && <SupFeedback user={user} state={state}/>}
+      {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"    && <CounterAnalysis user={user} state={state} myCounterIds={state.counters.filter(c=>c.supervisorId===user.id).map(c=>c.id)}/>}
       {page==="staffleaves" && <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="executive"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
@@ -774,17 +834,44 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
 }
 
 function SupCollectionReport({ user, state, setState, toast }) {
-  const [date, setDate] = useState(today());
+  const dr = useDateRange("today");
+  const myCounters = state.counters.filter(c => c.supervisorId === user.id);
+  const [selCounter, setSelCounter] = useState("all");
+
+  // For collection report saving, use single date (from)
+  const date = dr.from;
   const existing = state.collectionReports?.find(r=>r.supervisorId===user.id&&r.date===date);
+
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
     toast.show("Collection report saved");
   };
+
+  // Filter reports by date range and counter
+  const filteredReports = state.serviceReports.filter(r => {
+    if (r.date < dr.from || r.date > dr.to) return false;
+    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== myCounters.find(c=>c.id===selCounter)?.name) return false;
+    // Only show this executive's counters
+    return myCounters.some(c=>c.id===r.counterId||c.name===r.counterName);
+  });
+
   return (
     <div>
-      <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:16}}/>
-      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={state.serviceReports} attendance={state.attendance} users={state.users} onSave={save}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Collection Report</div>
+      <div style={{ display:"flex", gap:10, alignItems:"flex-start", flexWrap:"wrap", marginBottom:8 }}>
+        <div style={{ flex:1 }}>
+          <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+        </div>
+        {myCounters.length > 1 && (
+          <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
+            style={{ padding:"6px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }}>
+            <option value="all">All My Counters</option>
+            {myCounters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+      </div>
+      <CollectionReportView date={date} report={existing} counters={myCounters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
     </div>
   );
 }
@@ -1387,17 +1474,20 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
 }
 
 function MgrCollectionReport({ user, state, setState, toast, mySupervisors }) {
-  const [date, setDate] = useState(today());
+  const dr = useDateRange("today");
+  const date = dr.from;
   const existing = state.collectionReports?.find(r=>r.date===date&&mySupervisors.some(s=>s.id===r.supervisorId));
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
     toast.show("Collection report saved");
   };
+  const filteredReports = state.serviceReports.filter(r => r.date >= dr.from && r.date <= dr.to && mySupervisors.some(s=>s.id===r.supervisorId));
   return (
     <div>
-      <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:16}}/>
-      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={state.serviceReports} attendance={state.attendance} users={state.users} onSave={save}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Collection Report</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
     </div>
   );
 }
@@ -1465,11 +1555,11 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
 
 function MgrReports({ user, state, mySupervisors, myCounters }) {
   const [tab, setTab] = useState("daily");
-  const [selDate, setSelDate] = useState(today());
+  const dr = useDateRange("today");
   const [selMonth, setSelMonth] = useState(today().slice(0,7));
 
-  const relevantReports = state.serviceReports.filter(r=>mySupervisors.some(s=>s.id===r.supervisorId));
-  const dailyReports = relevantReports.filter(r=>r.date===selDate);
+  const relevantReports = state.serviceReports.filter(r=>mySupervisors.some(s=>s.id===r.supervisorId)||myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+  const dailyReports = relevantReports.filter(r=>r.date>=dr.from&&r.date<=dr.to);
   const monthReports = relevantReports.filter(r=>r.date.startsWith(selMonth));
 
   const dailyTotal = dailyReports.reduce((s,r)=>s+r.totalAmount,0);
@@ -1491,7 +1581,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
       {tab==="daily" && (
         <div>
-          <Input label="Select Date" type="date" value={selDate} onChange={setSelDate} style={{ maxWidth:200 }}/>
+          <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginBottom:20 }}>
             <StatCard label="Total Revenue" value={fmtCurr(dailyTotal)} color={T.amber}/>
             <StatCard label="Reports In" value={`${dailyReports.length}/${myCounters.length}`} color={T.navy}/>
@@ -1896,17 +1986,20 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
 }
 
 function MDCollectionReport({ user, state, setState, toast }) {
-  const [date, setDate] = useState(today());
+  const dr = useDateRange("today");
+  const date = dr.from;
   const existing = state.collectionReports?.find(r=>r.date===date);
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:"admin", bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
     toast.show("Collection report saved");
   };
+  const filteredReports = state.serviceReports.filter(r => r.date >= dr.from && r.date <= dr.to);
   return (
     <div>
-      <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:16}}/>
-      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={state.serviceReports} attendance={state.attendance} users={state.users} onSave={save}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Collection Report</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
     </div>
   );
 }
@@ -2484,13 +2577,15 @@ function OfficeEnterReport({ user, state, setState, toast }) {
 }
 
 function OfficeReports({ state }) {
-  const [date, setDate] = useState(today());
-  const reports = state.serviceReports.filter(r=>r.date===date);
+  const dr = useDateRange("today");
+  const reports = state.serviceReports.filter(r=>r.date>=dr.from&&r.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
+  const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Service Reports</div>
-      <Input label="Select Date" type="date" value={date} onChange={setDate} style={{ maxWidth:200 }}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Service Reports</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      {reports.length>0 && <div style={{marginBottom:16}}><StatCard label={`Reports (${dr.label})`} value={`${reports.length} reports`} sub={`Total: ${fmtCurr(totalRev)}`} color={T.amber}/></div>}
       {reports.map(r=>{
         const sup = state.users.find(u=>u.id===r.supervisorId);
         return (
@@ -2502,42 +2597,49 @@ function OfficeReports({ state }) {
               </div>
               <div style={{ fontSize:22, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
             </div>
-            {(r.counters||[]).map((c,ci)=>(
-              <div key={ci} style={{marginBottom:12}}>
-                <div style={{fontWeight:700,fontSize:13,color:T.navy,marginBottom:6}}>📍 {c.counterName}</div>
-                <Table cols={[
-                  {key:"workTypeName",label:"Work"},
-                  {key:"vehicles",label:"Vehicles"},
-                  {key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},
-                  {key:"amount",label:"Amount",render:e=><b>{fmtCurr(e.amount)}</b>},
-                ]} rows={c.entries.filter(e=>e.vehicles>0)}/>
-              </div>
-            ))}
+            {(() => {
+              const allE = r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+              const svcE = allE.filter(e=>e.type!=="sales"&&!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)&&e.vehicles>0);
+              const salE = allE.filter(e=>(e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName))&&e.amount>0);
+              return <>
+                {svcE.length>0&&<Table cols={[{key:"workTypeName",label:"Work"},{key:"vehicles",label:"Veh"},{key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},{key:"amount",label:"Amount",render:e=><b>{fmtCurr(e.amount)}</b>}]} rows={svcE}/>}
+                {salE.length>0&&<><div style={{fontSize:11,fontWeight:700,color:T.grn,margin:"8px 0 4px",textTransform:"uppercase"}}>Sales</div><Table cols={[{key:"workTypeName",label:"Product"},{key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>}]} rows={salE}/></>}
+              </>;
+            })()}
             {r.notes && <div style={{marginTop:10,fontSize:13,color:T.txt2}}>📝 {r.notes}</div>}
           </Card>
         );
       })}
-      {reports.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {fmtDate(date)}</div></Card>}
+      {reports.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
     </div>
   );
 }
 
 function OfficeAttendance({ state }) {
-  const [date, setDate] = useState(today());
-  const att = state.attendance.filter(a=>a.date===date);
+  const dr = useDateRange("today");
+  const att = state.attendance.filter(a=>a.date>=dr.from&&a.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
+  const presentC = att.filter(a=>a.status==="present").length;
+  const absentC  = att.filter(a=>a.status==="absent").length;
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Attendance Records</div>
-      <Input label="Select Date" type="date" value={date} onChange={setDate} style={{ maxWidth:200 }}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Attendance Records</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      {att.length>0 && (
+        <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+          <StatCard label="Present" value={presentC} color={T.grn}/>
+          <StatCard label="Absent" value={absentC} color={T.red}/>
+          <StatCard label="Records" value={att.length} color={T.navy}/>
+        </div>
+      )}
       <Table cols={[
+        {key:"date",label:"Date",render:r=>fmtDate(r.date)},
         {key:"staff",label:"Staff",render:r=>state.users.find(u=>u.id===r.staffId)?.name||r.staffId},
         {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
         {key:"counter",label:"Counter",render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
         {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
         {key:"reason",label:"Reason",render:r=>r.reason||"—"},
-        {key:"markedAt",label:"Marked At"},
-      ]} rows={att} emptyMsg="No attendance records for this date"/>
+      ]} rows={att} emptyMsg={`No attendance records for ${dr.label}`}/>
     </div>
   );
 }
@@ -2824,17 +2926,17 @@ function WorkTypeMgmt({ state, setState, toast }) {
 }
 
 function AllReports({ state }) {
-  const [date, setDate] = useState(today());
-  const reports = state.serviceReports.filter(r=>r.date===date);
+  const dr = useDateRange("today");
+  const reports = state.serviceReports.filter(r=>r.date>=dr.from&&r.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>All Service Reports</div>
-      <Input label="Date" type="date" value={date} onChange={setDate} style={{ maxWidth:200 }}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>All Service Reports</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginBottom:20 }}>
         <StatCard label="Total Revenue" value={fmtCurr(reports.reduce((s,r)=>s+r.totalAmount,0))} color={T.amber}/>
         <StatCard label="Reports" value={reports.length} color={T.navy}/>
-        <StatCard label="Counters Reporting" value={reports.length} color={T.grn}/>
+        <StatCard label="Counters" value={new Set(reports.map(r=>r.counterName||r.counterId)).size} color={T.grn}/>
       </div>
       {reports.map(r=>{
         const sup2 = state.users.find(u=>u.id===r.supervisorId);
@@ -2844,21 +2946,18 @@ function AllReports({ state }) {
               <div><b style={{fontSize:15}}>{sup2?.name}</b><div style={{fontSize:12,color:T.txt2}}>{reportCounterNames(r)} · {r.submittedAt}</div></div>
               <b style={{fontSize:20,color:T.amber}}>{fmtCurr(r.totalAmount)}</b>
             </div>
-            {(r.counters||[]).map((c,ci)=>(
-              <div key={ci} style={{marginBottom:10}}>
-                <div style={{fontWeight:700,fontSize:12,color:T.navy,marginBottom:4}}>📍 {c.counterName}</div>
-                <Table cols={[
-                  {key:"workTypeName",label:"Work"},
-                  {key:"vehicles",label:"Vehicles"},
-                  {key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},
-                  {key:"amount",label:"Amount",render:e=><b>{fmtCurr(e.amount)}</b>},
-                ]} rows={c.entries.filter(e=>e.vehicles>0)}/>
-              </div>
-            ))}
+            {(() => {
+              const allE = r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+              return <Table cols={[
+                {key:"workTypeName",label:"Work"},
+                {key:"vehicles",label:"Veh",render:e=>e.vehicles||"—"},
+                {key:"amount",label:"Amount",render:e=><b style={{color:e.type==="sales"?T.grn:T.navy}}>{fmtCurr(e.amount)}</b>},
+              ]} rows={allE.filter(e=>(e.vehicles>0||e.amount>0))}/>;
+            })()}
           </Card>
         );
       })}
-      {reports.length===0&&<Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for this date</div></Card>}
+      {reports.length===0&&<Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
     </div>
   );
 }
@@ -3869,17 +3968,17 @@ function MDFeedbackAll({ state }) {
 
 // ─── MD: All Attendance view ──────────────────────────────────────────────────
 function MDAttendance({ state }) {
-  const [date, setDate] = useState(today());
+  const dr = useDateRange("today");
   const [filterCounter, setFilterCounter] = useState("all");
 
   const att = state.attendance.filter(a => {
-    if (a.date !== date) return false;
+    if (a.date < dr.from || a.date > dr.to) return false;
     if (filterCounter !== "all") {
       const sup = state.users.find(u=>u.id===a.supervisorId);
       return sup?.counter === filterCounter;
     }
     return true;
-  });
+  }).sort((a,b)=>b.date.localeCompare(a.date));
 
   const counters = ["all", ...new Set(state.users.filter(u=>u.role==="supervisor").map(u=>u.counter).filter(Boolean))];
   const presentCount = att.filter(a=>a.status==="present").length;
@@ -3888,13 +3987,15 @@ function MDAttendance({ state }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>All Attendance</div>
-      <div style={{ display:"flex", gap:12, marginBottom:16, flexWrap:"wrap" }}>
-        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:180}}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>All Attendance</div>
+      <div style={{ display:"flex", gap:10, alignItems:"flex-start", flexWrap:"wrap", marginBottom:8 }}>
+        <div style={{ flex:1 }}>
+          <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+        </div>
         <div>
           <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Counter</label>
           <select value={filterCounter} onChange={e=>setFilterCounter(e.target.value)}
-            style={{ padding:"8px 12px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+            style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
             {counters.map(c=><option key={c} value={c}>{c==="all"?"All Counters":c}</option>)}
           </select>
         </div>
@@ -3908,6 +4009,7 @@ function MDAttendance({ state }) {
       </div>
 
       <Table cols={[
+        {key:"date",      label:"Date",      render:r=>fmtDate(r.date)},
         {key:"staff",     label:"Staff",     render:r=><b>{state.users.find(u=>u.id===r.staffId)?.name||r.staffId}</b>},
         {key:"counter",   label:"Counter",   render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
         {key:"supervisor",label:"Executive", render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
