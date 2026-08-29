@@ -116,7 +116,21 @@ const DB = {
     return { users, passwords };
   },
   async upsertUsers(users) {
-    return supabase.from("app_users").upsert(users);
+    const rows = users.map(u => ({
+      id: u.id,
+      emp_id: u.empId || u.emp_id,
+      name: u.name,
+      role: u.role,
+      email: u.email||"",
+      phone: u.phone||"",
+      dob: u.dob||"",
+      joining: u.joining||"",
+      wedding_anniversary: u.weddingAnniversary||"",
+      active: u.active !== false,
+      manager_id: u.managerId||null,
+      counter: u.counter||""
+    }));
+    return supabase.from("app_users").upsert(rows);
   },
   async upsertPasswords(passwords) {
     // passwords is an object {empId: pwd} — convert to rows
@@ -180,11 +194,22 @@ function useSupabaseSync(localState, setLocalState) {
         ? Object.fromEntries(config.passwords.map(r => [r.emp_id, r.pwd]))
         : null;
 
+      // Map DB snake_case → camelCase
+      const mappedUsers = Array.isArray(config.users) && config.users.length > 0
+        ? config.users.map(u => ({
+            id: u.id, empId: u.emp_id||u.empId, name: u.name, role: u.role,
+            email: u.email||"", phone: u.phone||"", dob: u.dob||"",
+            joining: u.joining||"",
+            weddingAnniversary: u.wedding_anniversary||u.weddingAnniversary||"",
+            active: u.active !== false,
+            managerId: u.manager_id||u.managerId||null, counter: u.counter||""
+          }))
+        : null;
+
       setLocalState(p => ({
         ...p,
-        // Users from DB override local cache (cross-device consistency)
-        users:             Array.isArray(config.users) && config.users.length > 0 ? config.users : p.users,
-        passwords:         pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
+        users:     mappedUsers || p.users,
+        passwords: pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
         serviceReports:    reports.map(mapReport),
         attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
         leaves:            Array.isArray(leaves)      ? leaves      : p.leaves,
@@ -678,22 +703,26 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
     try {
       const config = await DB.getConfig();
       if (Array.isArray(config.users) && config.users.length > 0) {
-        liveUsers = config.users;
-        livePwds  = Array.isArray(config.passwords)
+        // Map snake_case DB columns → camelCase for the app
+        liveUsers = config.users.map(u => ({
+          id: u.id, empId: u.emp_id || u.empId, name: u.name,
+          role: u.role, email: u.email||"", phone: u.phone||"",
+          dob: u.dob||"", joining: u.joining||"",
+          weddingAnniversary: u.wedding_anniversary||u.weddingAnniversary||"",
+          active: u.active !== false, managerId: u.manager_id||u.managerId||null,
+          counter: u.counter||""
+        }));
+        livePwds = Array.isArray(config.passwords)
           ? Object.fromEntries(config.passwords.map(r => [r.emp_id, r.pwd]))
           : passwords;
-        // Seed if empty
-        if (config.users.length === 0) {
-          await DB.seedUsersIfEmpty(INITIAL_STATE.users, INITIAL_STATE.passwords);
-          liveUsers = INITIAL_STATE.users;
-          livePwds  = INITIAL_STATE.passwords;
-        }
-        // Notify parent to update its state with fresh users
+        // Notify parent to update its state with fresh mapped users
         if (onUsersLoaded) onUsersLoaded(liveUsers, livePwds);
+      } else if (Array.isArray(config.users) && config.users.length === 0) {
+        // Table empty — seed it
+        await DB.seedUsersIfEmpty(INITIAL_STATE.users, INITIAL_STATE.passwords);
       }
     } catch(e) {
       console.warn("Could not fetch from DB, using local users:", e);
-      // Fall through to local users — offline mode
     }
 
     // Step 2: Check credentials against live (or local) data
