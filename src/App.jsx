@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
-// Supabase credentials t— configured for benakaoms project
+// Supabase credentials — configured for benakaoms project
 const SUPABASE_URL = "https://hrqyuxwpxiffyqolpgdo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhycXl1eHdweGlmZnlxb2xwZ2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTYzOTMsImV4cCI6MjEwMzU5MjM5M30.EOMujy8n-pHPaBcYj8UZe_u2Bfa3IQ02dRPT_ZioKAs";
 
@@ -843,7 +843,7 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
           <div style={{ textAlign:"center", marginTop:14 }}>
             <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
               style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:T.txt3, textDecoration:"underline" }}>
-              Having trouble? Clear cache &amp; reload
+              Having trouble? Clear cache & reload
             </button>
           </div>
         </div>
@@ -1124,7 +1124,7 @@ function SupFeedback({ user, state }) {
               {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
               {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
             </div>
-            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>&ldquo;{f.comment}&rdquo;</div>}
+            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>“{f.comment}”</div>}
           </Card>
         ))}
       </div>
@@ -1829,7 +1829,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Reports &amp; Analytics</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Reports & Analytics</div>
       <Tabs tabs={[{id:"daily",label:"Daily View"},{id:"monthly",label:"Monthly"},{id:"analysis",label:"Analysis"}]} active={tab} onChange={setTab}/>
 
       {tab==="daily" && (
@@ -1975,7 +1975,7 @@ function MgrPeople({ user, state, setState, toast }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>People &amp; Counters</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>People & Counters</div>
       <Tabs tabs={[{id:"supervisors",label:"Supervisors"},{id:"fieldstaff",label:"Field Staff"},{id:"counters",label:"Counters"}]} active={tab} onChange={setTab}/>
 
       {tab==="supervisors" && (
@@ -3160,7 +3160,7 @@ function WorkTypeMgmt({ state, setState, toast }) {
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
-        <div style={{ fontSize:18, fontWeight:800 }}>Work Types &amp; Rates</div>
+        <div style={{ fontSize:18, fontWeight:800 }}>Work Types & Rates</div>
         <Btn onClick={()=>{setEditing(null);setName("");setRate("");setModal(true)}} variant="amber">+ Add Work Type</Btn>
       </div>
       <div style={{ fontSize:12, color:T.txt2, marginBottom:14 }}>These are the default rates. Supervisors can override per-report.</div>
@@ -3362,7 +3362,7 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
 
       {/* SERVICE SUMMARY */}
       <Card style={{ marginBottom:12 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase", letterSpacing:".04em" }}>Service &amp; Sales Summary</div>
+        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase", letterSpacing:".04em" }}>Service & Sales Summary</div>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
             <thead>
@@ -3595,7 +3595,7 @@ function SalaryView({ user, state, setState, toast, viewScope }) {
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Salary &amp; Payroll</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Salary & Payroll</div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:20 }}>
         <StatCard label="Month Revenue" value={fmtCurr(monthRevenue)} color={T.amber}/>
