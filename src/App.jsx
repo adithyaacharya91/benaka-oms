@@ -1105,48 +1105,54 @@ function SupFeedback({ user, state }) {
   const fb = state.feedback
     .filter(f => f.counterId === myCounter?.id || f.counterName === myCounter?.name)
     .sort((a,b) => b.date.localeCompare(a.date));
-  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0) / fb.length).toFixed(1) : "—";
+  const totalRating = fb.reduce((s,f) => s + f.rating, 0);
+  const avg = fb.length ? (totalRating / fb.length).toFixed(1) : "—";
   const feedbackLink = myCounter
-    ? `${window.location.origin}${window.location.pathname}?feedback=${encodeURIComponent(myCounter.name)}`
+    ? window.location.origin + window.location.pathname + "?feedback=" + encodeURIComponent(myCounter.name)
     : "";
+
+  const ratingColor = (r) => r >= 4 ? T.grn : r === 3 ? T.amber : T.red;
+  const stars = (r) => Array(r).fill("\u2B50").join("");
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Customer Feedback — {myCounter?.name}</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Customer Feedback</div>
 
-      {/* Link to share */}
       {myCounter && (
-        <Card style={{ marginBottom:16, background:T.navyXL, border:`1px solid ${T.navy}22` }}>
-          <div style={{ fontSize:13, fontWeight:700, color:T.navy, marginBottom:8 }}>📎 Share this feedback link with customers</div>
-          <div style={{ fontFamily:"monospace", fontSize:12, color:T.sky, background:"#fff", border:`1px solid ${T.bdr}`, borderRadius:8, padding:"10px 14px", wordBreak:"break-all", marginBottom:8 }}>
+        <Card style={{ marginBottom:16, background:T.navyXL }}>
+          <div style={{ fontSize:13, fontWeight:700, color:T.navy, marginBottom:8 }}>📎 Share feedback link with customers</div>
+          <div style={{ fontFamily:"monospace", fontSize:12, color:T.sky, background:"#fff", borderRadius:8, padding:"10px 14px", wordBreak:"break-all", marginBottom:8 }}>
             {feedbackLink}
           </div>
-          <div style={{ fontSize:12, color:T.txt2 }}>Send via WhatsApp · Print as QR code · Display at counter</div>
+          <div style={{ fontSize:12, color:T.txt2 }}>Send via WhatsApp or display at counter</div>
         </Card>
       )}
 
       <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
         <div style={{ fontSize:32, fontWeight:800, color:T.amber }}>⭐ {avg}</div>
-        <div style={{ fontSize:13, color:T.txt2 }}>{fb.length} feedback{fb.length!==1?"s":""} received</div>
+        <div style={{ fontSize:13, color:T.txt2 }}>{fb.length} feedback(s) received</div>
       </div>
 
       {fb.length === 0
-        ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet. Share the link above with customers after each service.</div></Card>
-        : fb.map(f => (
-          <Card key={f.id} style={{ marginBottom:10, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
-              <div style={{ fontSize:16 }}>{"⭐".repeat(f.rating)}<span style={{ fontSize:12, color:T.txt2, marginLeft:6 }}>{fmtDate(f.date)} · {f.submittedAt||""}</span></div>
-              <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{"/5"}</Badge>
-            </div>
-            <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:6 }}>
-              {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
-              {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
-              {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
-            </div>
-            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>{f.comment}</div>}
-          </Card>
-        ))}
-      </div>
+        ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet.</div></Card>
+        : fb.map(f => {
+          const bdrColor = ratingColor(f.rating);
+          return (
+            <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid " + bdrColor }}>
+              <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+                <div style={{ fontSize:14 }}>{stars(f.rating)} <span style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</span></div>
+                <Badge color={bdrColor}>{f.rating} / 5</Badge>
+              </div>
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:6, fontSize:12 }}>
+                {f.vehicleNo && <span><b>{f.vehicleNo}</b></span>}
+                {f.serviceType && <span style={{ color:T.txt2 }}>{f.serviceType}</span>}
+                {f.customerName && <span style={{ color:T.txt2 }}>{f.customerName}</span>}
+              </div>
+              {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"8px 12px", borderRadius:7 }}>{f.comment}</div>}
+            </Card>
+          );
+        })
+      }
     </div>
   );
 }
@@ -4615,7 +4621,7 @@ function MDFeedbackAll({ state }) {
         <Card key={f.id} style={{ marginBottom:10, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
           <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
             <div><b style={{ fontSize:14 }}>{f.counterName}</b><span style={{ fontSize:12, color:T.txt2, marginLeft:8 }}>{fmtDate(f.date)} · {f.submittedAt}</span></div>
-            <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}/5 ⭐</Badge>
+            <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{" / 5"} ⭐</Badge>
           </div>
           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:4 }}>
             {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
