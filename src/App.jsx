@@ -2118,55 +2118,55 @@ function MgrFeedback({ user, state, myCounters }) {
   const [selCounter, setSelCounter] = useState("all");
   const [selDate, setSelDate] = useState("");
 
-  let fb = state.feedback.filter(f => myCounters.some(c => c.id === f.counterId || c.name === f.counterName));
-  if (selCounter !== "all") fb = fb.filter(f => f.counterId === selCounter || f.counterName === state.counters.find(c=>c.id===selCounter)?.name);
-  if (selDate) fb = fb.filter(f => f.date === selDate);
+  let fb = state.feedback.filter(f => myCounters.some(c => c.id===f.counterId||c.name===f.counterName));
+  if (selCounter !== "all") fb = fb.filter(f => f.counterId===selCounter || f.counterName===state.counters.find(c=>c.id===selCounter)?.name);
+  if (selDate) fb = fb.filter(f => f.date===selDate);
   fb = [...fb].sort((a,b) => b.date.localeCompare(a.date));
 
-  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0) / fb.length).toFixed(1) : "—";
-  const dist = [5,4,3,2,1].map(r => ({ r, count: fb.filter(f=>f.rating===r).length }));
+  const totalRating = fb.reduce((s,f) => s+f.rating, 0);
+  const avg = fb.length ? (totalRating / fb.length).toFixed(1) : "—";
+  const dist = [5,4,3,2,1].map(r => ({
+    r,
+    count: fb.filter(f=>f.rating===r).length,
+    pct: fb.length ? Math.round(fb.filter(f=>f.rating===r).length * 100 / fb.length) : 0
+  }));
 
   const feedbackLink = (counterId) => {
-    const counter = state.counters.find(c=>c.id===counterId);
-    if (!counter) return "#";
-    return `?feedback=${encodeURIComponent(counter.name)}`;
+    const c = state.counters.find(x=>x.id===counterId);
+    return c ? "?feedback=" + encodeURIComponent(c.name) : "#";
   };
+  const ratingColor = (r) => r>=4 ? T.grn : r===3 ? T.amber : T.red;
+  const stars = (n) => Array(Math.max(0,n)).fill("⭐").join("");
 
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:12 }}>
-        <div>
-          <div style={{ fontSize:18, fontWeight:800 }}>Customer Feedback</div>
-          <div style={{ fontSize:13, color:T.txt2 }}>Submitted via public feedback forms</div>
-        </div>
+        <div style={{ fontSize:18, fontWeight:800 }}>Customer Feedback</div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <span style={{ fontSize:28, fontWeight:800, color:T.amber }}>⭐ {avg}</span>
-          <span style={{ fontSize:12, color:T.txt2 }}>avg ({fb.length} reviews)</span>
+          <span style={{ fontSize:12, color:T.txt2 }}>{fb.length} reviews</span>
         </div>
       </div>
 
-      {/* Feedback links for counters */}
-      <Card style={{ marginBottom:16, background:T.navyXL, border:`1px solid ${T.navy}22` }}>
-        <div style={{ fontSize:13, fontWeight:700, color:T.navy, marginBottom:10 }}>📎 Public Feedback Form Links — Share these with customers</div>
+      <Card style={{ marginBottom:16, background:T.navyXL }}>
+        <div style={{ fontSize:13, fontWeight:700, color:T.navy, marginBottom:10 }}>📎 Feedback Form Links</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))", gap:10 }}>
           {myCounters.map(c => (
-            <div key={c.id} style={{ background:"#fff", border:`1px solid ${T.bdr}`, borderRadius:8, padding:"10px 14px" }}>
+            <div key={c.id} style={{ background:"#fff", border:"1px solid " + T.bdr, borderRadius:8, padding:"10px 14px" }}>
               <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>{c.name}</div>
               <div style={{ fontFamily:"monospace", fontSize:11, color:T.sky, background:T.skyL, padding:"4px 8px", borderRadius:5, wordBreak:"break-all" }}>
                 {window.location.origin + feedbackLink(c.id)}
               </div>
-              <div style={{ fontSize:11, color:T.txt3, marginTop:4 }}>Share via WhatsApp · QR · print</div>
             </div>
           ))}
         </div>
       </Card>
 
-      {/* Filters */}
       <div style={{ display:"flex", gap:12, marginBottom:16, flexWrap:"wrap" }}>
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Counter</label>
           <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
-            style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+            style={{ padding:"7px 12px", border:"1px solid " + T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}>
             <option value="all">All counters</option>
             {myCounters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -2174,24 +2174,21 @@ function MgrFeedback({ user, state, myCounters }) {
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Date</label>
           <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)}
-            style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+            style={{ padding:"7px 12px", border:"1px solid " + T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
         </div>
-        {selDate && <div style={{ display:"flex", alignItems:"flex-end" }}>
-          <button onClick={()=>setSelDate("")} style={{ background:"none", border:"none", cursor:"pointer", color:T.txt2, fontSize:13 }}>✕ Clear</button>
-        </div>}
+        {selDate && <button onClick={()=>setSelDate("")} style={{ background:"none", border:"none", cursor:"pointer", color:T.txt2, fontSize:13, alignSelf:"flex-end", paddingBottom:8 }}>✕ Clear</button>}
       </div>
 
-      {/* Rating distribution */}
       {fb.length > 0 && (
         <Card style={{ marginBottom:16 }}>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Rating breakdown</div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
             {dist.map(d => (
               <div key={d.r} style={{ textAlign:"center" }}>
-                <div style={{ fontSize:20, marginBottom:4 }}>{Array(d.r).fill("\u2B50").join("")}</div>
+                <div style={{ fontSize:18, marginBottom:4 }}>{stars(d.r)}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:d.count>0?T.amber:T.txt3 }}>{d.count}</div>
                 <div style={{ height:6, background:T.surf, borderRadius:3, marginTop:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:(fb.length ? Math.round(d.count * 100 / fb.length) : 0) + "%", background:T.amber, borderRadius:3 }}/>
+                  <div style={{ height:"100%", width:d.pct + "%", background:T.amber, borderRadius:3 }}/>
                 </div>
               </div>
             ))}
@@ -2199,38 +2196,34 @@ function MgrFeedback({ user, state, myCounters }) {
         </Card>
       )}
 
-      {/* Individual feedback cards */}
       {fb.length === 0
-        ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet for selected filters</div></Card>
-        : fb.map(f => (
-          <Card key={f.id} style={{ marginBottom:12, borderLeft:"4px solid " + (f.rating>=4?T.grn:f.rating===3?T.amber:T.red) }}>
-            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
-              <div>
-                <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || state.counters.find(c=>c.id===f.counterId)?.name}</div>
-                <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</div>
+        ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet</div></Card>
+        : fb.map(f => {
+          const bc = ratingColor(f.rating);
+          return (
+            <Card key={f.id} style={{ marginBottom:12, borderLeft:"4px solid " + bc }}>
+              <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || state.counters.find(c=>c.id===f.counterId)?.name}</div>
+                  <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</div>
+                </div>
+                <Badge color={bc}>{stars(f.rating)} {f.rating}</Badge>
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:16 }}>{Array(f.rating).fill("\u2B50").join("")}</span>
-                <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating} ⭐</Badge>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:8, marginBottom:6, fontSize:12 }}>
+                {f.vehicleNo && <span><b>{f.vehicleNo}</b></span>}
+                {f.serviceType && <span style={{ color:T.txt2 }}>{f.serviceType}</span>}
+                {f.customerName && <span style={{ color:T.txt2 }}>{f.customerName}</span>}
               </div>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:8, marginBottom:8 }}>
-              {f.vehicleNo && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Vehicle: </span><b>{f.vehicleNo}</b></div>}
-              {f.serviceType && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Service: </span><b>{f.serviceType}</b></div>}
-              {f.customerName && <div style={{ fontSize:12 }}><span style={{ color:T.txt2 }}>Customer: </span><b>{f.customerName}</b></div>}
-            </div>
-            {f.comment && <div style={{ fontSize:13, color:T.txt, background:T.surf, padding:"8px 12px", borderRadius:7 }}>{f.comment}</div>}
-          </Card>
-        ))}
-      </div>
+              {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"8px 12px", borderRadius:7 }}>{f.comment}</div>}
+            </Card>
+          );
+        })
+      }
     </div>
   );
 }
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  MD PORTAL
-// ═══════════════════════════════════════════════════════════════════════════════
 function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
