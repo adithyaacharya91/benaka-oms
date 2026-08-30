@@ -1136,7 +1136,7 @@ function SupFeedback({ user, state }) {
           <Card key={f.id} style={{ marginBottom:10, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
             <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
               <div style={{ fontSize:16 }}>{"⭐".repeat(f.rating)}<span style={{ fontSize:12, color:T.txt2, marginLeft:6 }}>{fmtDate(f.date)} · {f.submittedAt||""}</span></div>
-              <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}/5</Badge>
+              <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{"/5"}</Badge>
             </div>
             <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:6 }}>
               {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
@@ -1928,7 +1928,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
               const present = att.filter(a=>a.status==="present").length;
               return <div key={s.id} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
                 <span style={{ fontSize:13 }}>{s.name} · {s.counter}</span>
-                <span style={{ fontSize:13, fontWeight:600, color:present===staff.length?T.grn:T.amber }}>{present}/{staff.length} present</span>
+                <span style={{ fontSize:13, fontWeight:600, color:present===staff.length?T.grn:T.amber }}>{present}{"/"}{staff.length} present</span>
               </div>;
             })}
           </Card>
@@ -2205,7 +2205,7 @@ function MgrFeedback({ user, state, myCounters }) {
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontSize:16 }}>{"⭐".repeat(f.rating)}</span>
-                <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}/5</Badge>
+                <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{"/5"}</Badge>
               </div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:8, marginBottom:8 }}>
@@ -2709,7 +2709,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
 
   return (
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
-      {page==="enter"       && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/ pageHistory={pageHistory}>}
+      {page==="enter"       && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection"  && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="reports"     && <OfficeReports state={state}/>}
