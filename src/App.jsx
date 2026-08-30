@@ -569,12 +569,13 @@ const Tabs = ({ tabs, active, onChange }) => (
 // ─── DateRangePicker — shared across all portals ──────────────────────────────
 function DateRangePicker({ range, setRange, customFrom, setCustomFrom, customTo, setCustomTo }) {
   const options = [
-    { id:"today",   label:"Today" },
-    { id:"week",    label:"This Week" },
-    { id:"month",   label:"This Month" },
-    { id:"quarter", label:"Quarter" },
-    { id:"year",    label:"This Year" },
-    { id:"custom",  label:"Custom" },
+    { id:"today",     label:"Today" },
+    { id:"yesterday", label:"Yesterday" },
+    { id:"week",      label:"This Week" },
+    { id:"month",     label:"This Month" },
+    { id:"quarter",   label:"Quarter" },
+    { id:"year",      label:"FY (Apr-Mar)" },
+    { id:"custom",    label:"Custom" },
   ];
   return (
     <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:16 }}>
@@ -603,23 +604,41 @@ function useDateRange(defaultRange="today") {
   const [customTo,   setCustomTo]   = useState("");
 
   const getFromTo = () => {
-    const now = new Date(), y=now.getFullYear(), m=now.getMonth();
+    // Use IST-adjusted date
+    const now = new Date(new Date().getTime() + (330 + new Date().getTimezoneOffset()) * 60000);
+    const y=now.getFullYear(), m=now.getMonth();
     const pad = n => String(n).padStart(2,"0");
-    if (range==="today")   return [today(), today()];
+    const fmt = d => d.toISOString().split("T")[0];
+    if (range==="today") return [today(), today()];
+    if (range==="yesterday") {
+      const d = new Date(now); d.setDate(d.getDate()-1);
+      return [fmt(d), fmt(d)];
+    }
     if (range==="week") {
-      const d=now.getDay(), diff=now.getDate()-d+(d===0?-6:1);
-      const mon=new Date(now); mon.setDate(diff);
-      const sun=new Date(mon); sun.setDate(mon.getDate()+6);
-      return [mon.toISOString().split("T")[0], sun.toISOString().split("T")[0]];
+      const dow = now.getDay(); // 0=Sun
+      const mon = new Date(now); mon.setDate(now.getDate() - (dow===0?6:dow-1));
+      const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+      return [fmt(mon), fmt(sun)];
     }
     if (range==="month")   return [`${y}-${pad(m+1)}-01`, `${y}-${pad(m+1)}-31`];
-    if (range==="quarter") { const q=Math.floor(m/3); return [`${y}-${pad(q*3+1)}-01`,`${y}-${pad(Math.min(q*3+3,12))}-31`]; }
-    if (range==="year")    return [`${y}-01-01`, `${y}-12-31`];
+    if (range==="quarter") {
+      const q=Math.floor(m/3);
+      return [`${y}-${pad(q*3+1)}-01`, `${y}-${pad(Math.min(q*3+3,12))}-31`];
+    }
+    // Financial year: Apr 1 – Mar 31
+    if (range==="year") {
+      const fy = m >= 3 ? y : y-1; // FY starts April
+      return [`${fy}-04-01`, `${fy+1}-03-31`];
+    }
     return [customFrom||today(), customTo||today()];
   };
 
   const [from, to] = getFromTo();
-  const label = { today:"Today", week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", custom:`${customFrom} → ${customTo}` }[range] || "";
+  const label = {
+    today:"Today", yesterday:"Yesterday", week:"This Week",
+    month:"This Month", quarter:"This Quarter",
+    year:"Financial Year", custom:`${customFrom} → ${customTo}`
+  }[range] || "";
 
   return { range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, from, to, label };
 }
@@ -965,7 +984,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard" && <SupDashboard user={user} state={state} myStaff={myStaff} myCounter={myCounter} todayRevenue={todayRevenue} todayAtt={todayAtt} setPage={setPage}/>}
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -1692,6 +1711,8 @@ function LeavePortal({ user, state, setState, toast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
+  const [pageHistory, setPageHistory] = useState([]);
+  const navTo = (p) => { if(p!==page){setPageHistory(h=>[...h.slice(-4),page]);} setPage(p); };
   const navItems = [
     { id:"dashboard",   icon:"🏠", label:"Dashboard" },
     { id:"collection",  icon:"📊", label:"Collection Report" },
@@ -1718,6 +1739,7 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="targets"    && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
       {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
       {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="execreport" && <ExecutiveReportGenerator state={state}/>}
       {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
@@ -2205,11 +2227,14 @@ function MgrFeedback({ user, state, myCounters }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
+  const [pageHistory, setPageHistory] = useState([]);
+  const navTo = (p) => { if(p!==page){setPageHistory(h=>[...h.slice(-4),page]);} setPage(p); };
   const navItems = [
     { id:"dashboard",   icon:"🏆", label:"Live Dashboard" },
     { id:"collection",  icon:"📊", label:"Collection Report" },
     { id:"analysis",    icon:"📈", label:"Counter Analysis" },
     { id:"reports",     icon:"📋", label:"All Reports" },
+    { id:"execreport",  icon:"📄", label:"Executive Report" },
     { id:"financial",   icon:"💰", label:"Financial Trends" },
     { id:"operations",  icon:"🏪", label:"Operations" },
     { id:"salary",      icon:"💳", label:"Salary & P&L" },
@@ -2232,6 +2257,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
       {page==="reports"     && <AllReports state={state}/>}
+      {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
     </Shell>
@@ -2241,17 +2267,66 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
 function MDCollectionReport({ user, state, setState, toast }) {
   const dr = useDateRange("today");
   const date = dr.from;
+  const [selCounter, setSelCounter] = useState("all");
   const existing = state.collectionReports?.find(r=>r.date===date);
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:"admin", bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
     toast.show("Collection report saved ✅");
   };
-  const filteredReports = state.serviceReports.filter(r => r.date >= dr.from && r.date <= dr.to);
+  const filteredReports = state.serviceReports.filter(r => {
+    if(r.date<dr.from||r.date>dr.to) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==state.counters.find(c=>c.id===selCounter)?.name) return false;
+    return true;
+  });
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
+  const getE = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+  const execTotals = state.users.filter(u=>u.role==="supervisor").map(exec=>{
+    const cIds=state.counters.filter(c=>c.supervisorId===exec.id).map(c=>c.id);
+    const cNames=state.counters.filter(c=>c.supervisorId===exec.id).map(c=>c.name);
+    const reps=filteredReports.filter(r=>cIds.includes(r.counterId)||cNames.includes(r.counterName));
+    if(!reps.length) return null;
+    const allE=reps.flatMap(r=>getE(r));
+    const svc=allE.filter(e=>e.type!=="sales"&&!SALES_WTS.includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const sal=allE.filter(e=>e.type==="sales"||SALES_WTS.includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    return {exec, svc, sal, total:svc+sal};
+  }).filter(Boolean);
+
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Collection Report</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Collection Report</div>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:8}}>
+        <div style={{flex:1}}><DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/></div>
+        <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
+          style={{padding:"6px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+          <option value="all">All Counters</option>
+          {state.counters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      {execTotals.length>0&&(
+        <Card style={{marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:10}}>Executive Summary — {dr.label}</div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{background:T.surf}}>
+              {["Executive","Service","Sales","Total"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:h==="Executive"?"left":"right",fontSize:11,fontWeight:800,color:T.txt2}}>{h}</th>)}
+            </tr></thead>
+            <tbody>{execTotals.map(e=>(
+              <tr key={e.exec.id} style={{borderBottom:`1px solid ${T.bdr}`}}>
+                <td style={{padding:"6px 10px",fontWeight:600}}>{e.exec.name}</td>
+                <td style={{padding:"6px 10px",textAlign:"right"}}>{fmtCurr(e.svc)}</td>
+                <td style={{padding:"6px 10px",textAlign:"right",color:T.grn}}>{fmtCurr(e.sal)}</td>
+                <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(e.total)}</td>
+              </tr>
+            ))}</tbody>
+            <tfoot><tr style={{background:T.amberL}}>
+              <td style={{padding:"6px 10px",fontWeight:800}}>GRAND TOTAL</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.svc,0))}</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.grn}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.sal,0))}</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.total,0))}</td>
+            </tr></tfoot>
+          </table>
+        </Card>
+      )}
       <CollectionReportView date={date} report={existing} counters={state.counters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
     </div>
   );
@@ -2619,21 +2694,29 @@ function MDPeople({ state, setState, toast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("reports");
+  const [pageHistory, setPageHistory] = useState([]);
+  const navTo = (p) => { if(p!==page){setPageHistory(h=>[...h.slice(-4),page]);} setPage(p); };
   const navItems = [
-    { id:"reports",    icon:"📋", label:"View Reports" },
-    { id:"enter",      icon:"✏️", label:"Enter Report" },
-    { id:"attendance", icon:"👥", label:"View Attendance" },
-    { id:"export",     icon:"📥", label:"Export Data" },
-    { id:"directory",  icon:"👤", label:"Staff Directory" },
+    { id:"enter",        icon:"✏️",  label:"Enter Report" },
+    { id:"collection",   icon:"📊",  label:"Collection Report" },
+    { id:"attendance",   icon:"👥",  label:"Mark Attendance" },
+    { id:"reports",      icon:"📋",  label:"View Reports" },
+    { id:"viewatt",      icon:"🗓️",  label:"View Attendance" },
+    { id:"execreport",   icon:"📄",  label:"Executive Report" },
+    { id:"export",       icon:"📥",  label:"Export Data" },
+    { id:"directory",    icon:"👤",  label:"Staff Directory" },
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
-      {page==="reports"    && <OfficeReports state={state}/>}
-      {page==="enter"      && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="attendance" && <OfficeAttendance state={state}/>}
-      {page==="export"     && <OfficeExport state={state} toast={toast}/>}
-      {page==="directory"  && <StaffDirectory state={state}/>}
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+      {page==="enter"       && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/ pageHistory={pageHistory}>}
+      {page==="collection"  && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="attendance"  && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="reports"     && <OfficeReports state={state}/>}
+      {page==="viewatt"     && <OfficeAttendance state={state}/>}
+      {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
+      {page==="export"      && <OfficeExport state={state} toast={toast}/>}
+      {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
   );
 }
@@ -2825,6 +2908,324 @@ function OfficeEnterReport({ user, state, setState, toast }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ─── Office: Collection Report (same as executive/manager) ────────────────────
+function OfficeCollectionReport({ user, state, setState, toast }) {
+  const dr = useDateRange("today");
+  const date = dr.from;
+  const [selCounter, setSelCounter] = useState("all");
+  const existing = state.collectionReports?.find(r=>r.date===date);
+  const save = (bankEntries, expenses) => {
+    const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
+    setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    toast.show("Collection report saved ✅");
+  };
+  const filteredReports = state.serviceReports.filter(r => {
+    if(r.date<dr.from||r.date>dr.to) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==state.counters.find(c=>c.id===selCounter)?.name) return false;
+    return true;
+  });
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Collection Report</div>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:8}}>
+        <div style={{flex:1}}><DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/></div>
+        <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
+          style={{padding:"6px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+          <option value="all">All Counters</option>
+          {state.counters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
+    </div>
+  );
+}
+
+// ─── Office: Mark Attendance for any executive/counter ────────────────────────
+function OfficeMarkAttendance({ user, state, setState, toast }) {
+  const [selExec, setSelExec] = useState("");
+  const [displayDate, setDisplayDate] = useState(today());
+  const recordsRef = useRef({});
+  const reasonsRef = useRef({});
+  const [formTick, setFormTick] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const initialLoad = useRef(false);
+
+  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active);
+
+  const allToMark = selExec ? [
+    state.users.find(u=>u.id===selExec),
+    ...state.users.filter(u=>u.role==="field_staff"&&u.active&&
+      state.attendance.some(a=>a.supervisorId===selExec&&a.staffId===u.id) ||
+      state.users.find(u2=>u2.id===selExec)?.managerId===u.managerId
+    )
+  ].filter(Boolean) : [];
+
+  // Actually get staff under this executive
+  const getStaffForExec = (execId) => {
+    const exec = state.users.find(u=>u.id===execId);
+    if(!exec) return [];
+    return [exec, ...state.users.filter(u=>u.role==="field_staff"&&u.active&&u.managerId===execId)];
+  };
+
+  const staffList = selExec ? getStaffForExec(selExec) : [];
+
+  const loadDate = (date, execId) => {
+    const eid = execId||selExec;
+    const r={}, rs={};
+    state.attendance.filter(a=>a.supervisorId===eid&&a.date===date).forEach(a=>{
+      r[a.staffId]=a.status; rs[a.staffId]=a.reason||"";
+    });
+    recordsRef.current=r; reasonsRef.current=rs;
+    setDisplayDate(date); setFormTick(t=>t+1); setDirty(false);
+  };
+
+  const setStatus = (staffId, status) => {
+    recordsRef.current={...recordsRef.current,[staffId]:status};
+    setFormTick(t=>t+1); setDirty(true);
+  };
+
+  const save = () => {
+    if(!selExec){toast.show("Select an executive first","error");return;}
+    const newAtts = staffList.map(s=>({
+      id:`att_${selExec}_${s.id}_${displayDate}`,
+      date:displayDate, supervisorId:selExec, staffId:s.id,
+      status:recordsRef.current[s.id]||"present",
+      reason:reasonsRef.current[s.id]||"",
+      markedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
+    }));
+    setState(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.supervisorId===selExec&&a.date===displayDate)),...newAtts]}));
+    setDirty(false);
+    toast.show("Attendance saved ✅");
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Mark Attendance</div>
+      <Card style={{maxWidth:720}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive / Counter</label>
+            <select value={selExec} onChange={e=>{setSelExec(e.target.value);loadDate(displayDate,e.target.value);}}
+              style={{width:"100%",padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value="">Select executive...</option>
+              {executives.map(u=><option key={u.id} value={u.id}>{u.name} — {u.counter||state.counters.find(c=>c.supervisorId===u.id)?.name||""}</option>)}
+            </select>
+          </div>
+          <Input label="Date" type="date" value={displayDate} onChange={d=>loadDate(d,selExec)}/>
+        </div>
+        {selExec && staffList.length>0 && (
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 250px 1fr",gap:8,padding:"6px 0",borderBottom:`1px solid ${T.bdr}`,marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Staff</div>
+              <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Status</div>
+              <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Reason</div>
+            </div>
+            {staffList.map(s=>{
+              const st=recordsRef.current[s.id];
+              const isExec=s.id===selExec;
+              return (
+                <div key={s.id} style={{display:"grid",gridTemplateColumns:"1fr 250px 1fr",gap:8,alignItems:"center",marginBottom:10,
+                  background:isExec?T.navyXL:"transparent",padding:"4px 8px",borderRadius:6}}>
+                  <div style={{fontSize:14,fontWeight:700}}>{s.name}{isExec&&<Badge color={T.navy} style={{marginLeft:6}}>Executive</Badge>}</div>
+                  <div style={{display:"flex",gap:4}}>
+                    {["present","absent","half_day"].map(status=>{
+                      const active=st===status||(!st&&status==="present");
+                      return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
+                        padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                        border:`1px solid ${active?(status==="present"?T.grn:status==="absent"?T.red:T.amber):T.bdrS}`,
+                        background:active?(status==="present"?T.grnL:status==="absent"?T.redL:T.amberL):"transparent",
+                        color:active?(status==="present"?T.grn:status==="absent"?T.red:T.amberD):T.txt2
+                      }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
+                    })}
+                  </div>
+                  <input key={`r_${s.id}_${formTick}`} defaultValue={reasonsRef.current[s.id]||""}
+                    onChange={e=>{reasonsRef.current={...reasonsRef.current,[s.id]:e.target.value};setDirty(true);}}
+                    placeholder={st==="absent"?"Reason required":"Optional"}
+                    style={{padding:"6px 10px",border:`1px solid ${st==="absent"?T.red:T.bdrS}`,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",background:st==="absent"?T.redL:"#fff"}}/>
+                </div>
+              );
+            })}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+              <div style={{fontSize:12,color:T.txt2}}>{fmtDate(displayDate)}{dirty&&<span style={{color:T.amber,marginLeft:8}}>● Unsaved</span>}</div>
+              <Btn onClick={save} variant={dirty?"amber":"primary"}>{dirty?"⚠️ Save Changes":"✅ Save Attendance"}</Btn>
+            </div>
+          </>
+        )}
+        {selExec && staffList.length===0 && <div style={{color:T.txt3,padding:16,textAlign:"center"}}>No staff found for this executive. Check counter assignments.</div>}
+      </Card>
+    </div>
+  );
+}
+
+// ─── Executive Report Generator (daily summary like physical format) ──────────
+function ExecutiveReportGenerator({ state }) {
+  const [selDate, setSelDate] = useState(today());
+  const [selExec, setSelExec] = useState("all");
+  const [expanded, setExpanded] = useState({});
+  const [viewMode, setViewMode] = useState("daily"); // daily | monthly
+
+  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active);
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
+  const isSales = e => e.type==="sales"||SALES_WTS.includes(e.workTypeName);
+  const getEntries = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+
+  const monthStart = selDate.slice(0,7)+"-01";
+  const monthEnd   = selDate.slice(0,7)+"-31";
+
+  // Build per-exec summary
+  const execSummaries = executives
+    .filter(u=>selExec==="all"||u.id===selExec)
+    .map(exec => {
+      const myCounters = state.counters.filter(c=>c.supervisorId===exec.id);
+      const dayReps   = state.serviceReports.filter(r=>r.date===selDate&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+      const monthReps = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+      const dayAtt    = state.attendance.filter(a=>a.date===selDate&&a.supervisorId===exec.id);
+
+      const calcTotals = (reps) => {
+        const allE = reps.flatMap(r=>getEntries(r));
+        const svc = allE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const sal = allE.filter(e=>isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        // Per product sales breakdown
+        const salBreakdown = {};
+        allE.filter(e=>isSales(e)).forEach(e=>{salBreakdown[e.workTypeName]=(salBreakdown[e.workTypeName]||0)+(Number(e.amount)||0);});
+        // Per counter breakdown
+        const perCounter = myCounters.map(c=>{
+          const cReps=reps.filter(r=>r.counterId===c.id||r.counterName===c.name);
+          const cE=cReps.flatMap(r=>getEntries(r));
+          return {name:c.name,svc:cE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0),sal:cE.filter(e=>isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0)};
+        });
+        return {svc, sal, total:svc+sal, salBreakdown, perCounter, vehicles:allE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0)};
+      };
+
+      const dayTotals   = calcTotals(dayReps);
+      const monthTotals = calcTotals(monthReps);
+      const absentStaff = dayAtt.filter(a=>a.status==="absent").map(a=>state.users.find(u=>u.id===a.staffId)?.name).filter(Boolean);
+      const halfDay     = dayAtt.filter(a=>a.status==="half_day").map(a=>state.users.find(u=>u.id===a.staffId)?.name).filter(Boolean);
+
+      return {exec, myCounters, dayTotals, monthTotals, absentStaff, halfDay, reported:dayReps.length>0};
+    })
+    .filter(s=>s.reported||selExec!=="all"); // only show reported if viewing all
+
+  const grandDaySvc = execSummaries.reduce((s,e)=>s+e.dayTotals.svc,0);
+  const grandDaySal = execSummaries.reduce((s,e)=>s+e.dayTotals.sal,0);
+  const grandMoSvc  = execSummaries.reduce((s,e)=>s+e.monthTotals.svc,0);
+  const grandMoSal  = execSummaries.reduce((s,e)=>s+e.monthTotals.sal,0);
+
+  const printReport = () => {
+    const w = window.open("","_blank");
+    const rows = execSummaries.map(s=>`
+      <tr style="border-bottom:1px solid #ddd">
+        <td style="padding:6px 10px;font-weight:700">${s.exec.name}<br/><small style="color:#666">${s.myCounters.map(c=>c.name).join(", ")}</small></td>
+        <td style="padding:6px 10px;text-align:right">${s.dayTotals.svc.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 10px;text-align:right">${s.dayTotals.sal.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 10px;text-align:right;font-weight:700">${s.dayTotals.total.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 10px;text-align:right">${s.monthTotals.svc.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 10px;text-align:right">${s.monthTotals.sal.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 10px;text-align:right;font-weight:700">${s.monthTotals.total.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 10px;color:#DC2626">${s.absentStaff.join(", ")||"—"}</td>
+      </tr>`).join("");
+    const allAbsent = execSummaries.flatMap(s=>s.absentStaff);
+    w.document.write(`<!DOCTYPE html><html><head><title>Executive Report — ${selDate.split("-").reverse().join("/")}</title>
+    <style>body{font-family:Arial,sans-serif;margin:20px;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:16px}
+    th{background:#0F2B4A;color:#fff;padding:7px 10px;text-align:center}h2,h3{text-align:center;margin:3px 0}</style></head>
+    <body><h2>BENAKA ENTERPRISES</h2>
+    <h3>EXECUTIVE DAILY REPORT — DATE: ${selDate.split("-").reverse().join("/")}  |  MONTH: ${new Date(selDate+"T00:00").toLocaleString("en-IN",{month:"long",year:"numeric"})}</h3><br>
+    <table><thead><tr>
+      <th rowspan="2">EXECUTIVE / COUNTER</th>
+      <th colspan="3" style="border-right:2px solid #fff">TODAY (${selDate.split("-")[2]}/${selDate.split("-")[1]})</th>
+      <th colspan="3">MONTH CUMULATIVE</th>
+      <th rowspan="2">ABSENT</th>
+    </tr><tr>
+      <th>Service</th><th>Sales</th><th style="border-right:2px solid #fff">Total</th>
+      <th>Service</th><th>Sales</th><th>Total</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr style="background:#FEF3DC"><td style="padding:7px;font-weight:800">TOTAL</td>
+      <td style="text-align:right;padding:7px;font-weight:800">${grandDaySvc.toLocaleString("en-IN")}</td>
+      <td style="text-align:right;padding:7px;font-weight:800">${grandDaySal.toLocaleString("en-IN")}</td>
+      <td style="text-align:right;padding:7px;font-weight:800;border-right:2px solid #ccc">${(grandDaySvc+grandDaySal).toLocaleString("en-IN")}</td>
+      <td style="text-align:right;padding:7px;font-weight:800">${grandMoSvc.toLocaleString("en-IN")}</td>
+      <td style="text-align:right;padding:7px;font-weight:800">${grandMoSal.toLocaleString("en-IN")}</td>
+      <td style="text-align:right;padding:7px;font-weight:800">${(grandMoSvc+grandMoSal).toLocaleString("en-IN")}</td>
+      <td></td></tr>
+    </tfoot></table>
+    ${allAbsent.length>0?`<p><strong>ABSENT: ${allAbsent.join(", ")}</strong></p>`:""}
+    </body></html>`);
+    w.document.close(); w.print();
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:18,fontWeight:800}}>Executive Daily Report</div>
+        <Btn onClick={printReport} variant="amber">🖨 Print / PDF</Btn>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+        <Input label="Date" type="date" value={selDate} onChange={setSelDate} style={{maxWidth:180}}/>
+        <div>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive</label>
+          <select value={selExec} onChange={e=>setSelExec(e.target.value)}
+            style={{padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+            <option value="all">All Executives</option>
+            {executives.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Summary table */}
+      <Card style={{overflowX:"auto",marginBottom:16}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{background:T.navy,color:"#fff"}}>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Executive / Counter</th>
+              <th style={{padding:"8px 12px",textAlign:"center",fontSize:11,borderRight:`2px solid rgba(255,255,255,.3)`}} colSpan={3}>Today ({selDate.split("-")[2]}/{selDate.split("-")[1]})</th>
+              <th style={{padding:"8px 12px",textAlign:"center",fontSize:11}} colSpan={3}>Month Cumulative</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Absent</th>
+            </tr>
+            <tr style={{background:T.navyL,color:"#fff",fontSize:11}}>
+              {["Service","Sales","Total","Service","Sales","Total"].map((h,i)=>(
+                <th key={i} style={{padding:"5px 10px",textAlign:"right",borderRight:i===2?`2px solid rgba(255,255,255,.3)`:"none"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {execSummaries.length===0&&<tr><td colSpan={8} style={{padding:20,textAlign:"center",color:T.txt3}}>No reports for {fmtDate(selDate)}</td></tr>}
+            {execSummaries.map((s,i)=>(
+              <tr key={s.exec.id} style={{background:i%2===0?"#fff":T.surf,cursor:"pointer"}} onClick={()=>setExpanded(p=>({...p,[s.exec.id]:!p[s.exec.id]}))}>
+                <td style={{padding:"8px 12px",borderBottom:`1px solid ${T.bdr}`}}>
+                  <div style={{fontWeight:700}}>{s.exec.name}</div>
+                  <div style={{fontSize:11,color:T.txt2}}>{s.myCounters.map(c=>c.name).join(", ")}</div>
+                  {s.absentStaff.length>0&&<div style={{fontSize:11,color:T.red,marginTop:2}}>Absent: {s.absentStaff.join(", ")}</div>}
+                </td>
+                {[s.dayTotals.svc,s.dayTotals.sal,s.dayTotals.total,s.monthTotals.svc,s.monthTotals.sal,s.monthTotals.total].map((v,i)=>(
+                  <td key={i} style={{padding:"8px 12px",textAlign:"right",fontWeight:i===2||i===5?800:400,borderBottom:`1px solid ${T.bdr}`,
+                    borderRight:i===2?`2px solid ${T.bdr}`:"none",color:i===2||i===5?T.amber:T.txt}}>
+                    {fmtCurr(v)}
+                  </td>
+                ))}
+                <td style={{padding:"8px 12px",fontSize:12,color:T.red,borderBottom:`1px solid ${T.bdr}`}}>
+                  {s.absentStaff.length>0?s.absentStaff.join(", "):"—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          {execSummaries.length>0&&<tfoot>
+            <tr style={{background:T.amberL,fontWeight:800}}>
+              <td style={{padding:"8px 12px"}}>TOTAL</td>
+              {[grandDaySvc,grandDaySal,grandDaySvc+grandDaySal,grandMoSvc,grandMoSal,grandMoSvc+grandMoSal].map((v,i)=>(
+                <td key={i} style={{padding:"8px 12px",textAlign:"right",borderRight:i===2?`2px solid ${T.bdr}`:"none"}}>{fmtCurr(v)}</td>
+              ))}
+              <td style={{padding:"8px 12px"}}></td>
+            </tr>
+          </tfoot>}
+        </table>
+      </Card>
     </div>
   );
 }
@@ -3296,7 +3697,8 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
   const grandExpenses = expSBI + expKBL;
 
   // Service totals from daily reports for this date
-  const dayReports = allReports.filter(r=>r.date===date);
+  // allReports is already pre-filtered by date range from parent
+  const dayReports = allReports;
   const allRptEntries = (r) => r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
   const serviceEntries = (r) => allRptEntries(r).filter(e=>e.type!=="sales"&&!['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName));
   const salesEntries   = (r) => allRptEntries(r).filter(e=>e.type==="sales"||['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName));
@@ -4233,6 +4635,8 @@ function MDFeedbackAll({ state }) {
 function MDAttendance({ state }) {
   const dr = useDateRange("today");
   const [filterCounter, setFilterCounter] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [searchAtt, setSearchAtt] = useState("");
 
   const att = state.attendance.filter(a => {
     if (a.date < dr.from || a.date > dr.to) return false;
@@ -4271,15 +4675,31 @@ function MDAttendance({ state }) {
         <StatCard label="Total"   value={att.length}   color={T.navy} icon="👥"/>
       </div>
 
+      {/* Status filter tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        {["all","present","absent","half_day"].map(s=>(
+          <button key={s} onClick={()=>setFilterStatus(s)} style={{
+            padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:`1px solid ${filterStatus===s?T.navy:T.bdrS}`,
+            background:filterStatus===s?T.navy:"transparent",
+            color:filterStatus===s?"#fff":T.txt2
+          }}>{s==="all"?"All":s==="half_day"?"Half Day":s.charAt(0).toUpperCase()+s.slice(1)}</button>
+        ))}
+        <input value={searchAtt} onChange={e=>setSearchAtt(e.target.value)} placeholder="Search staff name..."
+          style={{padding:"5px 12px",border:`1px solid ${T.bdrS}`,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:140}}/>
+      </div>
       <Table cols={[
         {key:"date",      label:"Date",      render:r=>fmtDate(r.date)},
         {key:"staff",     label:"Staff",     render:r=><b>{state.users.find(u=>u.id===r.staffId)?.name||r.staffId}</b>},
         {key:"counter",   label:"Counter",   render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
         {key:"supervisor",label:"Executive", render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
-        {key:"status",    label:"Status",    render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
+        {key:"status",    label:"Status",    render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
         {key:"reason",    label:"Reason",    render:r=>r.reason||"—"},
-        {key:"markedAt",  label:"Marked At"},
-      ]} rows={att} emptyMsg="No attendance records for this date"/>
+      ]} rows={att.filter(r=>{
+        if(filterStatus!=="all"&&r.status!==filterStatus) return false;
+        if(searchAtt){const n=state.users.find(u=>u.id===r.staffId)?.name||""; return n.toLowerCase().includes(searchAtt.toLowerCase());}
+        return true;
+      }).sort((a,b)=>a.status.localeCompare(b.status)||b.date.localeCompare(a.date))} emptyMsg="No records match filter"/>
     </div>
   );
 }
