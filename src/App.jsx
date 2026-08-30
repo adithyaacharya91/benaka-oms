@@ -1,3 +1,4 @@
+// Benaka OMS v2.1 — 2026-08-30 14:47
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
