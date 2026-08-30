@@ -1141,7 +1141,7 @@ function SupFeedback({ user, state }) {
             <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid " + bdrColor }}>
               <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
                 <div style={{ fontSize:14 }}>{stars(f.rating)} <span style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</span></div>
-                <Badge color={bdrColor}>{f.rating} / 5</Badge>
+                <Badge color={bdrColor}>{f.rating} ⭐</Badge>
               </div>
               <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:6, fontSize:12 }}>
                 {f.vehicleNo && <span><b>{f.vehicleNo}</b></span>}
@@ -1805,7 +1805,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
             const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month);
-            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0) / tgt.dailyTarget*100)) : null;
+            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0) · tgt.dailyTarget*100)) : null;
             return (
               <div key={c.id} style={{ border:`1px solid ${T.bdr}`, borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
@@ -2155,7 +2155,7 @@ function MgrFeedback({ user, state, myCounters }) {
               <div style={{ fontFamily:"monospace", fontSize:11, color:T.sky, background:T.skyL, padding:"4px 8px", borderRadius:5, wordBreak:"break-all" }}>
                 {window.location.origin + feedbackLink(c.id)}
               </div>
-              <div style={{ fontSize:11, color:T.txt3, marginTop:4 }}>Share via WhatsApp / QR / print</div>
+              <div style={{ fontSize:11, color:T.txt3, marginTop:4 }}>Share via WhatsApp · QR · print</div>
             </div>
           ))}
         </div>
@@ -2191,7 +2191,7 @@ function MgrFeedback({ user, state, myCounters }) {
                 <div style={{ fontSize:20, marginBottom:4 }}>{Array(d.r).fill("\u2B50").join("")}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:d.count>0?T.amber:T.txt3 }}>{d.count}</div>
                 <div style={{ height:6, background:T.surf, borderRadius:3, marginTop:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:(fb.length ? Math.round(d.count / fb.length * 100) : 0) + "%", background:T.amber, borderRadius:3 }}/>
+                  <div style={{ height:"100%", width:(fb.length ? Math.round(d.count * 100 / fb.length) : 0) + "%", background:T.amber, borderRadius:3 }}/>
                 </div>
               </div>
             ))}
@@ -2211,7 +2211,7 @@ function MgrFeedback({ user, state, myCounters }) {
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontSize:16 }}>{Array(f.rating).fill("\u2B50").join("")}</span>
-                <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{"/5"}</Badge>
+                <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating} ⭐</Badge>
               </div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:8, marginBottom:8 }}>
@@ -2513,7 +2513,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             }
             const maxR = Math.max(...months.map(m=>m.rev),1);
             return months.map((m,i) => {
-              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) / months[i-1].rev*100) : null;
+              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) · months[i-1].rev*100) : null;
               return <div key={m.key} style={{ marginBottom:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                   <span style={{ fontSize:12 }}>{m.label}</span>
@@ -2798,7 +2798,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
           <Input label="Date" type="date" value={date} onChange={setDate}/>
           <div>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Executive / Counter</label>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Executive · Counter</label>
             <select value={selSupervisor} onChange={e=>setSelSupervisor(e.target.value)}
               style={{ width:"100%", padding:"9px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none" }}>
               <option value="">Select executive...</option>
@@ -3015,7 +3015,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
       <Card style={{maxWidth:720}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
           <div>
-            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive / Counter</label>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive · Counter</label>
             <select value={selExec} onChange={e=>{setSelExec(e.target.value);loadDate(displayDate,e.target.value);}}
               style={{width:"100%",padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
               <option value="">Select executive...</option>
@@ -3142,7 +3142,7 @@ function ExecutiveReportGenerator({ state }) {
     <body><h2>BENAKA ENTERPRISES</h2>
     <h3>EXECUTIVE DAILY REPORT — DATE: ${selDate.split("-").reverse().join("/")}  |  MONTH: ${new Date(selDate+"T00:00").toLocaleString("en-IN",{month:"long",year:"numeric"})}</h3><br>
     <table><thead><tr>
-      <th rowspan="2">EXECUTIVE / COUNTER</th>
+      <th rowspan="2">EXECUTIVE · COUNTER</th>
       <th colspan="3" style="border-right:2px solid #fff">TODAY (${selDate.split("-")[2]}/${selDate.split("-")[1]})</th>
       <th colspan="3">MONTH CUMULATIVE</th>
       <th rowspan="2">ABSENT</th>
@@ -3170,7 +3170,7 @@ function ExecutiveReportGenerator({ state }) {
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>Executive Daily Report</div>
-        <Btn onClick={printReport} variant="amber">🖨 Print / PDF</Btn>
+        <Btn onClick={printReport} variant="amber">🖨 Print · PDF</Btn>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         <Input label="Date" type="date" value={selDate} onChange={setSelDate} style={{maxWidth:180}}/>
@@ -3189,7 +3189,7 @@ function ExecutiveReportGenerator({ state }) {
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
             <tr style={{background:T.navy,color:"#fff"}}>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Executive / Counter</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Executive · Counter</th>
               <th style={{padding:"8px 12px",textAlign:"center",fontSize:11,borderRight:"2px solid rgba(255,255,255,.3)"}} colSpan={3}>{(() => { const p=selDate.split("-"); return "Today (" + p[2] + "/" + p[1] + ")"; })()}</th>
               <th style={{padding:"8px 12px",textAlign:"center",fontSize:11}} colSpan={3}>Month Cumulative</th>
               <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Absent</th>
@@ -3763,7 +3763,7 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, marginBottom:16 }}>
         <div style={{ fontSize:15, fontWeight:800 }}>Collection Report — {date ? date.split('-').reverse().join('-') : ''}</div>
         <div style={{ display:"flex", gap:8 }}>
-          <Btn onClick={printReport} variant="ghost" size="sm">🖨 Print / PDF</Btn>
+          <Btn onClick={printReport} variant="ghost" size="sm">🖨 Print · PDF</Btn>
           {!readOnly && onSave && <Btn onClick={()=>onSave(bankEntries, expenses)} variant="amber" size="sm">Save Report</Btn>}
         </div>
       </div>
@@ -4610,7 +4610,7 @@ function FieldStaffPortal({ user, state, setState, logout, toast }) {
 
 
 function MDFeedbackAll({ state }) {
-  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0) / state.feedback.length).toFixed(1) : "—";
+  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0) · state.feedback.length).toFixed(1) : "—";
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
@@ -4621,7 +4621,7 @@ function MDFeedbackAll({ state }) {
         <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid " + (f.rating>=4?T.grn:f.rating===3?T.amber:T.red) }}>
           <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
             <div><b style={{ fontSize:14 }}>{f.counterName}</b><span style={{ fontSize:12, color:T.txt2, marginLeft:8 }}>{fmtDate(f.date)} · {f.submittedAt}</span></div>
-            <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{" / 5"} ⭐</Badge>
+            <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating} ⭐</Badge>
           </div>
           <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:4 }}>
             {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
