@@ -1805,7 +1805,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
             const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month);
-            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0) · tgt.dailyTarget*100)) : null;
+            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0) / tgt.dailyTarget*100)) : null;
             return (
               <div key={c.id} style={{ border:`1px solid ${T.bdr}`, borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
@@ -2513,7 +2513,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             }
             const maxR = Math.max(...months.map(m=>m.rev),1);
             return months.map((m,i) => {
-              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) · months[i-1].rev*100) : null;
+              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) / months[i-1].rev*100) : null;
               return <div key={m.key} style={{ marginBottom:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                   <span style={{ fontSize:12 }}>{m.label}</span>
@@ -4610,7 +4610,7 @@ function FieldStaffPortal({ user, state, setState, logout, toast }) {
 
 
 function MDFeedbackAll({ state }) {
-  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0) · state.feedback.length).toFixed(1) : "—";
+  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0) / state.feedback.length).toFixed(1) : "—";
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
