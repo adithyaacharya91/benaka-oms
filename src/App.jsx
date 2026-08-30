@@ -2790,7 +2790,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
       <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Enter Counter Report</div>
       <Card style={{ marginBottom:16 }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-          <Input label="Date" type="date" value={loadDate} onChange={changeDate}/>
+          <Input label="Date" type="date" value={date} onChange={setDate}/>
           <div>
             <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Executive / Counter</label>
             <select value={selSupervisor} onChange={e=>setSelSupervisor(e.target.value)}
