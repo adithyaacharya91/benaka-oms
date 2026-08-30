@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
-// Supabase credentials — configured for benakaoms projesct
+// Supabase credentials — configured for benakaoms project
 const SUPABASE_URL = "https://hrqyuxwpxiffyqolpgdo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhycXl1eHdweGlmZnlxb2xwZ2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTYzOTMsImV4cCI6MjEwMzU5MjM5M30.EOMujy8n-pHPaBcYj8UZe_u2Bfa3IQ02dRPT_ZioKAs";
 
@@ -1437,7 +1437,7 @@ function SupReport({ user, state, setState, toast }) {
               {c.name}
               {isSubmitted
                 ? <span style={{ marginLeft:6, fontSize:10, background:T.grn, color:"#fff", padding:"1px 5px", borderRadius:10 }}>✓</span>
-                : total>0 ? <span style={{ marginLeft:6, fontSize:10, background:T.amber, color:"#fff", padding:"1px 5px", borderRadius:10 }}>₹{Math.round(total/1000)}k</span>
+                : total>0 ? <span style={{ marginLeft:6, fontSize:10, background:T.amber, color:"#fff", padding:"1px 5px", borderRadius:10 }}>₹{(total >= 1000 ? Math.floor(total * 0.001) + "k" : total)}</span>
                 : null
               }
             </button>
@@ -2128,7 +2128,7 @@ function MgrFeedback({ user, state, myCounters }) {
   const dist = [5,4,3,2,1].map(r => ({
     r,
     count: fb.filter(f=>f.rating===r).length,
-    pct: fb.length ? Math.round(fb.filter(f=>f.rating===r).length * 100 / fb.length) : 0
+    pct: fb.length ? Math.round(fb.filter(f=>f.rating===r).length * 100 / (fb.length + 0.0001)) : 0
   }));
 
   const feedbackLink = (counterId) => {
@@ -2386,7 +2386,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
   const thisMonthRev = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.totalAmount,0);
   const lastMonthRev = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)).reduce((s,r)=>s+r.totalAmount,0);
-  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev) / lastMonthRev*100) : 0;
+  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev) * 100 / lastMonthRev) : 0;
 
   // Daily revenue for bar chart (last 14 days)
   const last14 = Array.from({length:14},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().split("T")[0]; });
@@ -2457,7 +2457,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             <div key={d.date} style={{ flex:"0 0 auto", display:"flex", flexDirection:"column", alignItems:"center", gap:4, minWidth:36 }}>
               <div style={{ fontSize:9, color:T.txt3, transform:"rotate(-45deg)", whiteSpace:"nowrap", marginBottom:2 }}>{d.date.slice(5)}</div>
               <div title={fmtCurr(d.rev)} style={{ width:28, background:d.date===today()?T.amber:d.rev>0?T.navy:T.bdr, borderRadius:"3px 3px 0 0", height:`${Math.max(4,Math.round(d.rev/maxDailyRev*60))}px`, cursor:"pointer", transition:"opacity .15s" }}/>
-              {d.rev>0 && <div style={{ fontSize:9, color:T.txt3 }}>₹{Math.round(d.rev/1000)}k</div>}
+              {d.rev>0 && <div style={{ fontSize:9, color:T.txt3 }}>₹{Math.floor(d.rev * 0.001)}k</div>}
             </div>
           ))}
         </div>
@@ -2506,7 +2506,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             }
             const maxR = Math.max(...months.map(m=>m.rev),1);
             return months.map((m,i) => {
-              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) / months[i-1].rev*100) : null;
+              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) * 100 / months[i-1].rev) : null;
               return <div key={m.key} style={{ marginBottom:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                   <span style={{ fontSize:12 }}>{m.label}</span>
@@ -2615,30 +2615,36 @@ function MDFinancial({ state }) {
       <Card style={{ marginBottom:20 }}>
         <div style={{ fontSize:13, fontWeight:700, marginBottom:16 }}>Monthly Revenue</div>
         {months.length===0 ? <div style={{color:T.txt3}}>No data yet</div> :
-          months.map(([m,rev])=>(
+          months.map(([m,rev])=>{
+            const barW = maxM > 0 ? Math.round(rev * 100 / (maxM + 0.001)) : 0;
+            return (
             <div key={m} style={{ marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                 <span style={{fontSize:13}}>{m}</span>
                 <b style={{fontSize:13,color:T.navy}}>{fmtCurr(rev)}</b>
               </div>
               <div style={{ height:10, background:T.surf, borderRadius:5, overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${rev/maxM*100}%`, background:T.navy, borderRadius:5 }}/>
+                <div style={{ height:"100%", width:barW + "%", background:T.navy, borderRadius:5 }}/>
               </div>
             </div>
-          ))
+            );
+          })
         }
       </Card>
       <Card>
         <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Revenue Split by Work Type</div>
-        {wtArr.map(([name,rev])=>(
-          <div key={name} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
+        {wtArr.map(([name,rev])=>{
+          const pctWt = totalWt > 0 ? Math.round(rev * 100 / (totalWt + 0.001)) : 0;
+          return (
+          <div key={name} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid " + T.bdr }}>
             <span style={{fontSize:13}}>{name}</span>
             <div style={{textAlign:"right"}}>
               <b style={{fontSize:13}}>{fmtCurr(rev)}</b>
-              <span style={{fontSize:11,color:T.txt2,marginLeft:8}}>{Math.round(rev/totalWt*100)}%</span>
+              <span style={{fontSize:11,color:T.txt2,marginLeft:8}}>{pctWt}%</span>
             </div>
           </div>
-        ))}
+          );
+        })}
       </Card>
     </div>
   );
@@ -4603,7 +4609,8 @@ function FieldStaffPortal({ user, state, setState, logout, toast }) {
 
 
 function MDFeedbackAll({ state }) {
-  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0) / state.feedback.length).toFixed(1) : "—";
+  const fbTotal = state.feedback.reduce((s,f)=>s+f.rating,0);
+  const avg = state.feedback.length ? (fbTotal / state.feedback.length).toFixed(1) : "—";
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
