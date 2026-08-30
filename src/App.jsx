@@ -1105,7 +1105,7 @@ function SupFeedback({ user, state }) {
   const fb = state.feedback
     .filter(f => f.counterId === myCounter?.id || f.counterName === myCounter?.name)
     .sort((a,b) => b.date.localeCompare(a.date));
-  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0)/fb.length).toFixed(1) : "—";
+  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0) / fb.length).toFixed(1) : "—";
   const feedbackLink = myCounter
     ? `${window.location.origin}${window.location.pathname}?feedback=${encodeURIComponent(myCounter.name)}`
     : "";
@@ -1799,7 +1799,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
             const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month);
-            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0)/tgt.dailyTarget*100)) : null;
+            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0) / tgt.dailyTarget*100)) : null;
             return (
               <div key={c.id} style={{ border:`1px solid ${T.bdr}`, borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
@@ -2117,7 +2117,7 @@ function MgrFeedback({ user, state, myCounters }) {
   if (selDate) fb = fb.filter(f => f.date === selDate);
   fb = [...fb].sort((a,b) => b.date.localeCompare(a.date));
 
-  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0)/fb.length).toFixed(1) : "—";
+  const avg = fb.length ? (fb.reduce((s,f)=>s+f.rating,0) / fb.length).toFixed(1) : "—";
   const dist = [5,4,3,2,1].map(r => ({ r, count: fb.filter(f=>f.rating===r).length }));
 
   const feedbackLink = (counterId) => {
@@ -2387,7 +2387,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
   const thisMonthRev = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.totalAmount,0);
   const lastMonthRev = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)).reduce((s,r)=>s+r.totalAmount,0);
-  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev)/lastMonthRev*100) : 0;
+  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev) / lastMonthRev*100) : 0;
 
   // Daily revenue for bar chart (last 14 days)
   const last14 = Array.from({length:14},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().split("T")[0]; });
@@ -2507,7 +2507,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             }
             const maxR = Math.max(...months.map(m=>m.rev),1);
             return months.map((m,i) => {
-              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev)/months[i-1].rev*100) : null;
+              const g = i>0&&months[i-1].rev>0 ? Math.round((m.rev-months[i-1].rev) / months[i-1].rev*100) : null;
               return <div key={m.key} style={{ marginBottom:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
                   <span style={{ fontSize:12 }}>{m.label}</span>
@@ -4604,7 +4604,7 @@ function FieldStaffPortal({ user, state, setState, logout, toast }) {
 
 
 function MDFeedbackAll({ state }) {
-  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0)/state.feedback.length).toFixed(1) : "—";
+  const avg = state.feedback.length ? (state.feedback.reduce((s,f)=>s+f.rating,0) / state.feedback.length).toFixed(1) : "—";
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
