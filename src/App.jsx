@@ -1962,7 +1962,7 @@ function MgrLeaves({ user, state, setState, toast }) {
           {pending.map(l => {
             const applicant = state.users.find(u=>u.id===l.userId);
             return (
-              <Card key={l.id} style={{ marginBottom:12, borderLeft:`4px solid ${T.amber}` }}>
+              <Card key={l.id} style={{ marginBottom:12, borderLeft:"4px solid " + (T.amber) }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
                   <div>
                     <div style={{ fontWeight:700, fontSize:15 }}>{applicant?.name}</div>
@@ -2188,10 +2188,10 @@ function MgrFeedback({ user, state, myCounters }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
             {dist.map(d => (
               <div key={d.r} style={{ textAlign:"center" }}>
-                <div style={{ fontSize:20, marginBottom:4 }}>{"⭐".repeat(d.r)}</div>
+                <div style={{ fontSize:20, marginBottom:4 }}>{Array(d.r).fill("\u2B50").join("")}</div>
                 <div style={{ fontSize:22, fontWeight:800, color:d.count>0?T.amber:T.txt3 }}>{d.count}</div>
                 <div style={{ height:6, background:T.surf, borderRadius:3, marginTop:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${fb.length?d.count/fb.length*100:0}%`, background:T.amber, borderRadius:3 }}/>
+                  <div style={{ height:"100%", width:(fb.length ? Math.round(d.count / fb.length * 100) : 0) + "%", background:T.amber, borderRadius:3 }}/>
                 </div>
               </div>
             ))}
@@ -2203,14 +2203,14 @@ function MgrFeedback({ user, state, myCounters }) {
       {fb.length === 0
         ? <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet for selected filters</div></Card>
         : fb.map(f => (
-          <Card key={f.id} style={{ marginBottom:12, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
+          <Card key={f.id} style={{ marginBottom:12, borderLeft:"4px solid " + (f.rating>=4?T.grn:f.rating===3?T.amber:T.red) }}>
             <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
               <div>
                 <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || state.counters.find(c=>c.id===f.counterId)?.name}</div>
                 <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</div>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:16 }}>{"⭐".repeat(f.rating)}</span>
+                <span style={{ fontSize:16 }}>{Array(f.rating).fill("\u2B50").join("")}</span>
                 <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{"/5"}</Badge>
               </div>
             </div>
@@ -3190,7 +3190,7 @@ function ExecutiveReportGenerator({ state }) {
           <thead>
             <tr style={{background:T.navy,color:"#fff"}}>
               <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Executive / Counter</th>
-              <th style={{padding:"8px 12px",textAlign:"center",fontSize:11,borderRight:`2px solid rgba(255,255,255,.3)`}} colSpan={3}>Today ({selDate.split("-")[2]}/{selDate.split("-")[1]})</th>
+              <th style={{padding:"8px 12px",textAlign:"center",fontSize:11,borderRight:"2px solid rgba(255,255,255,.3)"}} colSpan={3}>{(() => { const p=selDate.split("-"); return "Today (" + p[2] + "/" + p[1] + ")"; })()}</th>
               <th style={{padding:"8px 12px",textAlign:"center",fontSize:11}} colSpan={3}>Month Cumulative</th>
               <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Absent</th>
             </tr>
@@ -4240,7 +4240,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
     <div>
       <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Staff Leave Approvals {pendingCount>0&&<Badge color={T.red} style={{marginLeft:8}}>{pendingCount} pending</Badge>}</div>
       {toApprove.filter(l=>l.status==='pending').map(l=>(
-        <Card key={l.id} style={{ marginBottom:12, borderLeft:`4px solid ${T.amb}` }}>
+        <Card key={l.id} style={{ marginBottom:12, borderLeft:"4px solid " + (T.amb) }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10 }}>
             <div>
               <div style={{ fontWeight:700, fontSize:15 }}>{l.staffName}</div>
@@ -4464,7 +4464,7 @@ function PublicFeedbackForm({ counterName, counters, onSubmit }) {
           It helps us serve you better.
         </div>
         <div style={{ background:T.grnL, border:`1px solid ${T.grn}44`, borderRadius:12, padding:"12px 16px", fontSize:13, color:T.grn, fontWeight:600 }}>
-          {"⭐".repeat(rating)} {ratingLabels[rating]}
+          {Array(rating).fill("\u2B50").join("")} {ratingLabels[rating]}
         </div>
         <div style={{ marginTop:20, fontSize:12, color:T.txt3 }}>Benaka Enterprises · Auto Polish Services</div>
       </div>
@@ -4618,7 +4618,7 @@ function MDFeedbackAll({ state }) {
         <div style={{ fontSize:28, fontWeight:800, color:T.amber }}>⭐ {avg}</div>
       </div>
       {[...state.feedback].sort((a,b)=>b.date?.localeCompare(a.date)).map(f=>(
-        <Card key={f.id} style={{ marginBottom:10, borderLeft:`4px solid ${f.rating>=4?T.grn:f.rating===3?T.amber:T.red}` }}>
+        <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid " + (f.rating>=4?T.grn:f.rating===3?T.amber:T.red) }}>
           <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
             <div><b style={{ fontSize:14 }}>{f.counterName}</b><span style={{ fontSize:12, color:T.txt2, marginLeft:8 }}>{fmtDate(f.date)} · {f.submittedAt}</span></div>
             <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating}{" / 5"} ⭐</Badge>
