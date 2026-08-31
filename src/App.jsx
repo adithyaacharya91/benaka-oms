@@ -1452,8 +1452,63 @@ function SupReport({ user, state, setState, toast }) {
         const d = getData(activeC.id);
         const isSubmitted = !!state.serviceReports.find(r=>r.counterId===activeC.id&&r.supervisorId===user.id&&r.date===date);
         const svcTotal = (d.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
-        const salTotal = (d.salesEntries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
         return (
+          <Card>
+            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:800 }}>{activeC.name}</div>
+                <div style={{ fontSize:12, color:T.txt2 }}>{isSubmitted?"✅ Submitted":"Enter vehicle service data"}</div>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <Btn onClick={()=>printCounter(activeC)} size="sm" variant="ghost">🖨 Print</Btn>
+                {!isSubmitted && <Btn onClick={()=>submitCounter(activeC)} variant="amber">Submit Report</Btn>}
+                {isSubmitted  && <Btn onClick={()=>{ setState(p=>({...p,serviceReports:p.serviceReports.filter(r=>!(r.counterId===activeC.id&&r.supervisorId===user.id&&r.date===date))})); setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),submitted:false}})); toast.show("Report recalled"); }} size="sm" variant="ghost">↩ Recall</Btn>}
+              </div>
+            </div>
+
+            {/* Service Entries */}
+            <div style={{ fontSize:12, fontWeight:800, color:T.navy, textTransform:"uppercase", marginBottom:10 }}>Vehicle Service</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 90px 100px", gap:8, marginBottom:6, padding:"0 4px" }}>
+              {["Work Type","Vehicles","Rate (₹)","Amount (₹)"].map(h=>(
+                <div key={h} style={{ fontSize:10, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>{h}</div>
+              ))}
+            </div>
+            {(d.entries||[]).map((e, ei) => (
+              <div key={ei} style={{ display:"grid", gridTemplateColumns:"1fr 80px 90px 100px", gap:8, marginBottom:8, alignItems:"center" }}>
+                <select value={e.workTypeName} onChange={ev=>{
+                  const wt = state.workTypes.find(w=>w.name===ev.target.value||w.id===ev.target.value);
+                  updateServiceEntry(activeC.id, ei, "workTypeName", ev.target.value);
+                  if(wt?.defaultRate) updateServiceEntry(activeC.id, ei, "rate", wt.defaultRate);
+                }} style={{ padding:"7px 8px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}>
+                  <option value="">Select work type</option>
+                  {(state.workTypes||[]).filter(w=>w.category!=="sales").map(w=><option key={w.id} value={w.name}>{w.name}</option>)}
+                </select>
+                <input type="number" value={e.vehicles||""} onChange={ev=>updateServiceEntry(activeC.id,ei,"vehicles",ev.target.value)} min={0} placeholder="0"
+                  style={{ padding:"7px 8px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none", textAlign:"center" }}/>
+                <input type="number" value={e.rate||""} onChange={ev=>updateServiceEntry(activeC.id,ei,"rate",ev.target.value)} min={0} placeholder="0"
+                  style={{ padding:"7px 8px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+                <div style={{ padding:"7px 8px", background:e.amount>0?T.navyXL:"transparent", borderRadius:7, fontSize:12, fontWeight:e.amount>0?700:400, color:e.amount>0?T.navy:T.txt3, textAlign:"right" }}>
+                  {e.amount>0 ? fmtCurr(e.amount) : "—"}
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop:8, padding:"10px 12px", background:T.navyXL, borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontSize:13, fontWeight:700, color:T.navy }}>Service Total</span>
+              <span style={{ fontSize:16, fontWeight:800, color:T.navy }}>{fmtCurr(svcTotal)}</span>
+            </div>
+
+            <div style={{ marginTop:14 }}>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Notes</label>
+              <textarea value={d.notes||""} onChange={e=>setNotes(activeC.id, e.target.value)} rows={2} placeholder="Optional notes..."
+                style={{ width:"100%", padding:"8px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none", resize:"vertical", boxSizing:"border-box" }}/>
+            </div>
+
+            {!isSubmitted && (
+              <div style={{ marginTop:14, display:"flex", justifyContent:"flex-end" }}>
+                <Btn onClick={()=>submitCounter(activeC)} variant="amber">Submit Report</Btn>
+              </div>
+            )}
+          </Card>
         );
       })()}
     </div>
