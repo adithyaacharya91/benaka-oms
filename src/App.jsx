@@ -1813,11 +1813,15 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
-            // Sum ALL reports for this counter by counterId or counterName only
-            const reps = todayReports.filter(r=>
-              r.counterId===c.id ||
-              r.counterName===c.name
-            );
+            // Sum reports for this counter
+            const reps = todayReports.filter(r=> {
+              if (r.counterId===c.id) return true;
+              if (r.counterName && r.counterName===c.name) return true;
+              // Fallback for execs with exactly 1 counter when report has no counterName
+              const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
+              if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
+              return false;
+            });
             const amt = reps.reduce((s,r)=>s+r.totalAmount,0);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===month);
             const pct = tgt&&tgt.dailyTarget>0 ? Math.min(100, Math.round(amt*100/(tgt.dailyTarget+0.001))) : null;
@@ -2511,10 +2515,14 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const counterStats = state.counters.map(c => {
     // Match reports to THIS counter by counterId, counterName, OR supervisorId
     const sup = state.users.find(u=>u.id===c.supervisorId);
-    const reps = reports.filter(r =>
-      r.counterId===c.id ||
-      r.counterName===c.name
-    );
+    const reps = reports.filter(r => {
+      if (r.counterId===c.id) return true;
+      if (r.counterName && r.counterName===c.name) return true;
+      // Fallback for single-counter supervisors
+      const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
+      if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
+      return false;
+    });
     const allE = reps.flatMap(r => mdGetEntries(r));
     const svcTotal = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
     const salTotal = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -2523,10 +2531,13 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const days = new Set(reps.map(r=>r.date)).size;
     // Match today reports specifically by counterId or counterName
     // Don't use supervisorId alone - it would double-count multi-counter executives
-    const todayReps = todayReports.filter(r=>
-      r.counterId===c.id ||
-      r.counterName===c.name
-    );
+    const todayReps = todayReports.filter(r => {
+      if (r.counterId===c.id) return true;
+      if (r.counterName && r.counterName===c.name) return true;
+      const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
+      if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
+      return false;
+    });
     const todayAmt  = todayReps.reduce((s,r)=>s+r.totalAmount,0);
     const todayRep  = todayReps[0]; // for backward compat check
     return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0, todayAmt };
@@ -3888,7 +3899,12 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
     if (myCounterIds) {
       const names = visibleCounters.map(c=>c.name);
       const supIds = visibleCounters.map(c=>c.supervisorId);
-      return myCounterIds.includes(r.counterId) || names.includes(r.counterName);
+      if (myCounterIds.includes(r.counterId)) return true;
+      if (r.counterName && names.includes(r.counterName)) return true;
+      // Fallback for single-counter supervisors  
+      const rSupCounters = state.counters.filter(x=>x.supervisorId===r.supervisorId);
+      if (rSupCounters.length===1 && myCounterIds.includes(rSupCounters[0]?.id) && !r.counterName && !r.counterId) return true;
+      return false;
     }
     if (counterFilter) return r.counterName===counterFilter || r.counterId===state.counters.find(c=>c.name===counterFilter)?.id;
     return true;
