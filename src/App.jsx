@@ -4015,8 +4015,7 @@ function StaffDirectory({ state }) {
     const list = includeInactive ? state.users : state.users.filter(u=>u.active!==false);
     const h = ["empId","name","role","status","joining","dob","phone"];
     const rows = list.map(u=>[u.empId,u.name,ROLE_LABELS[u.role]||u.role,u.active===false?"Inactive":"Active",u.joining||"",u.dob||"",u.phone||""]);
-    const csv = [h.join(","), ...rows.map(r=>r.map(c=>`"${c}"`).join(","))].join("
-");
+    const csv = [h.join(","), ...rows.map(r=>r.map(c=>`"${c}"`).join(","))].join("\n");
     const a = document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download=(includeInactive?"all_staff_":"active_staff_")+today()+".csv"; a.click();
   };
   const today_ = today();
