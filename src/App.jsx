@@ -1704,7 +1704,7 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="execreport" && <ExecutiveReportGenerator state={state}/>}
       {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors} myCounters={myCounters}/>}
-      {page==="analysis"   && <CounterAnalysis user={user} state={state} myCounterIds={myCounters.map(c=>c.id)}/>}
+      {page==="analysis"   && <CounterAnalysis user={user} state={state}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
@@ -2421,7 +2421,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="analysis"   && <CounterAnalysis user={user} state={state} myCounterIds={myCounters.map(c=>c.id)}/>}
+      {page==="analysis"   && <CounterAnalysis user={user} state={state}/>}
       {page==="financial"  && <MDFinancial state={state}/>}
       {page==="operations" && <MDOperations state={state}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
@@ -5062,28 +5062,101 @@ function WorkTypeMgmt({ user, state, setState, toast }) {
 // ─── IT Admin: Data Management ─────────────────────────────────────────────────
 function DataMgmt({ user, state, setState, toast }) {
   const [confirm_, setConfirm] = useState("");
+
   const del = (type) => {
     if (confirm_ !== "DELETE") { toast.show("Type DELETE to confirm","error"); return; }
-    if (type==="reports") setState(p=>({...p,serviceReports:[]}));
-    if (type==="attendance") setState(p=>({...p,attendance:[]}));
-    if (type==="feedback") setState(p=>({...p,feedback:[]}));
-    toast.show(type+" cleared"); setConfirm("");
+    if (type==="reports")    setState(p=>({...p, serviceReports:[]}));
+    if (type==="attendance") setState(p=>({...p, attendance:[]}));
+    if (type==="feedback")   setState(p=>({...p, feedback:[]}));
+    if (type==="collection") setState(p=>({...p, collectionReports:[]}));
+    if (type==="salaries")   setState(p=>({...p, salaries:[]}));
+    if (type==="leaves")     setState(p=>({...p, leaves:[], plannedLeaves:[]}));
+    if (type==="all_data") {
+      setState(p=>({...p,
+        serviceReports:[], attendance:[], feedback:[],
+        collectionReports:[], salaries:[], leaves:[], plannedLeaves:[]
+      }));
+    }
+    if (type==="operational") {
+      setState(p=>({...p,
+        serviceReports:[], attendance:[], collectionReports:[]
+      }));
+    }
+    if (type==="full_reset") {
+      // Wipe localStorage and reload — complete factory reset
+      localStorage.removeItem("benaka_state");
+      toast.show("Full reset done — reloading...");
+      setTimeout(()=>window.location.reload(), 1200);
+      return;
+    }
+    toast.show(type + " cleared ✅"); setConfirm("");
   };
+
+  const sections = [
+    { type:"reports",    label:"Service Reports",    count: state.serviceReports?.length||0 },
+    { type:"attendance", label:"Attendance Records", count: state.attendance?.length||0 },
+    { type:"feedback",   label:"Customer Feedback",  count: state.feedback?.length||0 },
+    { type:"collection", label:"Collection Reports", count: state.collectionReports?.length||0 },
+    { type:"salaries",   label:"Salary Records",     count: state.salaries?.length||0 },
+    { type:"leaves",     label:"Leave Requests",     count: (state.leaves?.length||0)+(state.plannedLeaves?.length||0) },
+  ];
+
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Data Management</div>
-      <Card style={{borderTop:"3px solid "+T.red}}>
-        <div style={{fontSize:14,fontWeight:700,color:T.red,marginBottom:12}}>⚠️ Danger Zone</div>
-        <div style={{marginBottom:14}}>
-          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Type DELETE to confirm</label>
-          <input value={confirm_} onChange={e=>setConfirm(e.target.value)} placeholder="DELETE"
-            style={{padding:"8px 12px",border:"1px solid "+T.red,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
-        </div>
+
+      {/* Data summary */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:20}}>
+        {sections.map(s=>(
+          <Card key={s.type} style={{textAlign:"center",padding:14}}>
+            <div style={{fontSize:22,fontWeight:800,color:s.count>0?T.navy:T.txt3}}>{s.count}</div>
+            <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>{s.label}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Confirm input */}
+      <Card style={{marginBottom:16,background:T.redL,border:"1px solid "+T.red}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.red,marginBottom:8}}>⚠️ Type DELETE to enable reset buttons</div>
+        <input value={confirm_} onChange={e=>setConfirm(e.target.value)} placeholder="Type DELETE here"
+          style={{padding:"10px 14px",border:"2px solid "+(confirm_==="DELETE"?T.red:T.bdrS),
+            borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",
+            background:confirm_==="DELETE"?"#fff":T.surf,boxSizing:"border-box"}}/>
+        {confirm_==="DELETE" && <div style={{color:T.red,fontSize:12,marginTop:6,fontWeight:700}}>✓ Ready — select what to clear below</div>}
+      </Card>
+
+      {/* Individual clears */}
+      <Card style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Clear Specific Data</div>
         <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-          <Btn onClick={()=>del("reports")} variant="danger" size="sm">Clear All Reports</Btn>
-          <Btn onClick={()=>del("attendance")} variant="danger" size="sm">Clear Attendance</Btn>
-          <Btn onClick={()=>del("feedback")} variant="danger" size="sm">Clear Feedback</Btn>
+          {sections.map(s=>(
+            <Btn key={s.type} onClick={()=>del(s.type)} variant="danger" size="sm"
+              style={{opacity:confirm_==="DELETE"?1:.4}}>
+              Clear {s.label} ({s.count})
+            </Btn>
+          ))}
+          <Btn onClick={()=>del("operational")} variant="danger"
+            style={{opacity:confirm_==="DELETE"?1:.4,background:T.amber,color:"#000"}}>
+            📋 Clear Reports + Attendance Only
+          </Btn>
+          <Btn onClick={()=>del("all_data")} variant="danger"
+            style={{opacity:confirm_==="DELETE"?1:.4}}>
+            🗑 Clear ALL Operational Data
+          </Btn>
         </div>
+      </Card>
+
+      {/* Full reset */}
+      <Card style={{borderTop:"4px solid #7f1d1d",background:"#1a0000"}}>
+        <div style={{fontSize:14,fontWeight:800,color:"#fca5a5",marginBottom:8}}>☢️ Full Factory Reset</div>
+        <div style={{fontSize:12,color:"#fca5a5",marginBottom:12}}>
+          Wipes ALL data including users, counters, work types, reports, and settings.
+          App reloads fresh with default data. Cannot be undone.
+        </div>
+        <Btn onClick={()=>del("full_reset")} variant="danger"
+          style={{opacity:confirm_==="DELETE"?1:.4,background:"#7f1d1d",color:"#fff"}}>
+          ☢️ FULL FACTORY RESET
+        </Btn>
       </Card>
     </div>
   );
