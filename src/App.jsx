@@ -1004,7 +1004,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
 function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt, setPage }) {
   const presentToday = todayAtt.filter(a=>a.status==="present").length;
   const target = state.targets.find(t=>t.supervisorId===user.id && t.month===today().slice(0,7));
-  const pct = target ? Math.min(100, Math.round(todayRevenue/target.dailyTarget*100)) : null;
+  const pct = target&&target.dailyTarget>0 ? Math.min(100, Math.round(todayRevenue*100/(target.dailyTarget+0.001))) : null;
 
   return (
     <div>
@@ -1024,7 +1024,7 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
         <Card style={{ marginBottom:20 }}>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:10 }}>Today's Progress vs Target</div>
           <div style={{ height:10, background:T.surf, borderRadius:5, overflow:"hidden" }}>
-            <div style={{ height:"100%", width:`${pct}%`, background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:5, transition:"width .5s" }}/>
+            <div style={{ height:"100%", width:pct+"%", background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:5, transition:"width .5s" }}/>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:12, color:T.txt2 }}>
             <span>{fmtCurr(todayRevenue)} earned</span><span>{fmtCurr(target.dailyTarget)} target</span>
@@ -1772,11 +1772,18 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
 
 function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
   const today_ = today();
-  const todayReports = state.serviceReports.filter(r=>r.date===today_&&mySupervisors.some(s=>s.id===r.supervisorId));
+  const myCounterIds   = myCounters.map(c=>c.id);
+  const myCounterNames = myCounters.map(c=>c.name);
+  // Match by supervisorId OR counterId/counterName (office-submitted reports use counterId)
+  const isMyReport = r =>
+    mySupervisors.some(s=>s.id===r.supervisorId) ||
+    myCounterIds.includes(r.counterId) ||
+    myCounterNames.includes(r.counterName);
+  const todayReports = state.serviceReports.filter(r=>r.date===today_&&isMyReport(r));
   const totalRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
-  const pendingLeaves = state.leaves.filter(l=>l.approverId===user.id&&l.status==="pending").length;
+  const pendingLeaves = (state.leaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending").length;
   const month = today_.slice(0,7);
-  const monthReports = state.serviceReports.filter(r=>r.date.startsWith(month)&&mySupervisors.some(s=>s.id===r.supervisorId));
+  const monthReports = state.serviceReports.filter(r=>r.date.startsWith(month)&&isMyReport(r));
   const monthRevenue = monthReports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
@@ -1791,7 +1798,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <StatCard label="Month Revenue" value={fmtCurr(monthRevenue)} color={T.navy} icon="📅"/>
         <StatCard label="Active Counters" value={myCounters.length} color={T.grn} icon="🏪"/>
         <StatCard label="Pending Leaves" value={pendingLeaves} color={pendingLeaves>0?T.red:T.grn} icon="✅"/>
-        <StatCard label="Reports Today" value={`${todayReports.length}/${mySupervisors.length}`} color={todayReports.length===mySupervisors.length?T.grn:T.amber} icon="📋"/>
+        <StatCard label="Reports Today" value={todayReports.length+"/"+myCounters.length} color={todayReports.length>=myCounters.length?T.grn:T.amber} icon="📋"/>
       </div>
 
       {/* Counter Revenue Grid */}
@@ -1801,16 +1808,17 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
           {myCounters.map(c => {
             const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
-            const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month);
-            const pct = tgt ? Math.min(100,Math.round((rep?.totalAmount||0) / tgt.dailyTarget*100)) : null;
+            const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===month);
+            const amt = rep?.totalAmount||0;
+            const pct = tgt&&tgt.dailyTarget>0 ? Math.min(100, Math.round(amt*100/(tgt.dailyTarget+0.001))) : null;
             return (
-              <div key={c.id} style={{ border:`1px solid ${T.bdr}`, borderRadius:10, padding:14 }}>
+              <div key={c.id} style={{ border:"1px solid "+(rep?T.grn+"44":T.bdr), borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
                 <div style={{ fontSize:11, color:T.txt2, marginBottom:8 }}>{sup?.name||"—"}</div>
-                <div style={{ fontSize:20, fontWeight:800, color:T.amber }}>{fmtCurr(rep?.totalAmount||0)}</div>
-                {tgt && <>
+                <div style={{ fontSize:20, fontWeight:800, color:amt>0?T.amber:T.txt3 }}>{fmtCurr(amt)}</div>
+                {tgt && pct!==null && <>
                   <div style={{ height:6, background:T.surf, borderRadius:3, margin:"8px 0 4px", overflow:"hidden" }}>
-                    <div style={{ height:"100%", width:`${pct}%`, background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:3 }}/>
+                    <div style={{ height:"100%", width:pct+"%", background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:3 }}/>
                   </div>
                   <div style={{ fontSize:11, color:T.txt2 }}>{pct}% of {fmtCurr(tgt.dailyTarget)} target</div>
                 </>}
@@ -2602,7 +2610,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             </div>
             <div style={{ fontSize:22, fontWeight:800, color:T.amber, marginBottom:6 }}>{fmtCurr(c.total)}</div>
             <div style={{ height:5, background:T.surf, borderRadius:3, overflow:"hidden", marginBottom:8 }}>
-              <div style={{ height:"100%", width:`${c.total/maxTotal*100}%`, background:T.amber, borderRadius:3 }}/>
+              <div style={{ height:"100%", width:Math.round(c.total*100/(maxTotal+0.001))+"%", background:T.amber, borderRadius:3 }}/>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4, fontSize:11, color:T.txt2 }}>
               <div><div style={{ fontWeight:700, color:T.navy, fontSize:12 }}>{c.vehicles}</div>Vehicles</div>
@@ -2637,7 +2645,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
                   </div>
                 </div>
                 <div style={{ height:7, background:T.surf, borderRadius:3, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${m.rev/maxR*100}%`, background:m.key===thisMonth?T.amber:T.navy, borderRadius:3 }}/>
+                  <div style={{ height:"100%", width:Math.round(m.rev*100/(maxR+0.001))+"%", background:m.key===thisMonth?T.amber:T.navy, borderRadius:3 }}/>
                 </div>
               </div>;
             });
@@ -3851,8 +3859,11 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
 
   const filteredReports = state.serviceReports.filter(r => {
     if (r.date < dr.from || r.date > dr.to) return false;
-    if (myCounterIds) return myCounterIds.includes(r.counterId);
-    if (counterFilter) return r.counterName===counterFilter;
+    if (myCounterIds) {
+      const names = visibleCounters.map(c=>c.name);
+      return myCounterIds.includes(r.counterId) || names.includes(r.counterName);
+    }
+    if (counterFilter) return r.counterName===counterFilter || r.counterId===state.counters.find(c=>c.name===counterFilter)?.id;
     return true;
   });
 
