@@ -1,7 +1,7 @@
 // Benaka OMS v2.1 — 2026-08-30 14:47
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-// ─── Supabas1e client ──────────────────────────────────────────────────────────
+// ─── Supabase client ──────────────────────────────────────────────────────────
 // Supabase credentials — configured for benakaoms project
 const SUPABASE_URL = "https://hrqyuxwpxiffyqolpgdo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhycXl1eHdweGlmZnlxb2xwZ2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTYzOTMsImV4cCI6MjEwMzU5MjM5M30.EOMujy8n-pHPaBcYj8UZe_u2Bfa3IQ02dRPT_ZioKAs";
@@ -965,6 +965,8 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
 // ═══════════════════════════════════════════════════════════════════════════════
 function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
+  const [pageHistory, setPageHistory] = useState([]);
+  const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
     { id:"dashboard",    icon:"🏠", label:"Dashboard" },
     { id:"attendance",   icon:"👥", label:"Mark Attendance" },
@@ -1719,7 +1721,7 @@ function LeavePortal({ user, state, setState, toast }) {
 function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
-  const navTo = (p) => { if(p!==page){setPageHistory(h=>[...h.slice(-4),page]);} setPage(p); };
+  const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
     { id:"dashboard",   icon:"🏠", label:"Dashboard" },
     { id:"collection",  icon:"📊", label:"Collection Report" },
@@ -1747,29 +1749,85 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
       {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="execreport" && <ExecutiveReportGenerator state={state}/>}
-      {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors}/>}
-      {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
+      {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors} myCounters={myCounters}/>}
+      {page==="analysis"   && <CounterAnalysis user={user} state={state} myCounterIds={myCounters.map(c=>c.id)}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
   );
 }
 
-function MgrCollectionReport({ user, state, setState, toast, mySupervisors }) {
+function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCounters }) {
   const dr = useDateRange("today");
   const date = dr.from;
-  const existing = state.collectionReports?.find(r=>r.date===date&&mySupervisors.some(s=>s.id===r.supervisorId));
+  const [selCounter, setSelCounter] = useState("all");
+  const existing = state.collectionReports?.find(r=>r.date===date);
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
+  const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
     toast.show("Collection report saved ✅");
   };
-  const filteredReports = state.serviceReports.filter(r => r.date >= dr.from && r.date <= dr.to && mySupervisors.some(s=>s.id===r.supervisorId));
+
+  const filteredReports = state.serviceReports.filter(r => {
+    if(r.date<dr.from||r.date>dr.to) return false;
+    const inScope = mySupervisors.some(s=>s.id===r.supervisorId)||myCounters.some(c=>c.id===r.counterId||c.name===r.counterName);
+    if(!inScope) return false;
+    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==myCounters.find(c=>c.id===selCounter)?.name) return false;
+    return true;
+  });
+
+  const execTotals = mySupervisors.map(exec => {
+    const cIds = state.counters.filter(c=>c.supervisorId===exec.id).map(c=>c.id);
+    const cNames = state.counters.filter(c=>c.supervisorId===exec.id).map(c=>c.name);
+    const reps = filteredReports.filter(r=>cIds.includes(r.counterId)||cNames.includes(r.counterName));
+    if(!reps.length) return null;
+    const allE = reps.flatMap(r=>getE(r));
+    const svc = allE.filter(e=>e.type!=="sales"&&!SALES_WTS.includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const sal = allE.filter(e=>e.type==="sales"||SALES_WTS.includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    return {exec, svc, sal, total:svc+sal};
+  }).filter(Boolean);
+
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Collection Report</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-      <CollectionReportView date={date} report={existing} counters={state.counters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Collection Report</div>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:8}}>
+        <div style={{flex:1}}>
+          <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+        </div>
+        <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
+          style={{padding:"6px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+          <option value="all">All Counters</option>
+          {myCounters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      {execTotals.length>0 && (
+        <Card style={{marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:10}}>Executive Summary — {dr.label}</div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{background:T.surf}}>
+              {["Executive","Service","Sales","Total"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:h==="Executive"?"left":"right",fontSize:11,fontWeight:800,color:T.txt2}}>{h}</th>)}
+            </tr></thead>
+            <tbody>{execTotals.map(e=>(
+              <tr key={e.exec.id} style={{borderBottom:"1px solid "+T.bdr}}>
+                <td style={{padding:"6px 10px",fontWeight:600}}>{e.exec.name}</td>
+                <td style={{padding:"6px 10px",textAlign:"right"}}>{fmtCurr(e.svc)}</td>
+                <td style={{padding:"6px 10px",textAlign:"right",color:T.grn}}>{fmtCurr(e.sal)}</td>
+                <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(e.total)}</td>
+              </tr>
+            ))}</tbody>
+            <tfoot><tr style={{background:T.amberL}}>
+              <td style={{padding:"6px 10px",fontWeight:800}}>TOTAL</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.svc,0))}</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.grn}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.sal,0))}</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.total,0))}</td>
+            </tr></tfoot>
+          </table>
+        </Card>
+      )}
+      <CollectionReportView date={date} report={existing} counters={myCounters} allReports={filteredReports} attendance={state.attendance} users={state.users} onSave={save}/>
     </div>
   );
 }
@@ -1839,8 +1897,17 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
   const [tab, setTab] = useState("daily");
   const dr = useDateRange("today");
   const [selMonth, setSelMonth] = useState(today().slice(0,7));
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
 
-  const relevantReports = state.serviceReports.filter(r=>mySupervisors.some(s=>s.id===r.supervisorId)||myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+  const getEntries = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+  const isSales = e => e.type==="sales"||SALES_WTS.includes(e.workTypeName);
+  const getCounterName = r => r.counterName || (r.counters||[])[0]?.counterName || state.users.find(u=>u.id===r.supervisorId)?.counter || "—";
+  const getVehicles = r => getEntries(r).filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
+
+  const relevantReports = state.serviceReports.filter(r =>
+    mySupervisors.some(s=>s.id===r.supervisorId) ||
+    myCounters.some(c=>c.id===r.counterId||c.name===r.counterName)
+  );
   const dailyReports = relevantReports.filter(r=>r.date>=dr.from&&r.date<=dr.to);
   const monthReports = relevantReports.filter(r=>r.date.startsWith(selMonth));
 
@@ -1850,8 +1917,9 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
   // Revenue by work type
   const wtRevenue = {};
   relevantReports.forEach(r=>{
-    const allE = r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
-    allE.forEach(e=>{ wtRevenue[e.workTypeName]=(wtRevenue[e.workTypeName]||0)+(Number(e.amount)||0); });
+    getEntries(r).forEach(e=>{
+      if(!isSales(e)&&e.workTypeName) wtRevenue[e.workTypeName]=(wtRevenue[e.workTypeName]||0)+(Number(e.amount)||0);
+    });
   });
   const wtArr = Object.entries(wtRevenue).sort((a,b)=>b[1]-a[1]);
   const maxWt = wtArr[0]?.[1]||1;
@@ -1866,17 +1934,17 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
           <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginBottom:20 }}>
             <StatCard label="Total Revenue" value={fmtCurr(dailyTotal)} color={T.amber}/>
-            <StatCard label="Reports In" value={`${dailyReports.length}/${myCounters.length}`} color={T.navy}/>
-            <StatCard label="Vehicles Serviced" value={dailyReports.reduce((s,r)=>s+reportVehicles(r),0)} color={T.grn}/>
+            <StatCard label="Reports In" value={dailyReports.length + "/" + myCounters.length} color={T.navy}/>
+            <StatCard label="Vehicles" value={dailyReports.reduce((s,r)=>s+getVehicles(r),0)} color={T.grn}/>
           </div>
           <Table cols={[
-            {key:"counter",label:"Counters",render:r=>reportCounterNames(r)},
-            {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
-            {key:"vehicles",label:"Vehicles",render:r=>{ const allE=r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]); return allE.reduce((s,e)=>s+(Number(e.vehicles)||0),0); }},
+            {key:"counter",label:"Counter",render:r=><b>{getCounterName(r)}</b>},
+            {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
+            {key:"vehicles",label:"Vehicles",render:r=>getVehicles(r)},
             {key:"totalAmount",label:"Revenue",render:r=><b style={{color:T.amber}}>{fmtCurr(r.totalAmount)}</b>},
             {key:"submittedAt",label:"Submitted"},
-            {key:"status",label:"Status",render:r=><Badge color={T.grn}>{r.status}</Badge>},
-          ]} rows={dailyReports} emptyMsg="No reports for this date"/>
+            {key:"status",label:"Status",render:r=><Badge color={T.grn}>{r.status||"submitted"}</Badge>},
+          ]} rows={dailyReports} emptyMsg="No reports for selected range"/>
         </div>
       )}
 
@@ -1888,21 +1956,20 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
             <StatCard label="Reports" value={monthReports.length} color={T.navy}/>
             <StatCard label="Working Days" value={new Set(monthReports.map(r=>r.date)).size} color={T.grn}/>
           </div>
-          {/* Per-counter monthly breakdown */}
           <Card style={{ marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Revenue by Counter</div>
             {myCounters.map(c=>{
               const cr = monthReports.filter(r=>r.counterId===c.id||r.counterName===c.name).reduce((s,r)=>s+r.totalAmount,0);
-              const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===selMonth)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===selMonth);
-              const pct = tgt ? Math.min(100,Math.round(cr/tgt.monthlyTarget*100)) : null;
+              const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===selMonth);
+              const pct = tgt&&tgt.monthlyTarget>0 ? Math.min(100, Math.round(cr * 100 / tgt.monthlyTarget)) : null;
               return (
                 <div key={c.id} style={{ marginBottom:14 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
                     <span style={{ fontSize:13, fontWeight:600 }}>{c.name}</span>
-                    <span style={{ fontSize:13, fontWeight:700, color:T.amber }}>{fmtCurr(cr)}{tgt?` / ${fmtCurr(tgt.monthlyTarget)}`:""}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:T.amber }}>{fmtCurr(cr)}{tgt ? " / " + fmtCurr(tgt.monthlyTarget) : ""}</span>
                   </div>
-                  {tgt && <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
-                    <div style={{ height:"100%", width:`${pct}%`, background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:4 }}/>
+                  {pct !== null && <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:pct + "%", background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:4 }}/>
                   </div>}
                 </div>
               );
@@ -1915,17 +1982,20 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
         <div>
           <Card style={{ marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:700, marginBottom:16 }}>Revenue by Work Type (All Time)</div>
-            {wtArr.map(([name, rev]) => (
-              <div key={name} style={{ marginBottom:10 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                  <span style={{ fontSize:13 }}>{name}</span>
-                  <span style={{ fontSize:13, fontWeight:700, color:T.navy }}>{fmtCurr(rev)}</span>
+            {wtArr.map(([name, rev]) => {
+              const barW = Math.round(rev * 100 / maxWt);
+              return (
+                <div key={name} style={{ marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                    <span style={{ fontSize:13 }}>{name}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:T.navy }}>{fmtCurr(rev)}</span>
+                  </div>
+                  <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:barW + "%", background:T.amber, borderRadius:4 }}/>
+                  </div>
                 </div>
-                <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${rev/maxWt*100}%`, background:T.amber, borderRadius:4 }}/>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </Card>
           <Card>
             <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Attendance Summary (Today)</div>
@@ -1933,10 +2003,13 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
               const staff = state.users.filter(u=>u.managerId===s.id&&u.role==="field_staff");
               const att = state.attendance.filter(a=>a.supervisorId===s.id&&a.date===today());
               const present = att.filter(a=>a.status==="present").length;
-              return <div key={s.id} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
-                <span style={{ fontSize:13 }}>{s.name} · {s.counter}</span>
-                <span style={{ fontSize:13, fontWeight:600, color:present===staff.length?T.grn:T.amber }}>{present}{"/"}{staff.length} present</span>
-              </div>;
+              const total = staff.length;
+              return (
+                <div key={s.id} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid " + T.bdr }}>
+                  <span style={{ fontSize:13 }}>{s.name} · {s.counter}</span>
+                  <span style={{ fontSize:13, fontWeight:600, color:present===total?T.grn:T.amber }}>{present + " / " + total + " present"}</span>
+                </div>
+              );
             })}
           </Card>
         </div>
@@ -1944,6 +2017,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
     </div>
   );
 }
+
 
 function MgrLeaves({ user, state, setState, toast }) {
   const pending = state.leaves.filter(l=>l.approverId===user.id&&l.status==="pending");
@@ -2050,70 +2124,178 @@ function MgrPeople({ user, state, setState, toast }) {
 }
 
 function MgrTargets({ user, state, setState, mySupervisors, toast }) {
-  const [month, setMonth] = useState(today().slice(0,7));
+  const [selPeriod, setSelPeriod] = useState("monthly");
+  const [selRef, setSelRef] = useState(today().slice(0,7)); // month or week or year
   const [editing, setEditing] = useState(null);
-  const [daily, setDaily] = useState("");
-  const [monthly, setMonthly] = useState("");
+  const [form, setForm] = useState({ daily:"", weekly:"", monthly:"", quarterly:"", yearly:"" });
+
+  const periods = [
+    { id:"daily",     label:"Daily",     inputType:"date",  placeholder:"YYYY-MM-DD" },
+    { id:"weekly",    label:"Weekly",    inputType:"week",  placeholder:"YYYY-Www" },
+    { id:"monthly",   label:"Monthly",   inputType:"month", placeholder:"YYYY-MM" },
+    { id:"quarterly", label:"Quarterly", inputType:"month", placeholder:"YYYY-MM (start of quarter)" },
+    { id:"yearly",    label:"Yearly",    inputType:"month", placeholder:"YYYY-04 (financial year start)" },
+  ];
+
+  const getTargetKey = (supId) => `tgt_${supId}_${selPeriod}_${selRef}`;
 
   const startEdit = (sup) => {
-    const existing = state.targets.find(t=>t.supervisorId===sup.id&&t.month===month);
+    const existing = (state.targets||[]).find(t=>t.id===getTargetKey(sup.id));
     setEditing(sup.id);
-    setDaily(existing?.dailyTarget||"");
-    setMonthly(existing?.monthlyTarget||"");
+    setForm({
+      daily:     existing?.daily     || "",
+      weekly:    existing?.weekly    || "",
+      monthly:   existing?.monthly   || "",
+      quarterly: existing?.quarterly || "",
+      yearly:    existing?.yearly    || "",
+      [selPeriod]: existing?.[selPeriod] || "",
+    });
   };
 
   const save = (sup) => {
     const counter = state.counters.find(c=>c.supervisorId===sup.id);
-    const tgt = { id:`t_${sup.id}_${month}`, counterId:counter?.id, supervisorId:sup.id, month, dailyTarget:Number(daily), monthlyTarget:Number(monthly), setBy:user.id };
-    setState(p=>({ ...p, targets:[...p.targets.filter(t=>!(t.supervisorId===sup.id&&t.month===month)), tgt] }));
-    toast.show("Target saved for " + sup.name);
+    const tgt = {
+      id:          getTargetKey(sup.id),
+      counterId:   counter?.id,
+      supervisorId: sup.id,
+      period:      selPeriod,
+      periodRef:   selRef,
+      month:       selPeriod==="monthly" ? selRef : selRef.slice(0,7),
+      daily:       Number(form.daily)||0,
+      weekly:      Number(form.weekly)||0,
+      monthly:     Number(form.monthly)||0,
+      quarterly:   Number(form.quarterly)||0,
+      yearly:      Number(form.yearly)||0,
+      // Legacy fields for compatibility
+      dailyTarget:   Number(form.daily)||0,
+      monthlyTarget: Number(form.monthly)||0,
+      setBy: user.id,
+      setAt: new Date().toISOString(),
+    };
+    setState(p=>({
+      ...p,
+      targets:[...(p.targets||[]).filter(t=>t.id!==tgt.id), tgt]
+    }));
+    toast.show("Target saved for " + sup.name + " ✅");
     setEditing(null);
   };
 
+  const getPct = (actual, target) => target > 0 ? Math.min(100, Math.round(actual * 100 / (target + 0.001))) : null;
+
+  // Get actual revenue for a supervisor in selected period
+  const getActual = (sup) => {
+    const myCounterIds = state.counters.filter(c=>c.supervisorId===sup.id).map(c=>c.id);
+    const myCounterNames = state.counters.filter(c=>c.supervisorId===sup.id).map(c=>c.name);
+    let reps = state.serviceReports.filter(r=>myCounterIds.includes(r.counterId)||myCounterNames.includes(r.counterName));
+    if (selPeriod==="daily")     reps = reps.filter(r=>r.date===selRef);
+    if (selPeriod==="weekly")    reps = reps.filter(r=>{ const d=new Date(r.date); return d>=new Date(selRef.replace(/W/g,"-").replace(/-(\d\d)$/,"-W$1").slice(0,10)); });
+    if (selPeriod==="monthly")   reps = reps.filter(r=>r.date.startsWith(selRef));
+    if (selPeriod==="quarterly") reps = reps.filter(r=>r.date.startsWith(selRef.slice(0,4)));
+    if (selPeriod==="yearly")    reps = reps.filter(r=>r.date.startsWith(selRef.slice(0,4)));
+    return reps.reduce((s,r)=>s+r.totalAmount, 0);
+  };
+
+  const curPeriod = periods.find(p=>p.id===selPeriod);
+
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Set Targets</div>
-      <Input label="Month" type="month" value={month} onChange={setMonth} style={{ maxWidth:200 }}/>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Set Targets</div>
+
+      {/* Period selector */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
+        {periods.map(p=>(
+          <button key={p.id} onClick={()=>setSelPeriod(p.id)} style={{
+            padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+            border:"1px solid "+(selPeriod===p.id?T.navy:T.bdrS),
+            background:selPeriod===p.id?T.navy:"transparent",
+            color:selPeriod===p.id?"#fff":T.txt2
+          }}>{p.label}</button>
+        ))}
+      </div>
+
+      <div style={{ marginBottom:20 }}>
+        <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>{curPeriod.label} Reference Period</label>
+        <input type={curPeriod.inputType} value={selRef} onChange={e=>setSelRef(e.target.value)}
+          style={{ padding:"8px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+      </div>
+
       {mySupervisors.map(s => {
-        const existing = state.targets.find(t=>t.supervisorId===s.id&&t.month===month);
+        const existing = (state.targets||[]).find(t=>t.id===getTargetKey(s.id));
+        const targetVal = existing?.[selPeriod] || existing?.monthly || 0;
+        const actual = getActual(s);
+        const pct = getPct(actual, targetVal);
+        const isEditing = editing===s.id;
+
         return (
           <Card key={s.id} style={{ marginBottom:12 }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:isEditing?16:0 }}>
               <div>
-                <div style={{ fontWeight:700 }}>{s.name}</div>
-                <div style={{ fontSize:12, color:T.txt2 }}>{s.counter}</div>
+                <div style={{ fontWeight:700, fontSize:15 }}>{s.name}</div>
+                <div style={{ fontSize:12, color:T.txt2 }}>{s.counter || state.counters.find(c=>c.supervisorId===s.id)?.name || "—"}</div>
               </div>
-              {editing===s.id ? (
-                <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
-                  <div>
-                    <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>DAILY TARGET (₹)</label>
-                    <input value={daily} onChange={e=>setDaily(e.target.value)} type="number" style={{padding:"7px 10px",border:`1px solid ${T.bdrS}`,borderRadius:7,fontSize:13,fontFamily:"inherit",width:130}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>MONTHLY TARGET (₹)</label>
-                    <input value={monthly} onChange={e=>setMonthly(e.target.value)} type="number" style={{padding:"7px 10px",border:`1px solid ${T.bdrS}`,borderRadius:7,fontSize:13,fontFamily:"inherit",width:140}}/>
-                  </div>
-                  <Btn onClick={()=>save(s)} variant="success" size="sm">Save</Btn>
-                  <Btn onClick={()=>setEditing(null)} variant="ghost" size="sm">Cancel</Btn>
-                </div>
-              ) : (
+              {!isEditing && (
                 <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-                  {existing ? (
+                  {targetVal > 0 ? (
                     <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:13 }}>Daily: <b>{fmtCurr(existing.dailyTarget)}</b></div>
-                      <div style={{ fontSize:13 }}>Monthly: <b>{fmtCurr(existing.monthlyTarget)}</b></div>
+                      <div style={{ fontSize:13, color:T.txt2 }}>{curPeriod.label} target</div>
+                      <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(targetVal)}</div>
+                      <div style={{ fontSize:12, color:T.txt2 }}>Actual: {fmtCurr(actual)}</div>
                     </div>
                   ) : <div style={{ fontSize:12, color:T.txt3 }}>No target set</div>}
-                  <Btn onClick={()=>startEdit(s)} size="sm" variant="outline">Edit</Btn>
+                  <Btn onClick={()=>startEdit(s)} size="sm" variant="outline">{targetVal>0?"Edit":"Set Target"}</Btn>
                 </div>
               )}
             </div>
+
+            {pct !== null && !isEditing && (
+              <div style={{ marginTop:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.txt2, marginBottom:3 }}>
+                  <span>{pct}% achieved</span>
+                  <span>{fmtCurr(actual)} of {fmtCurr(targetVal)}</span>
+                </div>
+                <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:pct+"%", borderRadius:4,
+                    background:pct>=100?T.grn:pct>=70?T.amber:T.red }}/>
+                </div>
+              </div>
+            )}
+
+            {isEditing && (
+              <div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:14 }}>
+                  {[
+                    {key:"daily",    label:"Daily Target (₹)"},
+                    {key:"weekly",   label:"Weekly Target (₹)"},
+                    {key:"monthly",  label:"Monthly Target (₹)"},
+                    {key:"quarterly",label:"Quarterly Target (₹)"},
+                    {key:"yearly",   label:"Yearly Target (₹)"},
+                  ].map(f=>(
+                    <div key={f.key}>
+                      <label style={{ display:"block", fontSize:11, fontWeight:700, color:f.key===selPeriod?T.navy:T.txt2, marginBottom:4, textTransform:"uppercase" }}>
+                        {f.label}{f.key===selPeriod?" ◀":""}
+                      </label>
+                      <input type="number" value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                        placeholder="0"
+                        style={{ width:"100%", padding:"8px 10px", border:"1px solid "+(f.key===selPeriod?T.navy:T.bdrS),
+                          borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none",
+                          background:f.key===selPeriod?T.navyXL:"#fff", boxSizing:"border-box" }}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <Btn onClick={()=>save(s)} variant="amber">Save Targets</Btn>
+                  <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
+                </div>
+              </div>
+            )}
           </Card>
         );
       })}
+      {mySupervisors.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:24}}>No executives assigned to you.</div></Card>}
     </div>
   );
 }
+
 
 function MgrFeedback({ user, state, myCounters }) {
   const [selCounter, setSelCounter] = useState("all");
@@ -2228,7 +2410,7 @@ function MgrFeedback({ user, state, myCounters }) {
 function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
-  const navTo = (p) => { if(p!==page){setPageHistory(h=>[...h.slice(-4),page]);} setPage(p); };
+  const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
     { id:"dashboard",   icon:"🏆", label:"Live Dashboard" },
     { id:"collection",  icon:"📊", label:"Collection Report" },
@@ -2249,7 +2431,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="analysis"   && <CounterAnalysis user={user} state={state} counterFilter={null}/>}
+      {page==="analysis"   && <CounterAnalysis user={user} state={state} myCounterIds={myCounters.map(c=>c.id)}/>}
       {page==="financial"  && <MDFinancial state={state}/>}
       {page==="operations" && <MDOperations state={state}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
@@ -2701,7 +2883,7 @@ function MDPeople({ state, setState, toast }) {
 function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("reports");
   const [pageHistory, setPageHistory] = useState([]);
-  const navTo = (p) => { if(p!==page){setPageHistory(h=>[...h.slice(-4),page]);} setPage(p); };
+  const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
     { id:"enter",        icon:"✏️",  label:"Enter Report" },
     { id:"collection",   icon:"📊",  label:"Collection Report" },
@@ -2714,7 +2896,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
       {page==="enter"       && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection"  && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
