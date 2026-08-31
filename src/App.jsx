@@ -2523,7 +2523,6 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const total = svcTotal + salTotal;
     const vehicles = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
     const days = new Set(reps.map(r=>r.date)).size;
-    const sup = state.users.find(u=>u.id===c.supervisorId);
     // Match today reports specifically by counterId or counterName
     // Don't use supervisorId alone - it would double-count multi-counter executives
     const todayReps = todayReports.filter(r=>
