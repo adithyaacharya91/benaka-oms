@@ -574,8 +574,7 @@ function DateRangePicker({ range, setRange, customFrom, setCustomFrom, customTo,
     { id:"yesterday", label:"Yesterday" },
     { id:"week",      label:"This Week" },
     { id:"month",     label:"This Month" },
-    { id:"quarter",   label:"Quarter" },
-    { id:"year",      label:"FY (Apr-Mar)" },
+    { id:"year",      label:"Financial Year" },
     { id:"custom",    label:"Custom" },
   ];
   return (
@@ -980,7 +979,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"directory",    icon:"👤", label:"Staff Directory" },
   ];
 
-  const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active);
+  const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active !== false);
   const myCounter = state.counters.find(c => c.supervisorId === user.id);
   const todayReports = state.serviceReports.filter(r => r.supervisorId === user.id && r.date === today());
   const todayAtt = state.attendance.filter(a => a.supervisorId === user.id && a.date === today());
@@ -1455,122 +1454,6 @@ function SupReport({ user, state, setState, toast }) {
         const svcTotal = (d.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
         const salTotal = (d.salesEntries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
         return (
-          <Card style={{ borderTop:`3px solid ${T.amber}` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:10 }}>
-              <div>
-                <div style={{ fontSize:16, fontWeight:800 }}>{activeC.name}</div>
-                {isSubmitted && <Badge color={T.grn} style={{marginTop:4}}>✓ Submitted for {fmtDate(date)}</Badge>}
-              </div>
-              <div style={{ display:"flex", gap:8 }}>
-                <Btn onClick={()=>printCounter(activeC)} variant="ghost" size="sm">🖨 Print</Btn>
-                <Btn onClick={()=>submitCounter(activeC)} variant="amber">{isSubmitted?"Update Report":"Submit Report"}</Btn>
-              </div>
-            </div>
-
-            {/* SERVICE entries */}
-            <div style={{ fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🔧 Services</div>
-            <div style={{ overflowX:"auto", marginBottom:16 }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-                <thead><tr style={{ background:T.surf }}>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Work Type</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:80,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Vehicles</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:100,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Rate (₹)</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:110,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Amount (₹)</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",width:30 }}></th>
-                </tr></thead>
-                <tbody>
-                  {(d.entries||[]).map((e,ei)=>(
-                    <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <div style={{ display:"flex",gap:5 }}>
-                          <select value={e.workTypeId||""} onChange={ev=>{ const wt=serviceWTs.find(w=>w.id===ev.target.value); if(wt) setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:getData(activeC.id).entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})}})); }}
-                            style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none" }}>
-                            <option value="">Select...</option>
-                            {serviceWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
-                          </select>
-                          <input value={e.workTypeName||""} onChange={ev=>updateServiceEntry(activeC.id,ei,"workTypeName",ev.target.value)}
-                            placeholder="Custom" style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",minWidth:70 }}/>
-                        </div>
-                      </td>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <input type="number" value={e.vehicles||0} onChange={ev=>updateServiceEntry(activeC.id,ei,"vehicles",ev.target.value)} min={0}
-                          style={{ width:"100%",padding:"4px 6px",border:`1px solid ${e.vehicles>0?T.amber:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center",background:e.vehicles>0?T.amberL:"#fff",fontWeight:e.vehicles>0?700:400 }}/>
-                      </td>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <input type="number" value={e.rate||0} onChange={ev=>updateServiceEntry(activeC.id,ei,"rate",ev.target.value)} min={0}
-                          style={{ width:"100%",padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center" }}/>
-                      </td>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 12px",textAlign:"right",fontWeight:700,color:e.amount>0?T.navy:T.txt3 }}>{e.amount>0?e.amount.toLocaleString("en-IN"):"0"}</td>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"4px",textAlign:"center" }}>
-                        <button onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:getData(activeC.id).entries.filter((_,j)=>j!==ei)}}))} style={{ background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14 }}>×</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot><tr style={{ background:T.navyXL }}>
-                  <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy,fontSize:12 }}>SERVICE TOTAL</td>
-                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.navy,textAlign:"right" }}>{svcTotal.toLocaleString("en-IN")}</td>
-                  <td style={{ border:`1px solid ${T.bdr}` }}></td>
-                </tr></tfoot>
-              </table>
-            </div>
-            <Btn onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:[...getData(activeC.id).entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}}))} size="sm" variant="ghost" style={{marginBottom:16}}>+ Add Service Row</Btn>
-
-            {/* SALES entries */}
-            <div style={{ fontSize:12,fontWeight:800,color:T.grn,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🛒 Sales — Amount only</div>
-            <div style={{ overflowX:"auto" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-                <thead><tr style={{ background:T.grnL }}>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Product</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:160,fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Amount (₹)</th>
-                  <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",width:30 }}></th>
-                </tr></thead>
-                <tbody>
-                  {(d.salesEntries||[]).map((e,ei)=>(
-                    <tr key={ei} style={{ background:e.amount>0?"#F0FDF4":"#fff" }}>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <div style={{ display:"flex",gap:5 }}>
-                          <select value={e.workTypeId||""} onChange={ev=>{ const wt=salesWTs.find(w=>w.id===ev.target.value); if(wt) setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),salesEntries:getData(activeC.id).salesEntries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name})}})); }}
-                            style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none" }}>
-                            <option value="">Select product...</option>
-                            {salesWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
-                          </select>
-                          <input value={e.workTypeName||""} onChange={ev=>updateSalesEntry(activeC.id,ei,"workTypeName",ev.target.value)}
-                            placeholder="Custom" style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",minWidth:70 }}/>
-                        </div>
-                      </td>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                        <input type="number" value={e.amount||0} onChange={ev=>updateSalesEntry(activeC.id,ei,"amount",ev.target.value)} min={0}
-                          style={{ width:"100%",padding:"4px 8px",border:`1px solid ${e.amount>0?T.grn:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"right",background:e.amount>0?T.grnL:"#fff",fontWeight:e.amount>0?700:400 }}/>
-                      </td>
-                      <td style={{ border:`1px solid ${T.bdr}`,padding:"4px",textAlign:"center" }}>
-                        <button onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),salesEntries:getData(activeC.id).salesEntries.filter((_,j)=>j!==ei)}}))} style={{ background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14 }}>×</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot><tr style={{ background:T.grnL }}>
-                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,color:T.grn }}>SALES TOTAL</td>
-                  <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.grn,textAlign:"right" }}>{salTotal.toLocaleString("en-IN")}</td>
-                  <td style={{ border:`1px solid ${T.bdr}` }}></td>
-                </tr></tfoot>
-              </table>
-            </div>
-            <Btn onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),salesEntries:[...getData(activeC.id).salesEntries,{workTypeId:"",workTypeName:"",amount:0,type:"sales"}]}}))} size="sm" variant="ghost" style={{marginTop:8,marginBottom:16}}>+ Add Sales Row</Btn>
-
-            {/* Notes + grand total */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:12, flexWrap:"wrap", marginTop:8 }}>
-              <div style={{ flex:1, minWidth:200 }}>
-                <label style={{ display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase" }}>Notes</label>
-                <input value={d.notes||""} onChange={e=>setNotes(activeC.id,e.target.value)} placeholder="Any notes for today..."
-                  style={{ width:"100%",padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box" }}/>
-              </div>
-              <div style={{ background:T.navy,padding:"12px 20px",borderRadius:10,color:"#fff",textAlign:"right" }}>
-                <div style={{ fontSize:11,opacity:.6,textTransform:"uppercase" }}>Counter Total</div>
-                <div style={{ fontSize:22,fontWeight:800,color:T.amber }}>₹{(svcTotal+salTotal).toLocaleString("en-IN")}</div>
-              </div>
-            </div>
-          </Card>
         );
       })()}
     </div>
@@ -1740,7 +1623,7 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
   const myCounters = state.counters.filter(c=>mySupervisors.some(s=>s.id===c.supervisorId));
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
@@ -2428,7 +2311,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state} myCounterIds={myCounters.map(c=>c.id)}/>}
@@ -2886,25 +2769,29 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
     { id:"enter",        icon:"✏️",  label:"Enter Report" },
+    { id:"sales",        icon:"🛒",  label:"Sales Entry" },
     { id:"collection",   icon:"📊",  label:"Collection Report" },
     { id:"attendance",   icon:"👥",  label:"Mark Attendance" },
+    { id:"myattendance", icon:"🗓️",  label:"My Attendance" },
     { id:"reports",      icon:"📋",  label:"View Reports" },
-    { id:"viewatt",      icon:"🗓️",  label:"View Attendance" },
+    { id:"viewatt",      icon:"📅",  label:"All Attendance" },
     { id:"execreport",   icon:"📄",  label:"Executive Report" },
     { id:"export",       icon:"📥",  label:"Export Data" },
     { id:"directory",    icon:"👤",  label:"Staff Directory" },
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
-      {page==="enter"       && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="collection"  && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="attendance"  && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="reports"     && <OfficeReports state={state}/>}
-      {page==="viewatt"     && <OfficeAttendance state={state}/>}
-      {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
-      {page==="export"      && <OfficeExport state={state} toast={toast}/>}
-      {page==="directory"   && <StaffDirectory state={state}/>}
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
+      {page==="enter"        && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="sales"        && <OfficeSalesEntry user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="collection"   && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="attendance"   && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="myattendance" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="reports"      && <OfficeReports state={state}/>}
+      {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
+      {page==="execreport"   && <ExecutiveReportGenerator state={state}/>}
+      {page==="export"       && <OfficeExport state={state} toast={toast}/>}
+      {page==="directory"    && <StaffDirectory state={state}/>}
     </Shell>
   );
 }
@@ -2962,15 +2849,29 @@ function OfficeEnterReport({ user, state, setState, toast }) {
 
   const submit = () => {
     if (!selSupervisor) { toast.show("Select an executive first","error"); return; }
-    const report = {
-      id: `sr_${selSupervisor}_${date}`,
-      date, supervisorId:selSupervisor,
-      submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
-      counters: reportCounters.map(c => ({ ...c, entries:[...(c.entries||[]),...(c.salesEntries||[])] })),
-      totalAmount: grandTotal, notes, status:"submitted"
-    };
-    setState(p=>({ ...p, serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id), report] }));
-    toast.show("Report submitted ✅");
+    // Submit ONE report per counter (matching SupReport architecture)
+    const newReports = reportCounters
+      .filter(c => c.counterName)
+      .map(c => {
+        const counter = state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName};
+        const allEntries = [...(c.entries||[]),...(c.salesEntries||[]).map(e=>({...e,vehicles:0,rate:0}))];
+        const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0),0);
+        return {
+          id: "sr_" + selSupervisor + "_" + counter.id + "_" + date,
+          date, supervisorId:selSupervisor,
+          counterId: counter.id,
+          counterName: counter.name,
+          submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+          entries: allEntries,
+          counters: [{ counterName:counter.name, entries:allEntries }],
+          totalAmount: total, notes, status:"submitted",
+          submittedBy: user.id, // track office staff submission
+        };
+      });
+    if (!newReports.length) { toast.show("Add at least one counter","error"); return; }
+    const newIds = newReports.map(r=>r.id);
+    setState(p=>({ ...p, serviceReports:[...p.serviceReports.filter(r=>!newIds.includes(r.id)), ...newReports] }));
+    toast.show("Report submitted for " + newReports.length + " counter(s) ✅");
   };
 
   return (
@@ -3143,7 +3044,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
   const [dirty, setDirty] = useState(false);
   const initialLoad = useRef(false);
 
-  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active);
+  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
 
   const allToMark = selExec ? [
     state.users.find(u=>u.id===selExec),
@@ -3157,7 +3058,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
   const getStaffForExec = (execId) => {
     const exec = state.users.find(u=>u.id===execId);
     if(!exec) return [];
-    return [exec, ...state.users.filter(u=>u.role==="field_staff"&&u.active&&u.managerId===execId)];
+    return [exec, ...state.users.filter(u=>u.role==="field_staff"&&u.active!==false&&u.managerId===execId)];
   };
 
   const staffList = selExec ? getStaffForExec(selExec) : [];
@@ -3255,1566 +3156,289 @@ function ExecutiveReportGenerator({ state }) {
   const [selDate, setSelDate] = useState(today());
   const [selExec, setSelExec] = useState("all");
   const [expanded, setExpanded] = useState({});
-  const [viewMode, setViewMode] = useState("daily"); // daily | monthly
 
-  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active);
-  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
-  const isSales = e => e.type==="sales"||SALES_WTS.includes(e.workTypeName);
-  const getEntries = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
+  const isSales   = e => e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"].includes(e.workTypeName);
+  const isBardahl = e => e.workTypeName==="BARDAHL";
+  const isOther   = e => isSales(e) && !isBardahl(e);
+  const getE      = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
 
   const monthStart = selDate.slice(0,7)+"-01";
   const monthEnd   = selDate.slice(0,7)+"-31";
 
-  // Build per-exec summary
-  const execSummaries = executives
-    .filter(u=>selExec==="all"||u.id===selExec)
-    .map(exec => {
-      const myCounters = state.counters.filter(c=>c.supervisorId===exec.id);
-      const dayReps   = state.serviceReports.filter(r=>r.date===selDate&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
-      const monthReps = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
-      const dayAtt    = state.attendance.filter(a=>a.date===selDate&&a.supervisorId===exec.id);
+  const buildSummary = (exec) => {
+    const myCounters = state.counters.filter(c=>c.supervisorId===exec.id);
+    const dayReps    = state.serviceReports.filter(r=>r.date===selDate&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+    const monthReps  = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+    const dayAtt     = state.attendance.filter(a=>a.date===selDate&&a.supervisorId===exec.id);
 
-      const calcTotals = (reps) => {
-        const allE = reps.flatMap(r=>getEntries(r));
-        const svc = allE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-        const sal = allE.filter(e=>isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-        // Per product sales breakdown
-        const salBreakdown = {};
-        allE.filter(e=>isSales(e)).forEach(e=>{salBreakdown[e.workTypeName]=(salBreakdown[e.workTypeName]||0)+(Number(e.amount)||0);});
-        // Per counter breakdown
-        const perCounter = myCounters.map(c=>{
-          const cReps=reps.filter(r=>r.counterId===c.id||r.counterName===c.name);
-          const cE=cReps.flatMap(r=>getEntries(r));
-          return {name:c.name,svc:cE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0),sal:cE.filter(e=>isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0)};
-        });
-        return {svc, sal, total:svc+sal, salBreakdown, perCounter, vehicles:allE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0)};
+    // Per-counter daily breakdown
+    const counterRows = myCounters.map(c=>{
+      const reps = dayReps.filter(r=>r.counterId===c.id||r.counterName===c.name);
+      const allE = reps.flatMap(r=>getE(r));
+      return {
+        name:     c.name,
+        svc:      allE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0),
+        bardahl:  allE.filter(e=>isBardahl(e)).reduce((s,e)=>s+(Number(e.amount)||0),0),
+        other:    allE.filter(e=>isOther(e)).reduce((s,e)=>s+(Number(e.amount)||0),0),
+        vehicles: allE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0),
+        reported: reps.length>0,
       };
+    });
 
-      const dayTotals   = calcTotals(dayReps);
-      const monthTotals = calcTotals(monthReps);
-      const absentStaff = dayAtt.filter(a=>a.status==="absent").map(a=>state.users.find(u=>u.id===a.staffId)?.name).filter(Boolean);
-      const halfDay     = dayAtt.filter(a=>a.status==="half_day").map(a=>state.users.find(u=>u.id===a.staffId)?.name).filter(Boolean);
+    // Day totals
+    const dayAllE    = dayReps.flatMap(r=>getE(r));
+    const daySvc     = dayAllE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const dayBardahl = dayAllE.filter(e=>isBardahl(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const dayOther   = dayAllE.filter(e=>isOther(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const dayTotal   = daySvc + dayBardahl + dayOther;
 
-      return {exec, myCounters, dayTotals, monthTotals, absentStaff, halfDay, reported:dayReps.length>0};
-    })
-    .filter(s=>s.reported||selExec!=="all"); // only show reported if viewing all
+    // Month cumulative totals
+    const moAllE    = monthReps.flatMap(r=>getE(r));
+    const moSvc     = moAllE.filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const moBardahl = moAllE.filter(e=>isBardahl(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const moOther   = moAllE.filter(e=>isOther(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const moTotal   = moSvc + moBardahl + moOther;
 
-  const grandDaySvc = execSummaries.reduce((s,e)=>s+e.dayTotals.svc,0);
-  const grandDaySal = execSummaries.reduce((s,e)=>s+e.dayTotals.sal,0);
-  const grandMoSvc  = execSummaries.reduce((s,e)=>s+e.monthTotals.svc,0);
-  const grandMoSal  = execSummaries.reduce((s,e)=>s+e.monthTotals.sal,0);
+    // Absent staff (include exec if marked absent)
+    const absentList = dayAtt.filter(a=>a.status==="absent").map(a=>state.users.find(u=>u.id===a.staffId)?.name).filter(Boolean);
+    const halfList   = dayAtt.filter(a=>a.status==="half_day").map(a=>state.users.find(u=>u.id===a.staffId)?.name).filter(Boolean);
+
+    return { exec, myCounters, counterRows, daySvc, dayBardahl, dayOther, dayTotal, moSvc, moBardahl, moOther, moTotal, absentList, halfList, reported:dayReps.length>0 };
+  };
+
+  const summaries = executives
+    .filter(u=>selExec==="all"||u.id===selExec)
+    .map(buildSummary)
+    .filter(s=>s.reported||selExec!=="all");
+
+  const gDaySvc     = summaries.reduce((s,e)=>s+e.daySvc,0);
+  const gDayBardahl = summaries.reduce((s,e)=>s+e.dayBardahl,0);
+  const gDayOther   = summaries.reduce((s,e)=>s+e.dayOther,0);
+  const gDayTotal   = summaries.reduce((s,e)=>s+e.dayTotal,0);
+  const gMoSvc      = summaries.reduce((s,e)=>s+e.moSvc,0);
+  const gMoBardahl  = summaries.reduce((s,e)=>s+e.moBardahl,0);
+  const gMoOther    = summaries.reduce((s,e)=>s+e.moOther,0);
+  const gMoTotal    = summaries.reduce((s,e)=>s+e.moTotal,0);
+
+  const dd = selDate.split("-");
+  const dateStr  = dd[2]+"/"+dd[1]+"/"+dd[0];
+  const monthStr = new Date(selDate+"T00:00").toLocaleString("en-IN",{month:"long",year:"numeric"});
 
   const printReport = () => {
     const w = window.open("","_blank");
-    const rows = execSummaries.map(s=>`
-      <tr style="border-bottom:1px solid #ddd">
-        <td style="padding:6px 10px;font-weight:700">${s.exec.name}<br/><small style="color:#666">${s.myCounters.map(c=>c.name).join(", ")}</small></td>
-        <td style="padding:6px 10px;text-align:right">${s.dayTotals.svc.toLocaleString("en-IN")}</td>
-        <td style="padding:6px 10px;text-align:right">${s.dayTotals.sal.toLocaleString("en-IN")}</td>
-        <td style="padding:6px 10px;text-align:right;font-weight:700">${s.dayTotals.total.toLocaleString("en-IN")}</td>
-        <td style="padding:6px 10px;text-align:right">${s.monthTotals.svc.toLocaleString("en-IN")}</td>
-        <td style="padding:6px 10px;text-align:right">${s.monthTotals.sal.toLocaleString("en-IN")}</td>
-        <td style="padding:6px 10px;text-align:right;font-weight:700">${s.monthTotals.total.toLocaleString("en-IN")}</td>
-        <td style="padding:6px 10px;color:#DC2626">${s.absentStaff.join(", ")||"—"}</td>
+    const allAbsent = summaries.flatMap(s=>s.absentList);
+    const allHalf   = summaries.flatMap(s=>s.halfList);
+
+    const execRows = summaries.map(s=>`
+      <tr style="background:#f9f9f9">
+        <td style="padding:6px 10px;font-weight:800;border:1px solid #ccc" rowspan="${Math.max(1,s.counterRows.length)+1}">${s.exec.name}</td>
+      </tr>
+      ${s.counterRows.map(c=>`
+      <tr style="border-bottom:1px solid #eee">
+        <td style="padding:5px 10px;font-size:12px;border:1px solid #ddd;color:#555">${c.name}${c.reported?"":"  (no report)"}</td>
+        <td style="padding:5px 8px;text-align:right;border:1px solid #ddd">${c.svc.toLocaleString("en-IN")}</td>
+        <td style="padding:5px 8px;text-align:right;border:1px solid #ddd;color:#15803D">${c.bardahl.toLocaleString("en-IN")}</td>
+        <td style="padding:5px 8px;text-align:right;border:1px solid #ddd;color:#0369A1">${c.other.toLocaleString("en-IN")}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:700;border:1px solid #ddd;border-right:3px solid #999">${(c.svc+c.bardahl+c.other).toLocaleString("en-IN")}</td>
+        <td style="padding:5px 8px;text-align:right;border:1px solid #ddd" colspan="4">${c.reported?"—":""}</td>
+      </tr>`).join("")}
+      <tr style="background:#FEF3C7;font-weight:700">
+        <td style="padding:6px 10px;border:1px solid #ccc">SUBTOTAL</td>
+        <td style="padding:6px 8px;text-align:right;border:1px solid #ccc">${s.daySvc.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;border:1px solid #ccc;color:#15803D">${s.dayBardahl.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;border:1px solid #ccc;color:#0369A1">${s.dayOther.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;font-weight:800;border:1px solid #ccc;border-right:3px solid #999">${s.dayTotal.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;border:1px solid #ccc">${s.moSvc.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;border:1px solid #ccc;color:#15803D">${s.moBardahl.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;border:1px solid #ccc;color:#0369A1">${s.moOther.toLocaleString("en-IN")}</td>
+        <td style="padding:6px 8px;text-align:right;font-weight:800;border:1px solid #ccc">${s.moTotal.toLocaleString("en-IN")}</td>
+      </tr>
+      <tr style="background:#FEE2E2">
+        <td colspan="9" style="padding:4px 10px;font-size:12px;border:1px solid #ccc;color:#DC2626">
+          ${s.absentList.length>0?"ABSENT: "+s.absentList.join(", "):""}
+          ${s.halfList.length>0?"  |  HALF DAY: "+s.halfList.join(", "):""}
+          ${s.absentList.length===0&&s.halfList.length===0?"All present":""}
+        </td>
       </tr>`).join("");
-    const allAbsent = execSummaries.flatMap(s=>s.absentStaff);
-    w.document.write(`<!DOCTYPE html><html><head><title>Executive Report — ${selDate.split("-").reverse().join("/")}</title>
-    <style>body{font-family:Arial,sans-serif;margin:20px;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:16px}
-    th{background:#0F2B4A;color:#fff;padding:7px 10px;text-align:center}h2,h3{text-align:center;margin:3px 0}</style></head>
-    <body><h2>BENAKA ENTERPRISES</h2>
-    <h3>EXECUTIVE DAILY REPORT — DATE: ${selDate.split("-").reverse().join("/")}  |  MONTH: ${new Date(selDate+"T00:00").toLocaleString("en-IN",{month:"long",year:"numeric"})}</h3><br>
-    <table><thead><tr>
-      <th rowspan="2">EXECUTIVE · COUNTER</th>
-      <th colspan="3" style="border-right:2px solid #fff">TODAY (${selDate.split("-")[2]}/${selDate.split("-")[1]})</th>
-      <th colspan="3">MONTH CUMULATIVE</th>
-      <th rowspan="2">ABSENT</th>
-    </tr><tr>
-      <th>Service</th><th>Sales</th><th style="border-right:2px solid #fff">Total</th>
-      <th>Service</th><th>Sales</th><th>Total</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot>
-      <tr style="background:#FEF3DC"><td style="padding:7px;font-weight:800">TOTAL</td>
-      <td style="text-align:right;padding:7px;font-weight:800">${grandDaySvc.toLocaleString("en-IN")}</td>
-      <td style="text-align:right;padding:7px;font-weight:800">${grandDaySal.toLocaleString("en-IN")}</td>
-      <td style="text-align:right;padding:7px;font-weight:800;border-right:2px solid #ccc">${(grandDaySvc+grandDaySal).toLocaleString("en-IN")}</td>
-      <td style="text-align:right;padding:7px;font-weight:800">${grandMoSvc.toLocaleString("en-IN")}</td>
-      <td style="text-align:right;padding:7px;font-weight:800">${grandMoSal.toLocaleString("en-IN")}</td>
-      <td style="text-align:right;padding:7px;font-weight:800">${(grandMoSvc+grandMoSal).toLocaleString("en-IN")}</td>
-      <td></td></tr>
-    </tfoot></table>
-    ${allAbsent.length>0?`<p><strong>ABSENT: ${allAbsent.join(", ")}</strong></p>`:""}
-    </body></html>`);
+
+    w.document.write("<!DOCTYPE html><html><head><title>Executive Report - "+dateStr+"</title><style>"+
+      "body{font-family:Arial,sans-serif;margin:16px;font-size:13px}"+
+      "table{border-collapse:collapse;width:100%;margin-bottom:14px}"+
+      "th{background:#0F2B4A;color:#fff;padding:7px 10px;text-align:center;font-size:12px}"+
+      "h2,h3{text-align:center;margin:3px 0}"+
+      ".total-row{background:#0F2B4A;color:#fff;font-weight:800}"+
+      "@media print{@page{size:A4 landscape;margin:1cm}}"+
+    "</style></head><body>"+
+    "<h2>BENAKA ENTERPRISES</h2>"+
+    "<h3>DAILY EXECUTIVE REPORT — "+dateStr+" | MONTH: "+monthStr+"</h3><br>"+
+    "<table><thead>"+
+    "<tr>"+
+      "<th rowspan='2'>Executive</th>"+
+      "<th rowspan='2'>Counter</th>"+
+      "<th colspan='4' style='border-right:3px solid rgba(255,255,255,.4)'>TODAY — "+dd[2]+"/"+dd[1]+"</th>"+
+      "<th colspan='4'>MONTH CUMULATIVE</th>"+
+    "</tr><tr>"+
+      "<th>Service</th><th>Bardahl</th><th>Other Sales</th><th style='border-right:3px solid rgba(255,255,255,.4)'>Total</th>"+
+      "<th>Service</th><th>Bardahl</th><th>Other Sales</th><th>Total</th>"+
+    "</tr></thead><tbody>"+
+    execRows+
+    "<tr class='total-row'>"+
+      "<td colspan='2' style='padding:8px 10px'>GRAND TOTAL</td>"+
+      "<td style='text-align:right;padding:8px'>"+gDaySvc.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px'>"+gDayBardahl.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px'>"+gDayOther.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px;border-right:3px solid rgba(255,255,255,.4)'>"+gDayTotal.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px'>"+gMoSvc.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px'>"+gMoBardahl.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px'>"+gMoOther.toLocaleString("en-IN")+"</td>"+
+      "<td style='text-align:right;padding:8px'>"+gMoTotal.toLocaleString("en-IN")+"</td>"+
+    "</tr>"+
+    "</tbody></table>"+
+    (allAbsent.length>0?"<p style='color:#DC2626;font-weight:700'>ABSENT TODAY: "+allAbsent.join(", ")+"</p>":"")+
+    (allHalf.length>0?"<p style='color:#D97706;font-weight:700'>HALF DAY: "+allHalf.join(", ")+"</p>":"")+
+    "</body></html>");
     w.document.close(); w.print();
   };
 
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:18,fontWeight:800}}>Executive Daily Report</div>
+        <div>
+          <div style={{fontSize:18,fontWeight:800}}>Executive Daily Report</div>
+          <div style={{fontSize:12,color:T.txt2}}>Counter-wise service + Bardahl + Other sales with monthly cumulative</div>
+        </div>
         <Btn onClick={printReport} variant="amber">🖨 Print · PDF</Btn>
       </div>
+
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         <Input label="Date" type="date" value={selDate} onChange={setSelDate} style={{maxWidth:180}}/>
         <div>
-          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive</label>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Filter Executive</label>
           <select value={selExec} onChange={e=>setSelExec(e.target.value)}
-            style={{padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+            style={{padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
             <option value="all">All Executives</option>
             {executives.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </div>
       </div>
 
-      {/* Summary table */}
-      <Card style={{overflowX:"auto",marginBottom:16}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead>
-            <tr style={{background:T.navy,color:"#fff"}}>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Executive · Counter</th>
-              <th style={{padding:"8px 12px",textAlign:"center",fontSize:11,borderRight:"2px solid rgba(255,255,255,.3)"}} colSpan={3}>{(() => { const p=selDate.split("-"); return "Today (" + p[2] + "/" + p[1] + ")"; })()}</th>
-              <th style={{padding:"8px 12px",textAlign:"center",fontSize:11}} colSpan={3}>Month Cumulative</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11}} rowSpan={2}>Absent</th>
-            </tr>
-            <tr style={{background:T.navyL,color:"#fff",fontSize:11}}>
-              {["Service","Sales","Total","Service","Sales","Total"].map((h,i)=>(
-                <th key={i} style={{padding:"5px 10px",textAlign:"right",borderRight:i===2?`2px solid rgba(255,255,255,.3)`:"none"}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {execSummaries.length===0&&<tr><td colSpan={8} style={{padding:20,textAlign:"center",color:T.txt3}}>No reports for {fmtDate(selDate)}</td></tr>}
-            {execSummaries.map((s,i)=>(
-              <tr key={s.exec.id} style={{background:i%2===0?"#fff":T.surf,cursor:"pointer"}} onClick={()=>setExpanded(p=>({...p,[s.exec.id]:!p[s.exec.id]}))}>
-                <td style={{padding:"8px 12px",borderBottom:`1px solid ${T.bdr}`}}>
-                  <div style={{fontWeight:700}}>{s.exec.name}</div>
-                  <div style={{fontSize:11,color:T.txt2}}>{s.myCounters.map(c=>c.name).join(", ")}</div>
-                  {s.absentStaff.length>0&&<div style={{fontSize:11,color:T.red,marginTop:2}}>Absent: {s.absentStaff.join(", ")}</div>}
-                </td>
-                {[s.dayTotals.svc,s.dayTotals.sal,s.dayTotals.total,s.monthTotals.svc,s.monthTotals.sal,s.monthTotals.total].map((v,i)=>(
-                  <td key={i} style={{padding:"8px 12px",textAlign:"right",fontWeight:i===2||i===5?800:400,borderBottom:`1px solid ${T.bdr}`,
-                    borderRight:i===2?`2px solid ${T.bdr}`:"none",color:i===2||i===5?T.amber:T.txt}}>
-                    {fmtCurr(v)}
-                  </td>
-                ))}
-                <td style={{padding:"8px 12px",fontSize:12,color:T.red,borderBottom:`1px solid ${T.bdr}`}}>
-                  {s.absentStaff.length>0?s.absentStaff.join(", "):"—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          {execSummaries.length>0&&<tfoot>
-            <tr style={{background:T.amberL,fontWeight:800}}>
-              <td style={{padding:"8px 12px"}}>TOTAL</td>
-              {[grandDaySvc,grandDaySal,grandDaySvc+grandDaySal,grandMoSvc,grandMoSal,grandMoSvc+grandMoSal].map((v,i)=>(
-                <td key={i} style={{padding:"8px 12px",textAlign:"right",borderRight:i===2?`2px solid ${T.bdr}`:"none"}}>{fmtCurr(v)}</td>
-              ))}
-              <td style={{padding:"8px 12px"}}></td>
-            </tr>
-          </tfoot>}
-        </table>
-      </Card>
-    </div>
-  );
-}
-
-function OfficeReports({ state }) {
-  const dr = useDateRange("today");
-  const reports = state.serviceReports.filter(r=>r.date>=dr.from&&r.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
-  const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Service Reports</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-      {reports.length>0 && <div style={{marginBottom:16}}><StatCard label={`Reports (${dr.label})`} value={`${reports.length} reports`} sub={`Total: ${fmtCurr(totalRev)}`} color={T.amber}/></div>}
-      {reports.map(r=>{
-        const sup = state.users.find(u=>u.id===r.supervisorId);
-        return (
-          <Card key={r.id} style={{ marginBottom:14 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12, flexWrap:"wrap" }}>
-              <div>
-                <div style={{ fontWeight:700, fontSize:15 }}>Supervisor: {sup?.name}</div>
-                <div style={{ fontSize:12, color:T.txt2 }}>{reportCounterNames(r)} · Submitted {r.submittedAt}</div>
-              </div>
-              <div style={{ fontSize:22, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
-            </div>
-            {(() => {
-              const allE = r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
-              const svcE = allE.filter(e=>e.type!=="sales"&&!["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName)&&e.vehicles>0);
-              const salE = allE.filter(e=>(e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName))&&e.amount>0);
-              return <>
-                {svcE.length>0&&<Table cols={[{key:"workTypeName",label:"Work"},{key:"vehicles",label:"Veh"},{key:"rate",label:"Rate",render:e=>fmtCurr(e.rate)},{key:"amount",label:"Amount",render:e=><b>{fmtCurr(e.amount)}</b>}]} rows={svcE}/>}
-                {salE.length>0&&<><div style={{fontSize:11,fontWeight:700,color:T.grn,margin:"8px 0 4px",textTransform:"uppercase"}}>Sales</div><Table cols={[{key:"workTypeName",label:"Product"},{key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>}]} rows={salE}/></>}
-              </>;
-            })()}
-            {r.notes && <div style={{marginTop:10,fontSize:13,color:T.txt2}}>📝 {r.notes}</div>}
-          </Card>
-        );
-      })}
-      {reports.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
-    </div>
-  );
-}
-
-function OfficeAttendance({ state }) {
-  const dr = useDateRange("today");
-  const att = state.attendance.filter(a=>a.date>=dr.from&&a.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
-  const presentC = att.filter(a=>a.status==="present").length;
-  const absentC  = att.filter(a=>a.status==="absent").length;
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Attendance Records</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-      {att.length>0 && (
-        <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-          <StatCard label="Present" value={presentC} color={T.grn}/>
-          <StatCard label="Absent" value={absentC} color={T.red}/>
-          <StatCard label="Records" value={att.length} color={T.navy}/>
+      {/* Grand total summary bar */}
+      {summaries.length>0 && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
+          <StatCard label="Today Service" value={fmtCurr(gDaySvc)} color={T.navy} icon="🔧"/>
+          <StatCard label="Today Bardahl" value={fmtCurr(gDayBardahl)} color="#15803D" icon="🛢"/>
+          <StatCard label="Today Other Sales" value={fmtCurr(gDayOther)} color="#0369A1" icon="🛒"/>
+          <StatCard label="Today Total" value={fmtCurr(gDayTotal)} color={T.amber} icon="💰"/>
+          <StatCard label="Month Total" value={fmtCurr(gMoTotal)} color={T.navy} icon="📅"/>
         </div>
       )}
-      <Table cols={[
-        {key:"date",label:"Date",render:r=>fmtDate(r.date)},
-        {key:"staff",label:"Staff",render:r=>state.users.find(u=>u.id===r.staffId)?.name||r.staffId},
-        {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name},
-        {key:"counter",label:"Counter",render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
-        {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
-        {key:"reason",label:"Reason",render:r=>r.reason||"—"},
-      ]} rows={att} emptyMsg={`No attendance records for ${dr.label}`}/>
-    </div>
-  );
-}
 
-function OfficeExport({ state, toast }) {
-  const downloadCSV = (data, filename) => {
-    if (!data.length) { toast.show("No data to export","error"); return; }
-    const headers = Object.keys(data[0]);
-    const csv = [headers.join(","), ...data.map(r=>headers.map(h=>`"${r[h]||""}"`).join(","))].join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download = filename;
-    a.click();
-    toast.show(`Exported ${filename}`);
-  };
-
-  const exportReports = () => downloadCSV(
-    state.serviceReports.flatMap(r=>(r.counters||[]).flatMap(c=>c.entries.filter(e=>e.vehicles>0).map(e=>({Date:r.date, Counter:c.counterName, Supervisor:state.users.find(u=>u.id===r.supervisorId)?.name, WorkType:e.workTypeName, Vehicles:e.vehicles, Rate:e.rate, Amount:e.amount, ReportTotal:r.totalAmount, SubmittedAt:r.submittedAt})))),
-    `service_reports_${today()}.csv`
-  );
-
-  const exportAttendance = () => downloadCSV(
-    state.attendance.map(a=>({
-      Date:a.date, Staff:state.users.find(u=>u.id===a.staffId)?.name, Supervisor:state.users.find(u=>u.id===a.supervisorId)?.name,
-      Status:a.status, Reason:a.reason||"", MarkedAt:a.markedAt
-    })),
-    `attendance_${today()}.csv`
-  );
-
-  const exportStaff = () => downloadCSV(
-    state.users.map(u=>({ EmpId:u.empId, Name:u.name, Role:ROLE_LABELS[u.role], ReportsTo:state.users.find(x=>x.id===u.managerId)?.name||"—", Phone:u.phone, Email:u.email, Active:u.active })),
-    `staff_directory_${today()}.csv`
-  );
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Export Data</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:16 }}>
-        {[
-          { title:"Service Reports", desc:"All daily service reports with entries", icon:"📋", fn:exportReports },
-          { title:"Attendance Records", desc:"All staff attendance records", icon:"👥", fn:exportAttendance },
-          { title:"Staff Directory", desc:"Full list of all staff and roles", icon:"📂", fn:exportStaff },
-        ].map(item=>(
-          <Card key={item.title} style={{ textAlign:"center" }}>
-            <div style={{ fontSize:32, marginBottom:10 }}>{item.icon}</div>
-            <div style={{ fontWeight:700, marginBottom:4 }}>{item.title}</div>
-            <div style={{ fontSize:12, color:T.txt2, marginBottom:16 }}>{item.desc}</div>
-            <Btn onClick={item.fn} size="sm" style={{ width:"100%", justifyContent:"center" }}>📥 Export CSV</Btn>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  IT ADMIN PORTAL
-// ═══════════════════════════════════════════════════════════════════════════════
-function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
-  const [page, setPage] = useState("users");
-  const navItems = [
-    { id:"users",     icon:"👤", label:"User Management" },
-    { id:"counters",  icon:"🏪", label:"Counters" },
-    { id:"worktypes", icon:"🔧", label:"Work Types" },
-    { id:"reports",   icon:"📋", label:"All Reports" },
-    { id:"data",      icon:"🗄️", label:"Data Management" },
-    { id:"export",    icon:"📥", label:"Export / Reports" },
-  ];
-
-  return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={setPage} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))}>
-      {page==="users"     && <UserMgmt state={state} setState={setState} toast={toast}/>}
-      {page==="counters"  && <CounterMgmt state={state} setState={setState} toast={toast}/>}
-      {page==="worktypes" && <WorkTypeMgmt state={state} setState={setState} toast={toast}/>}
-      {page==="reports"   && <AllReports state={state}/>}
-      {page==="data"      && <DataMgmt state={state} setState={setState} toast={toast}/>}
-      {page==="export"    && <OfficeExport state={state} toast={toast}/>}
-    </Shell>
-  );
-}
-
-function UserMgmt({ state, setState, toast }) {
-  const [modal, setModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ empId:"", name:"", role:"field_staff", email:"", phone:"", managerId:"", counter:"" });
-  const [newPwd, setNewPwd] = useState("");
-
-  const openNew = () => { setEditing(null); setForm({ empId:"", name:"", role:"field_staff", email:"", phone:"", managerId:"", counter:"", dob:"", joining:"", weddingAnniversary:"" }); setNewPwd(""); setModal(true); };
-  const openEdit = (u) => { setEditing(u); setForm({ empId:u.empId, name:u.name, role:u.role, email:u.email||"", phone:u.phone||"", managerId:u.managerId||"", counter:u.counter||"", dob:u.dob||"", joining:u.joining||"", weddingAnniversary:u.weddingAnniversary||"" }); setNewPwd(""); setModal(true); };
-
-  const save = () => {
-    if (!form.empId||!form.name) { toast.show("ID and Name required","error"); return; }
-    if (editing) {
-      const updatedUsers = state.users.map(u=>u.id===editing.id?{...u,...form}:u);
-      const updatedPwds  = newPwd ? {...state.passwords,[form.empId]:newPwd} : state.passwords;
-      // Push to Supabase immediately so other devices get it
-      DB.upsertUsers(updatedUsers).catch(console.error);
-      DB.upsertPasswords(updatedPwds).catch(console.error);
-      setState(p=>({ ...p, users: updatedUsers, passwords: updatedPwds, _configVersion:(p._configVersion||0)+1 }));
-      toast.show("User updated — synced to cloud ✅");
-    } else {
-      if (state.users.find(u=>u.empId===form.empId)) { toast.show("Employee ID already exists","error"); return; }
-      const newUser = { id:`u_${Date.now()}`, ...form, dob:form.dob||"", joining:form.joining||"", weddingAnniversary:form.weddingAnniversary||"", active:true };
-      const newUsers = [...state.users, newUser];
-      const newPwds2 = {...state.passwords, [form.empId]: newPwd||"pass@123"};
-      // Push to Supabase immediately
-      DB.upsertUsers(newUsers).catch(console.error);
-      DB.upsertPasswords(newPwds2).catch(console.error);
-      setState(p=>({ ...p, users: newUsers, passwords: newPwds2, _configVersion:(p._configVersion||0)+1 }));
-      toast.show(`User created · Password: ${newPwd||"pass@123"} — synced to cloud ✅`);
-    }
-    setModal(false);
-  };
-
-  const toggleActive = (u) => {
-    setState(p=>({ ...p, users:p.users.map(x=>x.id===u.id?{...x,active:!x.active}:x) }));
-    toast.show(u.active?"User deactivated":"User activated");
-  };
-
-  const deleteUser = (u) => {
-    if (!confirm(`Delete ${u.name}? This cannot be undone.`)) return;
-    setState(p=>({ ...p, users:p.users.filter(x=>x.id!==u.id) }));
-    toast.show("User deleted");
-  };
-
-  const managers = state.users.filter(u=>["manager","md","supervisor"].includes(u.role)&&u.active);
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:10 }}>
-        <div style={{ fontSize:18, fontWeight:800 }}>User Management</div>
-        <div style={{ display:"flex", gap:8 }}>
-          <Btn onClick={()=>{ if(confirm("Reset ALL users to the default staff list? Any locally added users will be removed.")) { setState(p=>({...p, users:INITIAL_STATE.users, passwords:INITIAL_STATE.passwords, _configVersion:0})); toast.show("User list reset to default"); }}} variant="ghost" size="sm">↺ Reset to Default</Btn>
-          <Btn onClick={openNew} variant="amber">+ Add User</Btn>
-        </div>
-      </div>
-
-      <Table cols={[
-        {key:"empId",label:"ID"},
-        {key:"name",label:"Name",render:r=><b>{r.name}</b>},
-        {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]}>{ROLE_LABELS[r.role]}</Badge>},
-        {key:"manager",label:"Reports To",render:r=>state.users.find(u=>u.id===r.managerId)?.name||"—"},
-        {key:"dob",label:"D.O.B",render:r=>r.dob?r.dob.split("-").reverse().join("."):"—"},
-        {key:"joining",label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("."):"—"},
-        {key:"phone",label:"Phone"},
-        {key:"status",label:"Status",render:r=><Badge color={r.active?T.grn:T.red}>{r.active?"Active":"Inactive"}</Badge>},
-        {key:"actions",label:"Actions",render:r=>(
-          <div style={{display:"flex",gap:6}}>
-            <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>
-            <Btn onClick={()=>toggleActive(r)} size="sm" variant={r.active?"ghost":"success"}>{r.active?"Deactivate":"Activate"}</Btn>
-            <Btn onClick={()=>deleteUser(r)} size="sm" variant="danger">Delete</Btn>
-          </div>
-        )},
-      ]} rows={state.users}/>
-
-      <Modal open={modal} onClose={()=>setModal(false)} title={editing?"Edit User":"Add New User"}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <Input label="Employee ID" value={form.empId} onChange={v=>setForm(p=>({...p,empId:v}))} required/>
-          <Input label="Full Name" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} required/>
-        </div>
-        <Select label="Role" value={form.role} onChange={v=>setForm(p=>({...p,role:v}))} options={Object.entries(ROLE_LABELS).map(([v,l])=>({value:v,label:l}))}/>
-        <Select label="Reports To" value={form.managerId} onChange={v=>setForm(p=>({...p,managerId:v}))} options={[{value:"",label:"— None —"},...managers.map(m=>({value:m.id,label:`${m.name} (${ROLE_LABELS[m.role]})`}))]}/>
-        {["supervisor","field_staff"].includes(form.role) && <Input label="Counter / Location" value={form.counter} onChange={v=>setForm(p=>({...p,counter:v}))} placeholder="e.g. Whitefield Motors"/>}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <Input label="Email" value={form.email} onChange={v=>setForm(p=>({...p,email:v}))}/>
-          <Input label="Phone" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))}/>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-          <Input label="Date of Birth" type="date" value={form.dob||""} onChange={v=>setForm(p=>({...p,dob:v}))}/>
-          <Input label="Date of Joining" type="date" value={form.joining||""} onChange={v=>setForm(p=>({...p,joining:v}))}/>
-          <Input label="Wedding Anniversary" type="date" value={form.weddingAnniversary||""} onChange={v=>setForm(p=>({...p,weddingAnniversary:v}))}/>
-        </div>
-        <Input label={editing?"New Password (leave blank to keep)":"Password"} type="password" value={newPwd} onChange={setNewPwd} placeholder={editing?"Leave blank to keep current":"Default: pass@123"}/>
-        <div style={{ display:"flex", gap:8, marginTop:8 }}>
-          <Btn onClick={save} variant="primary">{editing?"Save Changes":"Create User"}</Btn>
-          <Btn onClick={()=>setModal(false)} variant="ghost">Cancel</Btn>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-function CounterMgmt({ state, setState, toast }) {
-  const [modal, setModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name:"", supervisorId:"", dealership:"", city:"" });
-
-  const sups = state.users.filter(u=>u.role==="supervisor"&&u.active);
-
-  const save = () => {
-    if (!form.name) { toast.show("Counter name required","error"); return; }
-    if (editing) {
-      setState(p=>({ ...p, counters:p.counters.map(c=>c.id===editing.id?{...c,...form}:c), _configVersion:(p._configVersion||0)+1 }));
-      toast.show("Counter updated");
-    } else {
-      setState(p=>({ ...p, counters:[...p.counters,{ id:`c_${Date.now()}`,...form }] }));
-      toast.show("Counter added");
-    }
-    setModal(false);
-  };
-
-  const del = (c) => {
-    if (!confirm(`Delete counter "${c.name}"?`)) return;
-    setState(p=>({ ...p, counters:p.counters.filter(x=>x.id!==c.id) }));
-    toast.show("Counter deleted");
-  };
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
-        <div style={{ fontSize:18, fontWeight:800 }}>Counter Management</div>
-        <Btn onClick={()=>{setEditing(null);setForm({name:"",supervisorId:"",dealership:"",city:""});setModal(true)}} variant="amber">+ Add Counter</Btn>
-      </div>
-      <Table cols={[
-        {key:"name",label:"Counter Name",render:r=><b>{r.name}</b>},
-        {key:"dealership",label:"Dealership"},
-        {key:"city",label:"City"},
-        {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
-        {key:"actions",label:"",render:r=>(
-          <div style={{display:"flex",gap:6}}>
-            <Btn onClick={()=>{setEditing(r);setForm({name:r.name,supervisorId:r.supervisorId||"",dealership:r.dealership||"",city:r.city||""});setModal(true)}} size="sm" variant="outline">Edit</Btn>
-            <Btn onClick={()=>del(r)} size="sm" variant="danger">Delete</Btn>
-          </div>
-        )},
-      ]} rows={state.counters}/>
-      <Modal open={modal} onClose={()=>setModal(false)} title={editing?"Edit Counter":"Add Counter"}>
-        <Input label="Counter Name" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} required/>
-        <Input label="Dealership Name" value={form.dealership} onChange={v=>setForm(p=>({...p,dealership:v}))}/>
-        <Input label="City" value={form.city} onChange={v=>setForm(p=>({...p,city:v}))}/>
-        <Select label="Assigned Supervisor" value={form.supervisorId} onChange={v=>setForm(p=>({...p,supervisorId:v}))} options={[{value:"",label:"— None —"},...sups.map(s=>({value:s.id,label:s.name}))]}/>
-        <div style={{display:"flex",gap:8,marginTop:8}}>
-          <Btn onClick={save}>{editing?"Save":"Add Counter"}</Btn>
-          <Btn onClick={()=>setModal(false)} variant="ghost">Cancel</Btn>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-function WorkTypeMgmt({ state, setState, toast }) {
-  const [modal, setModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [name, setName] = useState("");
-  const [rate, setRate] = useState("");
-  const [editCat, setEditCat] = useState("service");
-
-  const save = () => {
-    if (!name) { toast.show("Name required","error"); return; }
-    if (editing) {
-      setState(p=>({ ...p, workTypes:p.workTypes.map(w=>w.id===editing.id?{...w,name,defaultRate:Number(rate),category:editCat}:w), _configVersion:(p._configVersion||0)+1 }));
-      toast.show("Work type updated");
-    } else {
-      setState(p=>({ ...p, workTypes:[...p.workTypes,{ id:`wt_${Date.now()}`, name, defaultRate:Number(rate), category:editCat||"service" }], _configVersion:(p._configVersion||0)+1 }));
-      toast.show("Work type added");
-    }
-    setModal(false);
-  };
-
-  const del = (w) => {
-    if (!confirm(`Delete "${w.name}"?`)) return;
-    setState(p=>({ ...p, workTypes:p.workTypes.filter(x=>x.id!==w.id) }));
-    toast.show("Work type deleted");
-  };
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
-        <div style={{ fontSize:18, fontWeight:800 }}>Work Types & Rates</div>
-        <Btn onClick={()=>{setEditing(null);setName("");setRate("");setModal(true)}} variant="amber">+ Add Work Type</Btn>
-      </div>
-      <div style={{ fontSize:12, color:T.txt2, marginBottom:14 }}>These are the default rates. Supervisors can override per-report.</div>
-      <Table cols={[
-        {key:"name",label:"Work Type",render:r=><b>{r.name}</b>},
-        {key:"category",label:"Type",render:r=><Badge color={r.category==="sales"?T.grn:T.navy}>{r.category==="sales"?"Sales":"Service"}</Badge>},
-        {key:"defaultRate",label:"Default Rate",render:r=>fmtCurr(r.defaultRate)},
-        {key:"actions",label:"",render:r=>(
-          <div style={{display:"flex",gap:6}}>
-            <Btn onClick={()=>{setEditing(r);setName(r.name);setRate(r.defaultRate);setEditCat(r.category||"service");setModal(true)}} size="sm" variant="outline">Edit</Btn>
-            <Btn onClick={()=>del(r)} size="sm" variant="danger">Delete</Btn>
-          </div>
-        )},
-      ]} rows={state.workTypes}/>
-      <Modal open={modal} onClose={()=>setModal(false)} title={editing?"Edit Work Type":"Add Work Type"}>
-        <Input label="Work Type Name" value={name} onChange={setName} required/>
-        <Input label="Default Rate (₹)" type="number" value={rate} onChange={setRate}/>
-        <Select label="Category" value={editCat||"service"} onChange={v=>setEditCat(v)} options={[{value:"service",label:"Service"},{value:"sales",label:"Sales / Product"}]}/>
-        <div style={{display:"flex",gap:8,marginTop:8}}>
-          <Btn onClick={save}>{editing?"Save":"Add"}</Btn>
-          <Btn onClick={()=>setModal(false)} variant="ghost">Cancel</Btn>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-function AllReports({ state }) {
-  const dr = useDateRange("today");
-  const reports = state.serviceReports.filter(r=>r.date>=dr.from&&r.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>All Service Reports</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginBottom:20 }}>
-        <StatCard label="Total Revenue" value={fmtCurr(reports.reduce((s,r)=>s+r.totalAmount,0))} color={T.amber}/>
-        <StatCard label="Reports" value={reports.length} color={T.navy}/>
-        <StatCard label="Counters" value={new Set(reports.map(r=>r.counterName||r.counterId)).size} color={T.grn}/>
-      </div>
-      {reports.map(r=>{
-        const sup2 = state.users.find(u=>u.id===r.supervisorId);
-        return (
-          <Card key={r.id} style={{ marginBottom:14 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-              <div><b style={{fontSize:15}}>{sup2?.name}</b><div style={{fontSize:12,color:T.txt2}}>{reportCounterNames(r)} · {r.submittedAt}</div></div>
-              <b style={{fontSize:20,color:T.amber}}>{fmtCurr(r.totalAmount)}</b>
-            </div>
-            {(() => {
-              const allE = r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
-              return <Table cols={[
-                {key:"workTypeName",label:"Work"},
-                {key:"vehicles",label:"Veh",render:e=>e.vehicles||"—"},
-                {key:"amount",label:"Amount",render:e=><b style={{color:e.type==="sales"?T.grn:T.navy}}>{fmtCurr(e.amount)}</b>},
-              ]} rows={allE.filter(e=>(e.vehicles>0||e.amount>0))}/>;
-            })()}
-          </Card>
-        );
-      })}
-      {reports.length===0&&<Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
-    </div>
-  );
-}
-
-function DataMgmt({ state, setState, toast }) {
-  const deleteReport = (id) => {
-    if (!confirm("Delete this report?")) return;
-    setState(p=>({ ...p, serviceReports:p.serviceReports.filter(r=>r.id!==id) }));
-    toast.show("Report deleted");
-  };
-  const deleteAttendance = (date) => {
-    if (!confirm(`Delete all attendance for ${date}?`)) return;
-    setState(p=>({ ...p, attendance:p.attendance.filter(a=>a.date!==date) }));
-    toast.show("Attendance records deleted");
-  };
-
-  const attDates = [...new Set(state.attendance.map(a=>a.date))].sort().reverse();
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Data Management</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-        <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.red }}>🗑 Delete Service Reports</div>
-          {state.serviceReports.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>(
-            <div key={r.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
-              <div>
-                <div style={{fontSize:13,fontWeight:600}}>{state.users.find(u=>u.id===r.supervisorId)?.name}</div>
-                <div style={{fontSize:11,color:T.txt2}}>{fmtDate(r.date)} · {reportCounterNames(r)} · {fmtCurr(r.totalAmount)}</div>
-              </div>
-              <Btn onClick={()=>deleteReport(r.id)} size="sm" variant="danger">Delete</Btn>
-            </div>
-          ))}
-        </Card>
-        <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.red }}>🗑 Delete Attendance Records</div>
-          {attDates.map(d=>(
-            <div key={d} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
-              <div>
-                <div style={{fontSize:13,fontWeight:600}}>{fmtDate(d)}</div>
-                <div style={{fontSize:11,color:T.txt2}}>{state.attendance.filter(a=>a.date===d).length} records</div>
-              </div>
-              <Btn onClick={()=>deleteAttendance(d)} size="sm" variant="danger">Delete</Btn>
-            </div>
-          ))}
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  COLLECTION REPORT (matches Image 1 format)
-// ═══════════════════════════════════════════════════════════════════════════════
-function CollectionReportView({ date, report, counters, allReports, attendance, users, onSave, readOnly }) {
-  const [bankEntries, setBankEntries] = useState(report?.bankEntries || [
-    { id:1, description:"", sbi:"", kbl:"" },
-    { id:2, description:"", sbi:"", kbl:"" },
-    { id:3, description:"", sbi:"", kbl:"" },
-  ]);
-  const [expenses, setExpenses] = useState(report?.expenses || [
-    { id:1, description:"", sbi:"", kbl:"" },
-    { id:2, description:"", sbi:"", kbl:"" },
-    { id:3, description:"", sbi:"", kbl:"" },
-  ]);
-
-  const totalSBI = bankEntries.reduce((s,r)=>s+(Number(r.sbi)||0),0);
-  const totalKBL = bankEntries.reduce((s,r)=>s+(Number(r.kbl)||0),0);
-  const totalCollBank = totalSBI + totalKBL;
-  const expSBI = expenses.reduce((s,r)=>s+(Number(r.sbi)||0),0);
-  const expKBL = expenses.reduce((s,r)=>s+(Number(r.kbl)||0),0);
-  const grandExpenses = expSBI + expKBL;
-
-  // Service totals from daily reports for this date
-  // allReports is already pre-filtered by date range from parent
-  const dayReports = allReports;
-  const allRptEntries = (r) => r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
-  const serviceEntries = (r) => allRptEntries(r).filter(e=>e.type!=="sales"&&!['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName));
-  const salesEntries   = (r) => allRptEntries(r).filter(e=>e.type==="sales"||['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName));
-
-  const absent = attendance.filter(a=>a.date===date&&a.status==='absent');
-
-  const printReport = () => {
-    const w = window.open('','_blank');
-    const counterRows = dayReports.map((r,i) => {
-      const cname = (r.counters||[])[0]?.counterName || users.find(u=>u.id===r.supervisorId)?.counter || '—';
-      const svcTotal = serviceEntries(r).reduce((s,e)=>s+e.amount,0);
-      const salesTotal = salesEntries(r).reduce((s,e)=>s+e.amount,0);
-      return `<tr><td style="border:1px solid #ccc;padding:5px 10px">${cname}</td><td style="border:1px solid #ccc;padding:5px 10px;text-align:right">${svcTotal.toLocaleString('en-IN')}</td><td style="border:1px solid #ccc;padding:5px 10px;text-align:right">${salesTotal.toLocaleString('en-IN')}</td><td style="border:1px solid #ccc;padding:5px 10px;text-align:right">${(svcTotal+salesTotal).toLocaleString('en-IN')}</td></tr>`;
-    }).join('');
-    const absentList = absent.map(a=>users.find(u=>u.id===a.staffId)?.name||'').filter(Boolean).join(', ');
-    w.document.write(`<!DOCTYPE html><html><head><title>Collection Report - ${date}</title>
-    <style>body{font-family:Arial,sans-serif;margin:20px;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:16px}
-    h2,h3{text-align:center;margin:4px 0}.section-title{background:#f0f0f0;font-weight:700;padding:6px 10px;text-align:center}</style></head>
-    <body><h2>BENAKA ENTERPRISES</h2><h3>COLLECTION REPORT</h3><h3>Date: ${date.split('-').reverse().join('-')}</h3><br>
-    <table><thead><tr><th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">COUNTER</th>
-    <th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">SERVICE</th>
-    <th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">SALES</th>
-    <th style="border:1px solid #ccc;padding:6px;background:#e8e8e8">TOTAL</th></tr></thead>
-    <tbody>${counterRows}</tbody>
-    <tfoot>
-    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">TOTAL SERVICE</td>
-    <td style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">${dayReports.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0).toLocaleString('en-IN')}</td></tr>
-    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">TOTAL SALES</td>
-    <td style="border:1px solid #ccc;padding:5px 10px;font-weight:700;text-align:right">${dayReports.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0).toLocaleString('en-IN')}</td></tr>
-    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px 10px;font-weight:800;text-align:right;background:#f8f8f8">GRAND TOTAL</td>
-    <td style="border:1px solid #ccc;padding:5px 10px;font-weight:800;text-align:right;background:#f8f8f8">${dayReports.reduce((s,r)=>s+r.totalAmount,0).toLocaleString('en-IN')}</td></tr>
-    </tfoot></table>
-    <table><thead><tr><th class="section-title" colspan="5">COLLECTION (BANK)</th></tr>
-    <tr><th style="border:1px solid #ccc;padding:5px">COLLECTION</th><th style="border:1px solid #ccc;padding:5px">SBI</th><th style="border:1px solid #ccc;padding:5px">KBL</th><th style="border:1px solid #ccc;padding:5px">TOTAL SBI</th><th style="border:1px solid #ccc;padding:5px">TOTAL KBL</th></tr></thead>
-    <tbody>${bankEntries.map(r=>`<tr><td style="border:1px solid #ccc;padding:5px">${r.description}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.sbi||''}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.kbl||''}</td><td style="border:1px solid #ccc;padding:5px"></td><td style="border:1px solid #ccc;padding:5px"></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td style="border:1px solid #ccc;padding:5px;font-weight:700">TOTAL</td><td style="border:1px solid #ccc;padding:5px;font-weight:700;text-align:right">${totalSBI.toLocaleString('en-IN')}</td><td style="border:1px solid #ccc;padding:5px;font-weight:700;text-align:right">${totalKBL.toLocaleString('en-IN')}</td><td colspan="2"></td></tr>
-    <tr><td colspan="3" style="border:1px solid #ccc;padding:5px;font-weight:700">TOTAL COLLECTION BANK</td><td colspan="2" style="border:1px solid #ccc;padding:5px;font-weight:800;text-align:right">${totalCollBank.toLocaleString('en-IN')}</td></tr></tfoot></table>
-    <table><thead><tr><th class="section-title" colspan="3">EXPENSES</th></tr>
-    <tr><th style="border:1px solid #ccc;padding:5px">DESCRIPTION</th><th style="border:1px solid #ccc;padding:5px">SBI</th><th style="border:1px solid #ccc;padding:5px">KBL</th></tr></thead>
-    <tbody>${expenses.map(r=>`<tr><td style="border:1px solid #ccc;padding:5px">${r.description}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.sbi||''}</td><td style="border:1px solid #ccc;padding:5px;text-align:right">${r.kbl||''}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td style="border:1px solid #ccc;padding:5px;font-weight:700">TOTAL</td><td colspan="2" style="border:1px solid #ccc;padding:5px;font-weight:700;text-align:right">${grandExpenses.toLocaleString('en-IN')}</td></tr>
-    <tr><td colspan="2" style="border:1px solid #ccc;padding:5px;font-weight:800">GRAND TOTAL EXPENSES</td><td style="border:1px solid #ccc;padding:5px;font-weight:800;text-align:right">${grandExpenses.toLocaleString('en-IN')}</td></tr></tfoot></table>
-    ${absentList ? `<p><strong>ABSENT: ${date.split('-').reverse().join('/')}</strong><br>${absentList}</p>` : ''}
-    </body></html>`);
-    w.document.close(); w.print();
-  };
-
-  const updateBank = (i,f,v) => setBankEntries(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
-  const updateExp  = (i,f,v) => setExpenses(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
-
-  const td = (content, align='left', bold=false, bg='') =>
-    `style="border:1px solid ${T.bdr};padding:7px 10px;text-align:${align};font-weight:${bold?700:400};background:${bg||'transparent'};font-size:13px"`;
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, marginBottom:16 }}>
-        <div style={{ fontSize:15, fontWeight:800 }}>Collection Report — {date ? date.split('-').reverse().join('-') : ''}</div>
-        <div style={{ display:"flex", gap:8 }}>
-          <Btn onClick={printReport} variant="ghost" size="sm">🖨 Print · PDF</Btn>
-          {!readOnly && onSave && <Btn onClick={()=>onSave(bankEntries, expenses)} variant="amber" size="sm">Save Report</Btn>}
-        </div>
-      </div>
-
-      {/* SERVICE SUMMARY */}
-      <Card style={{ marginBottom:12 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase", letterSpacing:".04em" }}>Service & Sales Summary</div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr style={{ background:T.surf }}>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"left" }}>Counter</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>Service (₹)</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>Sales (₹)</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>Total (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dayReports.map((r,i) => {
-                const cname = (r.counters||[])[0]?.counterName || users.find(u=>u.id===r.supervisorId)?.counter || '—';
-                const svcT = serviceEntries(r).reduce((s,e)=>s+e.amount,0);
-                const salT = salesEntries(r).reduce((s,e)=>s+e.amount,0);
-                return <tr key={i}>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:600 }}>{cname}</td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>{svcT.toLocaleString('en-IN')}</td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>{salT.toLocaleString('en-IN')}</td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right", fontWeight:700, color:T.amber }}>{(svcT+salT).toLocaleString('en-IN')}</td>
-                </tr>;
-              })}
-            </tbody>
-            <tfoot>
-              {[
-                ["TOTAL SERVICE", dayReports.reduce((s,r)=>s+serviceEntries(r).reduce((ss,e)=>ss+e.amount,0),0)],
-                ["TOTAL SALES",   dayReports.reduce((s,r)=>s+salesEntries(r).reduce((ss,e)=>ss+e.amount,0),0)],
-              ].map(([lbl,val])=>(
-                <tr key={lbl} style={{ background:T.surf }}>
-                  <td colSpan={3} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:700, textAlign:"right" }}>{lbl}</td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.navy, textAlign:"right" }}>{fmtCurr(val)}</td>
-                </tr>
-              ))}
-              <tr style={{ background:T.navyXL }}>
-                <td colSpan={3} style={{ border:`1px solid ${T.bdr}`, padding:"8px 10px", fontWeight:800, textAlign:"right", color:T.navy }}>GRAND TOTAL (SERVICE + SALES)</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"8px 10px", fontWeight:800, color:T.amber, textAlign:"right", fontSize:15 }}>{fmtCurr(dayReports.reduce((s,r)=>s+r.totalAmount,0))}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        {/* Bar chart */}
-        {dayReports.length > 0 && (
-          <div style={{ marginTop:14 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:T.txt2, textTransform:"uppercase", marginBottom:8 }}>Visual breakdown</div>
-            {dayReports.map((r,i) => {
-              const cname = (r.counters||[])[0]?.counterName || '—';
-              const max = Math.max(...dayReports.map(x=>x.totalAmount), 1);
-              return <div key={i} style={{ marginBottom:8 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3 }}>
-                  <span style={{ fontWeight:600 }}>{cname}</span>
-                  <span style={{ fontWeight:700, color:T.amber }}>{fmtCurr(r.totalAmount)}</span>
-                </div>
-                <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${r.totalAmount/max*100}%`, background:T.amber, borderRadius:4 }}/>
-                </div>
-              </div>;
-            })}
-          </div>
-        )}
-      </Card>
-
-      {/* COLLECTION BANK */}
-      <Card style={{ marginBottom:12 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase" }}>Collection (Bank)</div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr style={{ background:T.surf }}>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"left", width:"40%" }}>COLLECTION</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>SBI (₹)</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>KBL (₹)</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>TOTAL SBI</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>TOTAL KBL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bankEntries.map((row,i) => (
-                <tr key={i}>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                    {readOnly ? row.description : <input value={row.description} onChange={e=>updateBank(i,'description',e.target.value)} placeholder="Description" style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", background:"transparent" }}/>}
-                  </td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                    {readOnly ? row.sbi||'' : <input type="number" value={row.sbi} onChange={e=>updateBank(i,'sbi',e.target.value)} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
-                  </td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                    {readOnly ? row.kbl||'' : <input type="number" value={row.kbl} onChange={e=>updateBank(i,'kbl',e.target.value)} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
-                  </td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 10px", textAlign:"right", color:T.txt2 }}></td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 10px", textAlign:"right", color:T.txt2 }}></td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ background:T.surf }}>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800 }}>TOTAL</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{totalSBI.toLocaleString('en-IN')}</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{totalKBL.toLocaleString('en-IN')}</td>
-                <td colSpan={2} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px" }}></td>
-              </tr>
-              <tr style={{ background:T.navyXL }}>
-                <td colSpan={4} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.navy }}>TOTAL COLLECTION BANK</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>{fmtCurr(totalCollBank)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        {!readOnly && <Btn onClick={()=>setBankEntries(p=>[...p,{id:Date.now(),description:'',sbi:'',kbl:''}])} size="sm" variant="ghost" style={{marginTop:8}}>+ Add row</Btn>}
-      </Card>
-
-      {/* EXPENSES */}
-      <Card style={{ marginBottom:12 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:T.navy, marginBottom:10, textTransform:"uppercase" }}>Expenses</div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr style={{ background:T.surf }}>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"left", width:"50%" }}>DESCRIPTION</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>SBI (₹)</th>
-                <th style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", textAlign:"right" }}>KBL (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.map((row,i) => (
-                <tr key={i}>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                    {readOnly ? row.description : <input value={row.description} onChange={e=>setExpenses(p=>p.map((r,j)=>j===i?{...r,description:e.target.value}:r))} placeholder="Expense description" style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", background:"transparent" }}/>}
-                  </td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                    {readOnly ? row.sbi||'' : <input type="number" value={row.sbi} onChange={e=>setExpenses(p=>p.map((r,j)=>j===i?{...r,sbi:e.target.value}:r))} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
-                  </td>
-                  <td style={{ border:`1px solid ${T.bdr}`, padding:"5px 8px" }}>
-                    {readOnly ? row.kbl||'' : <input type="number" value={row.kbl} onChange={e=>setExpenses(p=>p.map((r,j)=>j===i?{...r,kbl:e.target.value}:r))} style={{ width:"100%", border:"none", outline:"none", fontSize:13, fontFamily:"inherit", textAlign:"right", background:"transparent" }}/>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ background:T.surf }}>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800 }}>TOTAL</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{expSBI.toLocaleString('en-IN')}</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, textAlign:"right" }}>{expKBL.toLocaleString('en-IN')}</td>
-              </tr>
-              <tr style={{ background:T.navyXL }}>
-                <td colSpan={2} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.navy }}>GRAND TOTAL EXPENSES</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.red, textAlign:"right" }}>{fmtCurr(grandExpenses)}</td>
-              </tr>
-              <tr style={{ background:T.grnL }}>
-                <td colSpan={2} style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.grn }}>NET (Collection − Expenses)</td>
-                <td style={{ border:`1px solid ${T.bdr}`, padding:"7px 10px", fontWeight:800, color:T.grn, textAlign:"right" }}>{fmtCurr(totalCollBank - grandExpenses)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        {!readOnly && <Btn onClick={()=>setExpenses(p=>[...p,{id:Date.now(),description:'',sbi:'',kbl:''}])} size="sm" variant="ghost" style={{marginTop:8}}>+ Add row</Btn>}
-      </Card>
-
-      {/* ABSENT */}
-      {absent.length > 0 && (
-        <Card>
-          <div style={{ fontSize:13, fontWeight:700, color:T.red, marginBottom:8 }}>ABSENT — {date ? date.split('-').reverse().join('/') : ''}</div>
-          {absent.map((a,i) => {
-            const staff = users.find(u=>u.id===a.staffId);
-            return <div key={i} style={{ fontSize:13, padding:"4px 0" }}>{i+1}. {staff?.name} {a.reason?`— ${a.reason}`:''}</div>;
-          })}
-        </Card>
+      {summaries.length===0 && (
+        <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No reports submitted for {fmtDate(selDate)}</div></Card>
       )}
-    </div>
-  );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  SALARY MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════════════════
-function SalaryView({ user, state, setState, toast, viewScope }) {
-  const [month, setMonth] = useState(today().slice(0,7));
-  const [modal, setModal] = useState(false);
-  const [editSal, setEditSal] = useState(null);
-  const [form, setForm] = useState({ userId:"", basic:0, allowances:0, deductions:0, paidOn:"", note:"" });
-
-  // Scope: 'all' for MD/manager, 'mine' for executive
-  const staffInScope = viewScope === 'all'
-    ? state.users.filter(u=>u.active && u.role !== 'md')
-    : state.users.filter(u=>u.managerId === user.id && u.active);
-
-  const monthSalaries = state.salaries.filter(s=>s.month===month);
-  const totalPaid = monthSalaries.reduce((s,sal)=>s+(Number(sal.netSalary)||0),0);
-
-  const openEdit = (s) => {
-    setEditSal(s);
-    setForm({ userId:s.userId, basic:s.basicSalary, allowances:s.allowances, deductions:s.deductions, paidOn:s.paidOn||'', note:s.note||'' });
-    setModal(true);
-  };
-  const openNew = (uid) => {
-    setEditSal(null);
-    setForm({ userId:uid, basic:0, allowances:0, deductions:0, paidOn:today(), note:'' });
-    setModal(true);
-  };
-
-  const save = () => {
-    const net = (Number(form.basic)||0) + (Number(form.allowances)||0) - (Number(form.deductions)||0);
-    const sal = {
-      id: editSal?.id || `sal_${Date.now()}`,
-      userId: form.userId, month,
-      basicSalary: Number(form.basic), allowances: Number(form.allowances),
-      deductions: Number(form.deductions), netSalary: net,
-      paidOn: form.paidOn, paidBy: user.id, note: form.note
-    };
-    setState(p => ({ ...p, salaries: [...p.salaries.filter(s=>s.id!==sal.id), sal] }));
-    toast.show('Salary record saved');
-    setModal(false);
-  };
-
-  const exportCSV = () => {
-    const rows = staffInScope.map(u => {
-      const sal = monthSalaries.find(s=>s.userId===u.id);
-      return { Name:u.name, Role:ROLE_LABELS[u.role], Month:month, Basic:sal?.basicSalary||0, Allowances:sal?.allowances||0, Deductions:sal?.deductions||0, NetSalary:sal?.netSalary||0, PaidOn:sal?.paidOn||'', Note:sal?.note||'' };
-    });
-    const h = Object.keys(rows[0]);
-    const csv = [h.join(','),...rows.map(r=>h.map(k=>`"${r[k]}"`).join(','))].join('\n');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    a.download = `salaries_${month}.csv`; a.click();
-    toast.show('Salary report exported');
-  };
-
-  // P&L calc
-  const monthStr = month;
-  const monthRevenue = state.serviceReports.filter(r=>r.date.startsWith(monthStr)).reduce((s,r)=>s+r.totalAmount,0);
-  const monthExpenses = totalPaid; // salaries as main expense
-  const profit = monthRevenue - monthExpenses;
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Salary & Payroll</div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:14, marginBottom:20 }}>
-        <StatCard label="Month Revenue" value={fmtCurr(monthRevenue)} color={T.amber}/>
-        <StatCard label="Total Salaries" value={fmtCurr(totalPaid)} color={T.red}/>
-        <StatCard label="Net Profit" value={fmtCurr(profit)} color={profit>=0?T.grn:T.red} sub={profit>=0?"Surplus":"Deficit"}/>
-        <StatCard label="Staff Paid" value={`${monthSalaries.length}/${staffInScope.length}`} color={T.navy}/>
-      </div>
-
-      <Card style={{ marginBottom:16, background:profit>=0?T.grnL:T.redL, border:`1px solid ${profit>=0?T.grn:T.red}44` }}>
-        <div style={{ fontSize:13, fontWeight:700, color:profit>=0?T.grn:T.red, marginBottom:8 }}>
-          {profit>=0?'✅ Profitable month':'❌ Loss this month'} — {month}
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
-          {[['Revenue',monthRevenue,T.navy],['Expenses (Salaries)',totalPaid,T.red],['Net P&L',profit,profit>=0?T.grn:T.red]].map(([l,v,c])=>(
-            <div key={l} style={{ textAlign:"center" }}>
-              <div style={{ fontSize:11, color:T.txt2, fontWeight:700, textTransform:"uppercase" }}>{l}</div>
-              <div style={{ fontSize:18, fontWeight:800, color:c }}>{fmtCurr(v)}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <div style={{ display:"flex", gap:12, marginBottom:16, alignItems:"flex-end", flexWrap:"wrap" }}>
-        <div><label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>Month</label>
-        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{ padding:"7px 12px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/></div>
-        <Btn onClick={exportCSV} variant="ghost" size="sm">📥 Export CSV</Btn>
-      </div>
-
-      <Table cols={[
-        {key:"name",label:"Name",render:r=><b>{r.name}</b>},
-        {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]}>{ROLE_LABELS[r.role]}</Badge>},
-        {key:"basic",label:"Basic",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?fmtCurr(s.basicSalary):<span style={{color:T.txt3}}>—</span>; }},
-        {key:"allow",label:"Allowances",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?fmtCurr(s.allowances):'—'; }},
-        {key:"ded",label:"Deductions",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?<span style={{color:T.red}}>{fmtCurr(s.deductions)}</span>:'—'; }},
-        {key:"net",label:"Net Salary",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?<b style={{color:T.grn}}>{fmtCurr(s.netSalary)}</b>:<Badge color={T.red}>Unpaid</Badge>; }},
-        {key:"paidOn",label:"Paid On",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id); return s?fmtDate(s.paidOn):'—'; }},
-        {key:"action",label:"",render:r=>{ const s=monthSalaries.find(sal=>sal.userId===r.id);
-          return <Btn onClick={()=>s?openEdit(s):openNew(r.id)} size="sm" variant={s?"outline":"amber"}>{s?"Edit":"Add"}</Btn>; }},
-      ]} rows={staffInScope}/>
-
-      <Modal open={modal} onClose={()=>setModal(false)} title="Salary Record">
-        <div style={{ fontSize:14, fontWeight:700, marginBottom:14 }}>{state.users.find(u=>u.id===form.userId)?.name} — {month}</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-          <Input label="Basic Salary" type="number" value={form.basic} onChange={v=>setForm(p=>({...p,basic:v}))}/>
-          <Input label="Allowances" type="number" value={form.allowances} onChange={v=>setForm(p=>({...p,allowances:v}))}/>
-          <Input label="Deductions" type="number" value={form.deductions} onChange={v=>setForm(p=>({...p,deductions:v}))}/>
-        </div>
-        <div style={{ background:T.navyXL, padding:"10px 14px", borderRadius:8, marginBottom:14, fontWeight:700 }}>
-          Net Salary: {fmtCurr((Number(form.basic)||0)+(Number(form.allowances)||0)-(Number(form.deductions)||0))}
-        </div>
-        <Input label="Paid On" type="date" value={form.paidOn} onChange={v=>setForm(p=>({...p,paidOn:v}))}/>
-        <Input label="Note" value={form.note} onChange={v=>setForm(p=>({...p,note:v}))} placeholder="Optional note"/>
-        <div style={{ display:"flex", gap:8 }}>
-          <Btn onClick={save} variant="success">Save</Btn>
-          <Btn onClick={()=>setModal(false)} variant="ghost">Cancel</Btn>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  COUNTER-WISE ANALYSIS (shared by Executive/Manager/MD)
-// ═══════════════════════════════════════════════════════════════════════════════
-function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
-  const [range, setRange] = useState("month");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-
-  const getRangeLabel = () => ({ week:"This Week", month:"This Month", quarter:"This Quarter", year:"This Year", custom:"Custom Range" }[range]);
-
-  const getDateRange = () => {
-    const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    if (range === "week") {
-      const day = now.getDay(), diff = now.getDate() - day + (day===0?-6:1);
-      const mon = new Date(now.setDate(diff));
-      const sun = new Date(now); sun.setDate(mon.getDate()+6);
-      return [mon.toISOString().split('T')[0], sun.toISOString().split('T')[0]];
-    }
-    if (range === "month") return [`${y}-${String(m+1).padStart(2,'0')}-01`, `${y}-${String(m+1).padStart(2,'0')}-31`];
-    if (range === "quarter") {
-      const q = Math.floor(m/3);
-      return [`${y}-${String(q*3+1).padStart(2,'0')}-01`, `${y}-${String(Math.min(q*3+3,12)).padStart(2,'0')}-31`];
-    }
-    if (range === "year") return [`${y}-01-01`, `${y}-12-31`];
-    return [customFrom, customTo];
-  };
-
-  const [from, to] = getDateRange();
-
-  // Helper: get all entries from a report (supports both old counters[] and new entries[])
-  const getAllEntries = (r) => {
-    if (r.entries && r.entries.length > 0) return r.entries;
-    return (r.counters||[]).flatMap(c=>c.entries||[]);
-  };
-  const isSalesEntry = (e) => e.type==="sales" || ['JOPASU','SHAMPOO','POLISH LIQUID','MICROFIBER CLOTH','AIR FRESHENER','TYRE SHINE'].includes(e.workTypeName);
-
-  const filteredReports = state.serviceReports.filter(r => {
-    if (from && r.date < from) return false;
-    if (to && r.date > to) return false;
-    // Executive: filter to only their counters (by ID array)
-    if (myCounterIds && myCounterIds.length > 0) {
-      if (!myCounterIds.includes(r.counterId)) return false;
-    }
-    // Single counter filter (for viewing one specific counter)
-    if (counterFilter && !myCounterIds) {
-      if (r.counterId !== state.counters.find(c=>c.name===counterFilter)?.id && r.counterName !== counterFilter) return false;
-    }
-    return true;
-  });
-
-  // Build per-counter stats — each report is now ONE counter
-  const visibleCounters = myCounterIds
-    ? state.counters.filter(c => myCounterIds.includes(c.id))
-    : counterFilter
-      ? state.counters.filter(c => c.name === counterFilter)
-      : state.counters;
-
-  const counterStats = visibleCounters.map(c => {
-    const reps = filteredReports.filter(r => r.counterId===c.id || r.counterName===c.name);
-    const allE = reps.flatMap(r => getAllEntries(r));
-    const svcTotal = allE.filter(e=>!isSalesEntry(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const salTotal = allE.filter(e=>isSalesEntry(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const total = svcTotal + salTotal;
-    const vehicles = allE.filter(e=>!isSalesEntry(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
-    const days = new Set(reps.map(r=>r.date)).size;
-    const dailyAvg = days ? Math.round(total/days) : 0;
-    return { ...c, svcTotal, salTotal, total, vehicles, days, dailyAvg, repCount: reps.length };
-  });
-
-  const grandTotal = counterStats.reduce((s,c)=>s+c.total,0);
-  const maxTotal = Math.max(...counterStats.map(c=>c.total),1);
-
-  // Work type breakdown
-  const wtMap = {};
-  filteredReports.forEach(r=>getAllEntries(r).forEach(e=>{
-    if((e.vehicles>0||e.amount>0) && !isSalesEntry(e)) wtMap[e.workTypeName]=(wtMap[e.workTypeName]||0)+(Number(e.amount)||0);
-  }));
-  const wtArr = Object.entries(wtMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const maxWt = wtArr[0]?.[1]||1;
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Counter-wise Analysis</div>
-
-      {/* Range selector */}
-      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
-        {["week","month","quarter","year","custom"].map(r=>(
-          <button key={r} onClick={()=>setRange(r)} style={{
-            padding:"7px 16px", borderRadius:20, border:`1px solid ${range===r?T.navy:T.bdrS}`,
-            background:range===r?T.navy:"transparent", color:range===r?"#fff":T.txt2,
-            fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit"
-          }}>{r==="week"?"Week":r==="month"?"Month":r==="quarter"?"Quarter":r==="year"?"Year":"Custom"}</button>
-        ))}
-        {range==="custom" && (
-          <>
-            <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
-            <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ padding:"6px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
-          </>
-        )}
-      </div>
-      <div style={{ fontSize:12, color:T.txt2, marginBottom:16 }}>{getRangeLabel()} · {filteredReports.length} reports · Grand Total: <b style={{color:T.amber}}>{fmtCurr(grandTotal)}</b></div>
-
-      {/* Counter cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14, marginBottom:20 }}>
-        {counterStats.map(c=>(
-          <Card key={c.id} style={{ borderTop:`3px solid ${T.amber}` }}>
-            <div style={{ fontWeight:800, marginBottom:4 }}>{c.name}</div>
-            <div style={{ fontSize:12, color:T.txt2, marginBottom:8 }}>{c.days} day(s) reported</div>
-            <div style={{ fontSize:20, fontWeight:800, color:T.amber, marginBottom:4 }}>{fmtCurr(c.total)}</div>
-            <div style={{ height:6, background:T.surf, borderRadius:3, overflow:"hidden", marginBottom:8 }}>
-              <div style={{ height:"100%", width:`${c.total/maxTotal*100}%`, background:T.amber, borderRadius:3 }}/>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4, fontSize:11, color:T.txt2 }}>
-              <div><div style={{fontWeight:700,color:T.navy}}>Service</div>{fmtCurr(c.svcTotal)}</div>
-              <div><div style={{fontWeight:700,color:T.grn}}>Sales</div>{fmtCurr(c.salTotal)}</div>
-              <div><div style={{fontWeight:700,color:T.txt2}}>Vehicles</div>{c.vehicles}</div>
-            </div>
-            <div style={{ marginTop:6, fontSize:11, color:T.txt2 }}>Daily avg: <b>{fmtCurr(c.dailyAvg)}</b></div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Top work types */}
-      {wtArr.length > 0 && (
-        <Card>
-          <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Top work types — {getRangeLabel()}</div>
-          {wtArr.map(([name, rev]) => (
-            <div key={name} style={{ marginBottom:10 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                <span style={{ fontSize:13 }}>{name}</span>
-                <b style={{ fontSize:13, color:T.navy }}>{fmtCurr(rev)}</b>
-              </div>
-              <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${rev/maxWt*100}%`, background:T.navy, borderRadius:4 }}/>
-              </div>
-            </div>
-          ))}
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  PLANNED LEAVE (Staff → Executive approval)
-// ═══════════════════════════════════════════════════════════════════════════════
-function PlannedLeavePortal({ user, state, setState, toast, mode }) {
-  // mode: 'staff' = field staff submitting, 'executive' = executive approving
-  const [from, setFrom] = useState("");
-  const [to, setTo]     = useState("");
-  const [reason, setReason] = useState("");
-
-  const myPlanned   = state.plannedLeaves.filter(l=>l.userId===user.id);
-  const toApprove   = state.plannedLeaves.filter(l=>l.supervisorId===user.id);
-  const pendingCount = toApprove.filter(l=>l.status==='pending').length;
-
-  const submit = () => {
-    if (!from || !reason.trim()) { toast.show("Fill from date and reason","error"); return; }
-    const sup = state.users.find(u=>u.id===user.managerId);
-    const pl = { id:`pl_${Date.now()}`, userId:user.id, staffName:user.name, supervisorId:user.managerId, fromDate:from, toDate:to||from, reason, status:"pending", appliedOn:today() };
-    setState(p=>({...p, plannedLeaves:[...(p.plannedLeaves||[]), pl]}));
-    toast.show("Leave request submitted to " + (sup?.name||"Executive"));
-    setFrom(""); setTo(""); setReason("");
-  };
-
-  const decide = (id, status) => {
-    setState(p=>({...p, plannedLeaves:p.plannedLeaves.map(l=>l.id===id?{...l,status,decidedOn:today()}:l)}));
-    toast.show(status==="approved"?"Leave approved":"Leave rejected");
-  };
-
-  if (mode === 'executive') return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Staff Leave Approvals {pendingCount>0&&<Badge color={T.red} style={{marginLeft:8}}>{pendingCount} pending</Badge>}</div>
-      {toApprove.filter(l=>l.status==='pending').map(l=>(
-        <Card key={l.id} style={{ marginBottom:12, borderLeft:"4px solid " + (T.amb) }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10 }}>
+      {/* Per-executive cards */}
+      {summaries.map(s=>(
+        <Card key={s.exec.id} style={{marginBottom:12,borderTop:"3px solid "+T.navy}}>
+          {/* Header */}
+          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:10,cursor:"pointer"}}
+               onClick={()=>setExpanded(p=>({...p,[s.exec.id]:!p[s.exec.id]}))}>
             <div>
-              <div style={{ fontWeight:700, fontSize:15 }}>{l.staffName}</div>
-              <div style={{ fontSize:13, color:T.txt2 }}>{fmtDate(l.fromDate)}{l.toDate!==l.fromDate?` → ${fmtDate(l.toDate)}`:''}</div>
-              <div style={{ fontSize:13, marginTop:4 }}>{l.reason}</div>
+              <div style={{fontSize:15,fontWeight:800}}>{s.exec.name}</div>
+              <div style={{fontSize:12,color:T.txt2}}>{s.myCounters.map(c=>c.name).join(" · ")}</div>
+              {s.absentList.length>0 && <div style={{fontSize:12,color:T.red,marginTop:3}}>❌ Absent: {s.absentList.join(", ")}</div>}
+              {s.halfList.length>0   && <div style={{fontSize:12,color:T.amber,marginTop:2}}>⚡ Half Day: {s.halfList.join(", ")}</div>}
+              {s.absentList.length===0&&s.halfList.length===0&&s.reported&&<div style={{fontSize:12,color:T.grn,marginTop:2}}>✅ All present</div>}
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <Btn onClick={()=>decide(l.id,'approved')} variant="success" size="sm">✓ Approve</Btn>
-              <Btn onClick={()=>decide(l.id,'rejected')} variant="danger"  size="sm">✗ Reject</Btn>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:11,color:T.txt2}}>Today Total</div>
+              <div style={{fontSize:20,fontWeight:800,color:T.amber}}>{fmtCurr(s.dayTotal)}</div>
+              <div style={{fontSize:11,color:T.txt2,marginTop:2}}>Month: {fmtCurr(s.moTotal)}</div>
+              <div style={{fontSize:10,color:T.txt3,marginTop:2}}>{expanded[s.exec.id]?"▲ collapse":"▼ expand"}</div>
             </div>
           </div>
+
+          {/* Daily breakdown — always visible */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:10,padding:"10px",background:T.surf,borderRadius:8}}>
+            {[
+              {label:"Service",   value:s.daySvc,     color:T.navy},
+              {label:"Bardahl",   value:s.dayBardahl, color:"#15803D"},
+              {label:"Other Sales",value:s.dayOther,  color:"#0369A1"},
+              {label:"Day Total", value:s.dayTotal,   color:T.amber},
+              {label:"Month Svc", value:s.moSvc,      color:T.navy},
+              {label:"Mo Bardahl",value:s.moBardahl,  color:"#15803D"},
+              {label:"Mo Other",  value:s.moOther,    color:"#0369A1"},
+              {label:"Mo Total",  value:s.moTotal,    color:T.amber},
+            ].map(({label,value,color})=>(
+              <div key={label} style={{textAlign:"center",padding:"6px 4px"}}>
+                <div style={{fontSize:10,color:T.txt2,marginBottom:2,textTransform:"uppercase"}}>{label}</div>
+                <div style={{fontSize:14,fontWeight:800,color}}>{fmtCurr(value)}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Counter detail — expanded */}
+          {expanded[s.exec.id] && (
+            <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12,marginTop:4}}>
+              <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase",marginBottom:8}}>Counter Breakdown</div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead><tr style={{background:T.navyXL}}>
+                    {["Counter","Service","Bardahl","Other Sales","Day Total","Vehicles"].map(h=>(
+                      <th key={h} style={{padding:"5px 10px",textAlign:h==="Counter"?"left":"right",fontSize:11,fontWeight:700,color:T.navy}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {s.counterRows.map(c=>(
+                      <tr key={c.name} style={{borderBottom:"1px solid "+T.bdr,background:c.reported?"#fff":T.redL}}>
+                        <td style={{padding:"6px 10px",fontWeight:600}}>
+                          {c.name}
+                          {!c.reported&&<span style={{fontSize:10,color:T.red,marginLeft:6}}>no report</span>}
+                        </td>
+                        <td style={{padding:"6px 10px",textAlign:"right"}}>{fmtCurr(c.svc)}</td>
+                        <td style={{padding:"6px 10px",textAlign:"right",color:"#15803D",fontWeight:c.bardahl>0?700:400}}>{fmtCurr(c.bardahl)}</td>
+                        <td style={{padding:"6px 10px",textAlign:"right",color:"#0369A1",fontWeight:c.other>0?700:400}}>{fmtCurr(c.other)}</td>
+                        <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(c.svc+c.bardahl+c.other)}</td>
+                        <td style={{padding:"6px 10px",textAlign:"right",color:T.txt2}}>{c.vehicles}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot><tr style={{background:T.amberL,fontWeight:800}}>
+                    <td style={{padding:"6px 10px"}}>Total</td>
+                    <td style={{padding:"6px 10px",textAlign:"right"}}>{fmtCurr(s.daySvc)}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:"#15803D"}}>{fmtCurr(s.dayBardahl)}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:"#0369A1"}}>{fmtCurr(s.dayOther)}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:T.amber}}>{fmtCurr(s.dayTotal)}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right"}}>{s.counterRows.reduce((s,c)=>s+c.vehicles,0)}</td>
+                  </tr></tfoot>
+                </table>
+              </div>
+            </div>
+          )}
         </Card>
       ))}
-      {toApprove.filter(l=>l.status==='pending').length===0 && <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No pending leave requests</div></Card>}
-      {toApprove.filter(l=>l.status!=='pending').length > 0 && <>
-        <div style={{ fontSize:14, fontWeight:700, marginTop:20, marginBottom:12 }}>Reviewed</div>
-        <Table cols={[
-          {key:"staffName",label:"Staff"},
-          {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
-          {key:"reason",label:"Reason"},
-          {key:"status",label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:T.red}>{r.status}</Badge>},
-        ]} rows={toApprove.filter(l=>l.status!=='pending')}/>
-      </>}
-    </div>
-  );
 
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Plan a Leave</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-        <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:14 }}>New Leave Request</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            <Input label="From" type="date" value={from} onChange={setFrom}/>
-            <Input label="To"   type="date" value={to}   onChange={setTo}/>
-          </div>
-          <Input label="Reason" value={reason} onChange={setReason} placeholder="Reason for leave..." required/>
-          <Btn onClick={submit}>Submit Request</Btn>
-        </Card>
-        <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>My Requests</div>
-          {myPlanned.length===0 ? <div style={{color:T.txt3,fontSize:13}}>No requests yet</div> :
-            myPlanned.sort((a,b)=>b.appliedOn.localeCompare(a.appliedOn)).map(l=>(
-              <div key={l.id} style={{ padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between" }}>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600}}>{fmtDate(l.fromDate)}{l.toDate!==l.fromDate?` → ${fmtDate(l.toDate)}`:''}</div>
-                    <div style={{fontSize:12,color:T.txt2}}>{l.reason}</div>
-                  </div>
-                  <Badge color={l.status==="approved"?T.grn:l.status==="rejected"?T.red:T.amber}>{l.status}</Badge>
-                </div>
-              </div>
-            ))
-          }
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  STAFF DIRECTORY
-// ═══════════════════════════════════════════════════════════════════════════════
-function StaffDirectory({ state }) {
-  const [search, setSearch] = useState("");
-  const [filterCounter, setFilterCounter] = useState("all");
-  const todayMD = today().slice(5);
-
-  const filtered = state.users.filter(u => {
-    if (!u.name) return false;
-    if (search && !u.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterCounter !== "all" && u.counter !== filterCounter) return false;
-    return true;
-  });
-
-  const counters = ["all", ...new Set(state.users.map(u=>u.counter).filter(Boolean))];
-  const isBdayToday = (u) => u.dob && u.dob.slice(5) === todayMD;
-  const yearsOfService = (joining) => {
-    if (!joining) return "";
-    const j = new Date(joining);
-    const now = new Date();
-    const yrs = Math.floor((now - j) / (365.25*24*3600*1000));
-    return yrs > 0 ? `${yrs} yr${yrs>1?'s':''}` : "< 1 yr";
-  };
-
-  // Upcoming birthdays (next 7 days)
-  const upcoming = state.users.filter(u => {
-    if (!u.dob) return false;
-    const bday = new Date(new Date().getFullYear() + "-" + u.dob.slice(5));
-    const diff = Math.ceil((bday - new Date()) / (24*3600*1000));
-    return diff >= 0 && diff <= 7;
-  }).sort((a,b) => a.dob.slice(5).localeCompare(b.dob.slice(5)));
-
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>Staff Directory</div>
-      <div style={{ fontSize:13, color:T.txt2, marginBottom:20 }}>{state.users.filter(u=>u.active).length} active staff</div>
-
-      {/* Upcoming birthdays */}
-      {upcoming.length > 0 && (
-        <div style={{ background:"linear-gradient(135deg,#FF6B6B,#FF8E53)", borderRadius:12, padding:16, marginBottom:20, color:"#fff" }}>
-          <div style={{ fontWeight:800, fontSize:14, marginBottom:10 }}>🎂 Upcoming birthdays (next 7 days)</div>
-          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-            {upcoming.map(u => (
-              <div key={u.id} style={{ background:"rgba(255,255,255,.2)", borderRadius:8, padding:"8px 14px" }}>
-                <div style={{ fontWeight:700, fontSize:13 }}>{u.name}</div>
-                <div style={{ fontSize:11, opacity:.85 }}>{u.dob?.split("-").reverse().join(".")} · {u.counter}</div>
-                {isBdayToday(u) && <div style={{ fontSize:11, fontWeight:800, marginTop:2 }}>🎉 TODAY!</div>}
+      {/* Grand total footer */}
+      {summaries.length>0 && (
+        <Card style={{background:T.navy,color:"#fff"}}>
+          <div style={{fontSize:13,fontWeight:800,marginBottom:10,opacity:.7,textTransform:"uppercase"}}>Grand Total — {fmtDate(selDate)}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
+            {[
+              {label:"Service",    val:gDaySvc,     mo:gMoSvc,     color:"#93C5FD"},
+              {label:"Bardahl",    val:gDayBardahl, mo:gMoBardahl, color:"#86EFAC"},
+              {label:"Other Sales",val:gDayOther,   mo:gMoOther,   color:"#7DD3FC"},
+              {label:"TOTAL",      val:gDayTotal,   mo:gMoTotal,   color:T.amber},
+            ].map(({label,val,mo,color})=>(
+              <div key={label} style={{background:"rgba(255,255,255,.08)",borderRadius:8,padding:10}}>
+                <div style={{fontSize:10,opacity:.6,textTransform:"uppercase",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:16,fontWeight:800,color}}>{fmtCurr(val)}</div>
+                <div style={{fontSize:11,opacity:.6,marginTop:2}}>Month: {fmtCurr(mo)}</div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
-
-      {/* Filters */}
-      <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name..."
-          style={{ padding:"8px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none", width:200 }}/>
-        <select value={filterCounter} onChange={e=>setFilterCounter(e.target.value)}
-          style={{ padding:"8px 12px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
-          {counters.map(c=><option key={c} value={c}>{c==="all"?"All Counters":c}</option>)}
-        </select>
-      </div>
-
-      <div style={{ overflowX:"auto", border:`1px solid ${T.bdr}`, borderRadius:10 }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-          <thead>
-            <tr style={{ background:T.surf }}>
-              {["Sl","Name","Designation","Counter","D.O.B","Joining","Service","Wedding Anniv."].map(h=>(
-                <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", borderBottom:`1px solid ${T.bdr}`, whiteSpace:"nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u, i) => (
-              <tr key={u.id} style={{ background: isBdayToday(u) ? "#FFF3CD" : i%2===0?T.card:T.surf }}>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, color:T.txt3 }}>{i+1}</td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, fontWeight:700 }}>
-                  {u.name} {isBdayToday(u) && "🎂"}
-                </td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>
-                  <Badge color={ROLE_COLORS[u.role]}>{ROLE_LABELS[u.role]}</Badge>
-                </td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, color:T.txt2 }}>{u.counter||"—"}</td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>{u.dob?u.dob.split("-").reverse().join("."):"—"}</td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>{u.joining?u.joining.split("-").reverse().join("."):"—"}</td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}`, color:T.txt2 }}>{yearsOfService(u.joining)}</td>
-                <td style={{ padding:"9px 12px", borderBottom:`1px solid ${T.bdr}` }}>{u.weddingAnniversary?u.weddingAnniversary.split("-").reverse().join("."):"—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  PUBLIC FEEDBACK FORM  (no login required)
-// ═══════════════════════════════════════════════════════════════════════════════
-function PublicFeedbackForm({ counterName, counters, onSubmit }) {
-  const counter = counters.find(c => c.name === counterName);
-  const [vehicleNo, setVehicleNo]     = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [serviceType, setServiceType]   = useState("");
-  const [rating, setRating]             = useState(0);
-  const [comment, setComment]           = useState("");
-  const [submitted, setSubmitted]       = useState(false);
-  const [hovered, setHovered]           = useState(0);
-  const [err, setErr]                   = useState("");
-
-  const serviceOptions = [
-    "WASH","PDI.WASH","PDI","AC VENT","GLASS CLEAN","FULL BODY ANTIRUST",
-    "INTERNAL COAT","SERVICE+","UNDERCOAT","DRYWASH","AIRCON SPRAY","VACCUM",
-    "POLISH","INTERIOR","DECARBON","MUFFLER","ANTIRUST","UNDECOAT",
-    "WAX","WINDSHIELD","SILENCER COAT","HANDPOLISH","FULL GLASS","OTHER"
-  ];
-
-  const ratingLabels = { 1:"Poor", 2:"Below average", 3:"Average", 4:"Good", 5:"Excellent" };
-
-  const handleSubmit = () => {
-    if (!rating)       { setErr("Please select a star rating"); return; }
-    if (!vehicleNo.trim()) { setErr("Please enter your vehicle number"); return; }
-    if (!serviceType)  { setErr("Please select the service received"); return; }
-    setErr("");
-    const fb = {
-      id: `f_${Date.now()}`,
-      counterId: counter?.id || "",
-      counterName,
-      date: today(),
-      submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
-      vehicleNo: vehicleNo.trim().toUpperCase(),
-      customerName: customerName.trim(),
-      serviceType,
-      rating,
-      comment: comment.trim(),
-      source: "public_form"
-    };
-    onSubmit(fb);
-    setSubmitted(true);
-  };
-
-  if (!counter) return (
-    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg,${T.navy},${T.navyL})`, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-      <div style={{ background:"#fff", borderRadius:20, padding:32, maxWidth:400, width:"100%", textAlign:"center" }}>
-        <div style={{ fontSize:40, marginBottom:12 }}>❌</div>
-        <div style={{ fontSize:18, fontWeight:800, marginBottom:8 }}>Invalid feedback link</div>
-        <div style={{ color:T.txt2, fontSize:13 }}>This feedback link is not valid. Please ask the service staff for the correct link.</div>
-      </div>
-    </div>
-  );
-
-  if (submitted) return (
-    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg,${T.navy},${T.navyL})`, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-      <div style={{ background:"#fff", borderRadius:20, padding:40, maxWidth:420, width:"100%", textAlign:"center" }}>
-        <div style={{ fontSize:56, marginBottom:16 }}>🙏</div>
-        <div style={{ fontSize:22, fontWeight:800, color:T.grn, marginBottom:8 }}>Thank you!</div>
-        <div style={{ fontSize:14, color:T.txt2, lineHeight:1.7, marginBottom:24 }}>
-          Your feedback for <b>{counterName}</b> has been recorded.<br/>
-          It helps us serve you better.
-        </div>
-        <div style={{ background:T.grnL, border:`1px solid ${T.grn}44`, borderRadius:12, padding:"12px 16px", fontSize:13, color:T.grn, fontWeight:600 }}>
-          {Array(rating).fill("\u2B50").join("")} {ratingLabels[rating]}
-        </div>
-        <div style={{ marginTop:20, fontSize:12, color:T.txt3 }}>Benaka Enterprises · Auto Polish Services</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg,${T.navy} 0%,${T.navyL} 100%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ width:"100%", maxWidth:460 }}>
-
-        {/* Header */}
-        <div style={{ textAlign:"center", marginBottom:24 }}>
-          <div style={{ width:56, height:56, background:T.amber, borderRadius:14, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:28, marginBottom:12 }}>✨</div>
-          <div style={{ fontSize:20, fontWeight:800, color:"#fff" }}>Benaka Enterprises</div>
-          <div style={{ fontSize:13, color:"rgba(255,255,255,.65)", marginTop:3 }}>Customer Feedback</div>
-        </div>
-
-        <div style={{ background:"#fff", borderRadius:20, padding:28 }}>
-          {/* Counter name */}
-          <div style={{ background:T.navyXL, border:`1px solid ${T.navy}22`, borderRadius:10, padding:"10px 16px", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:20 }}>🏪</span>
-            <div>
-              <div style={{ fontSize:11, color:T.txt2, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em" }}>Service Counter</div>
-              <div style={{ fontSize:15, fontWeight:800, color:T.navy }}>{counterName}</div>
-            </div>
-          </div>
-
-          {/* Star rating — big and prominent */}
-          <div style={{ textAlign:"center", marginBottom:20 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:T.txt2, textTransform:"uppercase", letterSpacing:".04em", marginBottom:12 }}>
-              How was the service? <span style={{ color:T.red }}>*</span>
-            </div>
-            <div style={{ display:"flex", justifyContent:"center", gap:6 }}>
-              {[1,2,3,4,5].map(r => (
-                <button key={r}
-                  onClick={() => setRating(r)}
-                  onMouseEnter={() => setHovered(r)}
-                  onMouseLeave={() => setHovered(0)}
-                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:40, transition:"transform .1s",
-                    transform: r <= (hovered||rating) ? "scale(1.15)" : "scale(1)",
-                    filter: r <= (hovered||rating) ? "none" : "grayscale(1) opacity(.35)" }}>
-                  ⭐
-                </button>
-              ))}
-            </div>
-            {(hovered||rating) > 0 && (
-              <div style={{ marginTop:8, fontSize:14, fontWeight:700, color:T.amber }}>
-                {ratingLabels[hovered||rating]}
-              </div>
-            )}
-          </div>
-
-          {/* Vehicle number */}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
-              Vehicle Number <span style={{ color:T.red }}>*</span>
-            </label>
-            <input value={vehicleNo} onChange={e=>setVehicleNo(e.target.value.toUpperCase())} placeholder="e.g. KA01AB1234"
-              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:15, fontFamily:"inherit", outline:"none",
-                textTransform:"uppercase", letterSpacing:1, fontWeight:600, boxSizing:"border-box" }}/>
-          </div>
-
-          {/* Service type */}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
-              Service Received <span style={{ color:T.red }}>*</span>
-            </label>
-            <select value={serviceType} onChange={e=>setServiceType(e.target.value)}
-              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none", background:"#fff" }}>
-              <option value="">Select service type...</option>
-              {serviceOptions.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-
-          {/* Customer name (optional) */}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
-              Your Name <span style={{ fontSize:11, fontWeight:400, color:T.txt3 }}>(optional)</span>
-            </label>
-            <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="Your name"
-              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
-          </div>
-
-          {/* Comments */}
-          <div style={{ marginBottom:20 }}>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>
-              Comments <span style={{ fontSize:11, fontWeight:400, color:T.txt3 }}>(optional)</span>
-            </label>
-            <textarea value={comment} onChange={e=>setComment(e.target.value)}
-              placeholder="Tell us what we did well or how we can improve..."
-              rows={3}
-              style={{ width:"100%", padding:"10px 14px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none", resize:"vertical", boxSizing:"border-box" }}/>
-          </div>
-
-          {err && <div style={{ background:T.redL, border:`1px solid ${T.red}44`, borderRadius:8, padding:"10px 14px", fontSize:13, color:T.red, marginBottom:14 }}>{err}</div>}
-
-          <button onClick={handleSubmit}
-            style={{ width:"100%", padding:"13px", background:T.navy, color:"#fff", border:"none", borderRadius:10, fontSize:16, fontWeight:800, cursor:"pointer", transition:"background .15s" }}
-            onMouseEnter={e=>e.target.style.background=T.navyL}
-            onMouseLeave={e=>e.target.style.background=T.navy}>
-            Submit Feedback →
-          </button>
-
-          <div style={{ textAlign:"center", fontSize:11, color:T.txt3, marginTop:14 }}>
-            Benaka Enterprises · Auto Polish Services
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FieldStaffPortal({ user, state, setState, logout, toast }) {
-  const [page, setPage] = useState("home");
-  return (
-    <div style={{ minHeight:"100vh", background:T.surf, fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
-      <div style={{ background:T.navy, padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ color:"#fff", fontWeight:800, fontSize:16 }}>✨ Benaka Enterprises</div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <span style={{ color:"rgba(255,255,255,.7)", fontSize:12 }}>{user.name}</span>
-          <Btn onClick={logout} variant="ghost" size="sm" style={{ color:"rgba(255,255,255,.7)", border:"1px solid rgba(255,255,255,.2)" }}>Sign out</Btn>
-        </div>
-      </div>
-      <div style={{ padding:24, maxWidth:520, margin:"0 auto" }}>
-        {page==="home" && (
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:48, marginBottom:16 }}>👋</div>
-            <div style={{ fontSize:20, fontWeight:800, marginBottom:4 }}>Hello, {user.name}</div>
-            <div style={{ color:T.txt2, marginBottom:24 }}>Your attendance is marked by your Executive</div>
-            <Btn onClick={()=>setPage("leave")} variant="amber" size="lg" style={{ width:"100%", justifyContent:"center", marginBottom:12 }}>🗓️ Request Planned Leave</Btn>
-          </div>
-        )}
-        {page==="leave" && (
-          <div>
-            <Btn onClick={()=>setPage("home")} variant="ghost" size="sm" style={{marginBottom:16}}>← Back</Btn>
-            <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="staff"/>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
-function MDFeedbackAll({ state }) {
-  const fbTotal = state.feedback.reduce((s,f)=>s+f.rating,0);
-  const avg = state.feedback.length ? (fbTotal / state.feedback.length).toFixed(1) : "—";
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:20 }}>
-        <div style={{ fontSize:18, fontWeight:800 }}>All Customer Feedback</div>
-        <div style={{ fontSize:28, fontWeight:800, color:T.amber }}>⭐ {avg}</div>
-      </div>
-      {[...state.feedback].sort((a,b)=>b.date?.localeCompare(a.date)).map(f=>(
-        <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid " + (f.rating>=4?T.grn:f.rating===3?T.amber:T.red) }}>
-          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
-            <div><b style={{ fontSize:14 }}>{f.counterName}</b><span style={{ fontSize:12, color:T.txt2, marginLeft:8 }}>{fmtDate(f.date)} · {f.submittedAt}</span></div>
-            <Badge color={f.rating>=4?T.grn:f.rating===3?T.amber:T.red}>{f.rating} ⭐</Badge>
-          </div>
-          <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:4 }}>
-            {f.vehicleNo && <span style={{ fontSize:12 }}><b>{f.vehicleNo}</b></span>}
-            {f.serviceType && <span style={{ fontSize:12, color:T.txt2 }}>{f.serviceType}</span>}
-            {f.customerName && <span style={{ fontSize:12, color:T.txt2 }}>{f.customerName}</span>}
-          </div>
-          {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"7px 11px", borderRadius:7 }}>{f.comment}</div>}
-        </Card>
-      ))}
-      {state.feedback.length===0 && <Card><div style={{ textAlign:"center", padding:24, color:T.txt3 }}>No feedback yet</div></Card>}
     </div>
   );
 }
@@ -4826,6 +3450,7 @@ function MDAttendance({ state }) {
   const [filterCounter, setFilterCounter] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchAtt, setSearchAtt] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const att = state.attendance.filter(a => {
     if (a.date < dr.from || a.date > dr.to) return false;
@@ -4876,17 +3501,25 @@ function MDAttendance({ state }) {
         ))}
         <input value={searchAtt} onChange={e=>setSearchAtt(e.target.value)} placeholder="Search staff name..."
           style={{padding:"5px 12px",border:`1px solid ${T.bdrS}`,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:140}}/>
+        <button onClick={()=>setShowInactive(p=>!p)} style={{
+          padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+          border:"1px solid "+(showInactive?T.red:T.bdrS),
+          background:showInactive?T.redL:"transparent",
+          color:showInactive?T.red:T.txt2
+        }}>{showInactive?"Hide Inactive":"Show Inactive"}</button>
       </div>
       <Table cols={[
         {key:"date",      label:"Date",      render:r=>fmtDate(r.date)},
-        {key:"staff",     label:"Staff",     render:r=><b>{state.users.find(u=>u.id===r.staffId)?.name||r.staffId}</b>},
+        {key:"staff",     label:"Staff",     render:r=>{ const u=state.users.find(u=>u.id===r.staffId); return <b style={{color:u?.active===false?T.txt3:T.txt}}>{u?.name||r.staffId}{u?.active===false?" (inactive)":""}</b>; }},
         {key:"counter",   label:"Counter",   render:r=>state.users.find(u=>u.id===r.supervisorId)?.counter||"—"},
         {key:"supervisor",label:"Executive", render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
         {key:"status",    label:"Status",    render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
         {key:"reason",    label:"Reason",    render:r=>r.reason||"—"},
       ]} rows={att.filter(r=>{
+        const u = state.users.find(u=>u.id===r.staffId);
+        if(!showInactive && u?.active===false) return false;
         if(filterStatus!=="all"&&r.status!==filterStatus) return false;
-        if(searchAtt){const n=state.users.find(u=>u.id===r.staffId)?.name||""; return n.toLowerCase().includes(searchAtt.toLowerCase());}
+        if(searchAtt){const n=u?.name||""; return n.toLowerCase().includes(searchAtt.toLowerCase());}
         return true;
       }).sort((a,b)=>a.status.localeCompare(b.status)||b.date.localeCompare(a.date))} emptyMsg="No records match filter"/>
     </div>
@@ -5015,3 +3648,1225 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+// ─── Collection Report View ────────────────────────────────────────────────────
+function CollectionReportView({ date, report, counters, allReports, attendance, users, onSave, readOnly }) {
+  const [bankEntries, setBankEntries] = useState(report?.bankEntries || [{ bank:"SBI", amount:"" }, { bank:"KBL", amount:"" }]);
+  const [expenses,    setExpenses]    = useState(report?.expenses    || [{ desc:"", amount:"" }]);
+
+  useEffect(() => {
+    setBankEntries(report?.bankEntries || [{ bank:"SBI", amount:"" }, { bank:"KBL", amount:"" }]);
+    setExpenses(report?.expenses || [{ desc:"", amount:"" }]);
+  }, [report?.id]);
+
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
+  const getE   = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+  const isSale = e => e.type==="sales" || SALES_WTS.includes(e.workTypeName);
+
+  const svcReports = allReports.filter(r => r.date >= (date||"") && r.date <= (date||"9"));
+  const allEntries = svcReports.flatMap(r => getE(r));
+  const totalSvc   = allEntries.filter(e => !isSale(e)).reduce((s,e) => s+(Number(e.amount)||0), 0);
+  const totalSales = allEntries.filter(e =>  isSale(e)).reduce((s,e) => s+(Number(e.amount)||0), 0);
+  const totalBardahl = allEntries.filter(e => e.workTypeName==="BARDAHL").reduce((s,e) => s+(Number(e.amount)||0), 0);
+  const grandTotal = totalSvc + totalSales;
+
+  const totalBank = bankEntries.reduce((s,b) => s+(Number(b.amount)||0), 0);
+  const totalExp  = expenses.reduce((s,e) => s+(Number(e.amount)||0), 0);
+  const netCollection = totalBank - totalExp;
+
+  // Counter-wise service summary
+  const counterSummary = counters.map(c => {
+    const reps = svcReports.filter(r => r.counterId===c.id||r.counterName===c.name);
+    const cE   = reps.flatMap(r => getE(r));
+    const svc  = cE.filter(e=>!isSale(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const sal  = cE.filter(e=>isSale(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    return { name:c.name, svc, sal, total:svc+sal };
+  }).filter(c => c.total > 0);
+
+  const svcPct = grandTotal > 0 ? Math.round(totalSvc*100/(grandTotal+0.001)) : 0;
+  const salPct = grandTotal > 0 ? Math.round(totalSales*100/(grandTotal+0.001)) : 0;
+  return (
+    <div>
+      <Card style={{ marginBottom:16 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:T.navy, textTransform:"uppercase", marginBottom:12 }}>Service & Sales Summary</div>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <thead><tr style={{ background:T.surf }}>
+            <th style={{ padding:"6px 10px", textAlign:"left", fontSize:11, fontWeight:800, color:T.txt2 }}>Counter</th>
+            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.txt2 }}>Service (₹)</th>
+            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.txt2 }}>Sales (₹)</th>
+            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.amber }}>Total (₹)</th>
+          </tr></thead>
+          <tbody>
+            {counterSummary.map(c => (
+              <tr key={c.name} style={{ borderBottom:"1px solid "+T.bdr }}>
+                <td style={{ padding:"6px 10px" }}>{c.name}</td>
+                <td style={{ padding:"6px 10px", textAlign:"right" }}>{c.svc.toLocaleString("en-IN")}</td>
+                <td style={{ padding:"6px 10px", textAlign:"right", color:T.grn }}>{c.sal.toLocaleString("en-IN")}</td>
+                <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:700, color:T.amber }}>{c.total.toLocaleString("en-IN")}</td>
+              </tr>
+            ))}
+            {counterSummary.length===0 && <tr><td colSpan={4} style={{ padding:12, textAlign:"center", color:T.txt3 }}>No reports for this period</td></tr>}
+          </tbody>
+          <tfoot>
+            <tr style={{ background:T.surf }}>
+              <td style={{ padding:"6px 10px", fontWeight:700, textAlign:"right" }}>TOTAL SERVICE</td>
+              <td></td><td></td>
+              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800 }}>{fmtCurr(totalSvc)}</td>
+            </tr>
+            <tr style={{ background:T.grnL }}>
+              <td style={{ padding:"6px 10px", fontWeight:700, color:T.grn, textAlign:"right" }}>TOTAL SALES</td>
+              <td></td><td></td>
+              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.grn }}>{fmtCurr(totalSales)}</td>
+            </tr>
+            <tr style={{ background:T.amberL }}>
+              <td style={{ padding:"6px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>GRAND TOTAL (SERVICE + SALES)</td>
+              <td></td><td></td>
+              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.amber, fontSize:15 }}>{fmtCurr(grandTotal)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        {totalBardahl > 0 && (
+          <div style={{ marginTop:8, fontSize:12, color:T.txt2 }}>
+            Bardahl: <b style={{ color:"#15803D" }}>{fmtCurr(totalBardahl)}</b>
+          </div>
+        )}
+        <div style={{ marginTop:8, display:"flex", gap:16 }}>
+          <div style={{ height:6, background:T.surf, borderRadius:3, flex:1, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:svcPct+"%", background:T.navy, borderRadius:3 }}/>
+          </div>
+        </div>
+        <div style={{ fontSize:11, color:T.txt2, marginTop:4 }}>
+          Service: {svcPct}%   Sales: {salPct}%
+        </div>
+      </Card>
+
+      {!readOnly && onSave && (
+        <Card style={{ marginBottom:16 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:T.navy, textTransform:"uppercase", marginBottom:12 }}>Bank Collection</div>
+          {bankEntries.map((b,i) => (
+            <div key={i} style={{ display:"flex", gap:10, marginBottom:8, alignItems:"center" }}>
+              <input value={b.bank} onChange={e=>setBankEntries(p=>p.map((x,j)=>j===i?{...x,bank:e.target.value}:x))}
+                placeholder="Bank name" style={{ flex:1, padding:"7px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+              <input type="number" value={b.amount} onChange={e=>setBankEntries(p=>p.map((x,j)=>j===i?{...x,amount:e.target.value}:x))}
+                placeholder="Amount" style={{ width:140, padding:"7px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+              <button onClick={()=>setBankEntries(p=>p.filter((_,j)=>j!==i))} style={{ background:"none", border:"none", cursor:"pointer", color:T.red, fontSize:16 }}>×</button>
+            </div>
+          ))}
+          <Btn onClick={()=>setBankEntries(p=>[...p,{bank:"",amount:""}])} size="sm" variant="ghost">+ Add Bank</Btn>
+          <div style={{ marginTop:10, fontWeight:700, color:T.navy }}>Bank Total: {fmtCurr(totalBank)}</div>
+
+          <div style={{ fontSize:13, fontWeight:800, color:T.navy, textTransform:"uppercase", margin:"16px 0 8px" }}>Expenses</div>
+          {expenses.map((e,i) => (
+            <div key={i} style={{ display:"flex", gap:10, marginBottom:8, alignItems:"center" }}>
+              <input value={e.desc} onChange={ev=>setExpenses(p=>p.map((x,j)=>j===i?{...x,desc:ev.target.value}:x))}
+                placeholder="Description" style={{ flex:1, padding:"7px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+              <input type="number" value={e.amount} onChange={ev=>setExpenses(p=>p.map((x,j)=>j===i?{...x,amount:ev.target.value}:x))}
+                placeholder="Amount" style={{ width:140, padding:"7px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+              <button onClick={()=>setExpenses(p=>p.filter((_,j)=>j!==i))} style={{ background:"none", border:"none", cursor:"pointer", color:T.red, fontSize:16 }}>×</button>
+            </div>
+          ))}
+          <Btn onClick={()=>setExpenses(p=>[...p,{desc:"",amount:""}])} size="sm" variant="ghost">+ Add Expense</Btn>
+          <div style={{ marginTop:10, fontWeight:700, color:T.red }}>Total Expenses: {fmtCurr(totalExp)}</div>
+
+          <div style={{ marginTop:14, padding:"12px 16px", background:T.navyXL, borderRadius:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <div style={{ fontSize:12, color:T.txt2 }}>Net Collection (Bank - Expenses)</div>
+              <div style={{ fontSize:20, fontWeight:800, color:netCollection>=0?T.grn:T.red }}>{fmtCurr(netCollection)}</div>
+            </div>
+            <Btn onClick={()=>onSave(bankEntries,expenses)} variant="amber">Save Report</Btn>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Counter Analysis ──────────────────────────────────────────────────────────
+function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
+  const dr = useDateRange("month");
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
+  const getE    = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+  const isSale  = e => e.type==="sales" || SALES_WTS.includes(e.workTypeName);
+
+  const visibleCounters = myCounterIds
+    ? state.counters.filter(c => myCounterIds.includes(c.id))
+    : counterFilter
+      ? state.counters.filter(c => c.name===counterFilter)
+      : state.counters;
+
+  const filteredReports = state.serviceReports.filter(r => {
+    if (r.date < dr.from || r.date > dr.to) return false;
+    if (myCounterIds) return myCounterIds.includes(r.counterId);
+    if (counterFilter) return r.counterName===counterFilter;
+    return true;
+  });
+
+  const counterStats = visibleCounters.map(c => {
+    const reps = filteredReports.filter(r => r.counterId===c.id||r.counterName===c.name);
+    const allE = reps.flatMap(r => getE(r));
+    const svc  = allE.filter(e=>!isSale(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const sal  = allE.filter(e=>isSale(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const veh  = allE.filter(e=>!isSale(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
+    const days = new Set(reps.map(r=>r.date)).size;
+    const avg  = days > 0 ? Math.round((svc+sal)/days) : 0;
+    return { ...c, svc, sal, total:svc+sal, veh, days, avg, repCount:reps.length };
+  });
+  const maxTotal = Math.max(...counterStats.map(c=>c.total), 1);
+
+  const wtMap = {};
+  filteredReports.forEach(r => getE(r).forEach(e => {
+    if (!isSale(e) && e.workTypeName) wtMap[e.workTypeName]=(wtMap[e.workTypeName]||0)+(Number(e.amount)||0);
+  }));
+  const wtArr = Object.entries(wtMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxWt = wtArr[0]?.[1]||1;
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Counter Analysis</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14, marginBottom:20 }}>
+        {counterStats.map(c => {
+          const barW = maxTotal > 0 ? Math.round(c.total*100/(maxTotal+0.001)) : 0;
+          return (
+            <Card key={c.id}>
+              <div style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>{c.name}</div>
+              <div style={{ fontSize:12, color:T.txt2, marginBottom:10 }}>
+                {state.users.find(u=>u.id===c.supervisorId)?.name||"—"} · {c.days} days · {c.repCount} reports
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                <div style={{ background:T.navyXL, borderRadius:6, padding:"8px 10px" }}>
+                  <div style={{ fontSize:10, color:T.txt2, textTransform:"uppercase" }}>Service</div>
+                  <div style={{ fontSize:16, fontWeight:800, color:T.navy }}>{fmtCurr(c.svc)}</div>
+                </div>
+                <div style={{ background:T.grnL, borderRadius:6, padding:"8px 10px" }}>
+                  <div style={{ fontSize:10, color:T.grn, textTransform:"uppercase" }}>Sales</div>
+                  <div style={{ fontSize:16, fontWeight:800, color:T.grn }}>{fmtCurr(c.sal)}</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ fontSize:12, color:T.txt2 }}>Total Revenue</span>
+                <span style={{ fontSize:14, fontWeight:800, color:T.amber }}>{fmtCurr(c.total)}</span>
+              </div>
+              <div style={{ height:6, background:T.surf, borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:barW+"%", background:T.amber, borderRadius:3 }}/>
+              </div>
+              <div style={{ marginTop:6, fontSize:11, color:T.txt2 }}>
+                Vehicles: {c.veh} · Daily avg: {fmtCurr(c.avg)}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      {wtArr.length > 0 && (
+        <Card>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Top Work Types</div>
+          {wtArr.map(([name,rev]) => {
+            const barW2 = Math.round(rev*100/(maxWt+0.001));
+            return (
+              <div key={name} style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                  <span style={{ fontSize:13 }}>{name}</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:T.navy }}>{fmtCurr(rev)}</span>
+                </div>
+                <div style={{ height:6, background:T.surf, borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:barW2+"%", background:T.navy, borderRadius:3 }}/>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── All Reports (MD + IT Admin) ───────────────────────────────────────────────
+function AllReports({ state }) {
+  const dr = useDateRange("today");
+  const [expanded, setExpanded] = useState(null);
+  const reports = state.serviceReports
+    .filter(r => r.date>=dr.from && r.date<=dr.to)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
+  const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>All Service Reports</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginBottom:20 }}>
+        <StatCard label="Total Revenue" value={fmtCurr(totalRev)} color={T.amber}/>
+        <StatCard label="Reports" value={reports.length} color={T.navy}/>
+        <StatCard label="Counters" value={new Set(reports.map(r=>r.counterName||r.counterId)).size} color={T.grn}/>
+      </div>
+      {reports.map(r => (
+        <Card key={r.id} style={{ marginBottom:10, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+            <div>
+              <div style={{ fontWeight:700 }}>{r.counterName || (r.counters||[])[0]?.counterName || "—"}</div>
+              <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)?.name||"—"} · {r.submittedAt||""}</div>
+              {r.submittedBy && <div style={{ fontSize:11, color:T.txt2 }}>Entered by: {state.users.find(u=>u.id===r.submittedBy)?.name||"Office"}</div>}
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
+              <Badge color={T.grn}>submitted</Badge>
+            </div>
+          </div>
+          {expanded===r.id && (
+            <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid "+T.bdr }}>
+              {(() => {
+                const allE = getE(r);
+                const svcE = allE.filter(e=>!SALES_WTS.includes(e.workTypeName)&&e.type!=="sales"&&(e.vehicles>0||e.amount>0));
+                const salE = allE.filter(e=>(SALES_WTS.includes(e.workTypeName)||e.type==="sales")&&e.amount>0);
+                return <>
+                  {svcE.length>0 && <Table cols={[
+                    {key:"workTypeName",label:"Work"},
+                    {key:"vehicles",label:"Veh"},
+                    {key:"amount",label:"Amount",render:e=><b style={{color:T.navy}}>{fmtCurr(e.amount)}</b>},
+                  ]} rows={svcE}/>}
+                  {salE.length>0 && <>
+                    <div style={{fontSize:11,fontWeight:700,color:T.grn,margin:"8px 0 4px"}}>SALES</div>
+                    <Table cols={[
+                      {key:"workTypeName",label:"Product"},
+                      {key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>},
+                    ]} rows={salE}/>
+                  </>}
+                </>;
+              })()}
+            </div>
+          )}
+        </Card>
+      ))}
+      {reports.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
+    </div>
+  );
+}
+
+// ─── Staff Directory ───────────────────────────────────────────────────────────
+function StaffDirectory({ state }) {
+  const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+  const [showInactive, setShowInactive] = useState(false);
+  const users = state.users.filter(u => {
+    if (!showInactive && u.active === false) return false;
+    if (filterRole !== "all" && u.role !== filterRole) return false;
+    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.empId.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  const inactiveCount = state.users.filter(u=>u.active===false).length;
+
+  const downloadCSV = (includeInactive) => {
+    const list = includeInactive ? state.users : state.users.filter(u=>u.active!==false);
+    const h = ["empId","name","role","status","joining","dob","phone"];
+    const rows = list.map(u=>[u.empId,u.name,ROLE_LABELS[u.role]||u.role,u.active===false?"Inactive":"Active",u.joining||"",u.dob||"",u.phone||""]);
+    const csv = [h.join(","), ...rows.map(r=>r.map(c=>`"${c}"`).join(","))].join("
+");
+    const a = document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download=(includeInactive?"all_staff_":"active_staff_")+today()+".csv"; a.click();
+  };
+  const today_ = today();
+  const upcomingBdays = state.users.filter(u => {
+    if (!u.dob) return false;
+    const bday = u.dob.slice(5);
+    const todayMD = today_.slice(5);
+    const in7 = new Date(today_);
+    in7.setDate(in7.getDate()+7);
+    const in7MD = in7.toISOString().split("T")[0].slice(5);
+    return bday >= todayMD && bday <= in7MD;
+  });
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Staff Directory</div>
+      {upcomingBdays.length > 0 && (
+        <Card style={{ marginBottom:16, background:"#FFF7ED", border:"1px solid #FED7AA" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#C2410C", marginBottom:8 }}>🎂 Upcoming Birthdays (next 7 days)</div>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            {upcomingBdays.map(u => (
+              <div key={u.id} style={{ background:"#fff", borderRadius:8, padding:"6px 12px", fontSize:12 }}>
+                <b>{u.name}</b> — {u.dob?.slice(5).split("-").reverse().join("/")}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      <div style={{ display:"flex", gap:10, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name or ID..."
+          style={{ flex:1, minWidth:200, padding:"8px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+        <select value={filterRole} onChange={e=>setFilterRole(e.target.value)}
+          style={{ padding:"8px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+          <option value="all">All Roles</option>
+          {Object.entries(ROLE_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        {inactiveCount > 0 && (
+          <button onClick={()=>setShowInactive(p=>!p)} style={{
+            padding:"8px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(showInactive?T.red:T.bdrS),background:showInactive?T.redL:"transparent",color:showInactive?T.red:T.txt2
+          }}>{showInactive?"Hide Inactive":"Show Inactive ("+inactiveCount+")"}</button>
+        )}
+      </div>
+      <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+        <Btn onClick={()=>downloadCSV(false)} size="sm" variant="ghost">📥 Active Staff CSV</Btn>
+        <Btn onClick={()=>downloadCSV(true)}  size="sm" variant="ghost">📥 All Staff (incl. inactive) CSV</Btn>
+      </div>
+      <Table cols={[
+        {key:"empId",   label:"ID",     render:r=><span style={{fontFamily:"monospace",fontSize:12}}>{r.empId}</span>},
+        {key:"name",    label:"Name",   render:r=><b style={{color:r.active===false?T.txt3:T.txt}}>{r.name}{r.active===false&&<Badge color={T.red} style={{marginLeft:6}}>Inactive</Badge>}</b>},
+        {key:"role",    label:"Role",   render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
+        {key:"manager", label:"Reports To", render:r=>state.users.find(u=>u.id===r.managerId)?.name||"—"},
+        {key:"dob",     label:"D.O.B",  render:r=>r.dob?r.dob.split("-").reverse().join("/"):"—"},
+        {key:"joining", label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("/"):"—"},
+        {key:"phone",   label:"Phone"},
+      ]} rows={users} emptyMsg="No staff found"/>
+    </div>
+  );
+}
+
+// ─── Salary View ───────────────────────────────────────────────────────────────
+function SalaryView({ user, state, setState, toast, viewScope }) {
+  const [selMonth, setSelMonth] = useState(today().slice(0,7));
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ basic:"", allowances:"", deductions:"", note:"" });
+
+  const relevantUsers = viewScope==="all"
+    ? state.users.filter(u=>u.active!==false)
+    : state.users.filter(u=>u.managerId===user.id||u.id===user.id);
+
+  const getSalary = (uid) => (state.salaries||[]).find(s=>s.userId===uid&&s.month===selMonth);
+
+  const save = (uid) => {
+    const basic=Number(form.basic)||0, allow=Number(form.allowances)||0, deduct=Number(form.deductions)||0;
+    const sal = { id:"sal_"+uid+"_"+selMonth, userId:uid, month:selMonth, basic_salary:basic, allowances:allow, deductions:deduct, net_salary:basic+allow-deduct, note:form.note, paid_by:user.id, paid_on:today() };
+    setState(p=>({...p, salaries:[...(p.salaries||[]).filter(s=>s.id!==sal.id), sal]}));
+    toast.show("Salary saved ✅");
+    setEditing(null);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Salary & Payroll</div>
+      <Input label="Month" type="month" value={selMonth} onChange={setSelMonth} style={{ maxWidth:200, marginBottom:16 }}/>
+      {relevantUsers.map(u => {
+        const sal = getSalary(u.id);
+        const isEdit = editing===u.id;
+        return (
+          <Card key={u.id} style={{ marginBottom:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontWeight:700 }}>{u.name}</div>
+                <div style={{ fontSize:12, color:T.txt2 }}>{ROLE_LABELS[u.role]||u.role} · {u.empId}</div>
+              </div>
+              {!isEdit && (
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  {sal ? (
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:16, fontWeight:800, color:T.grn }}>{fmtCurr(sal.net_salary||sal.netSalary||0)}</div>
+                      <div style={{ fontSize:11, color:T.txt2 }}>Basic: {fmtCurr(sal.basic_salary||sal.basic||0)}</div>
+                    </div>
+                  ) : <div style={{ fontSize:12, color:T.txt3 }}>Not set</div>}
+                  <Btn onClick={()=>{ setEditing(u.id); setForm({ basic:sal?.basic_salary||sal?.basic||"", allowances:sal?.allowances||"", deductions:sal?.deductions||"", note:sal?.note||"" }); }} size="sm" variant="outline">{sal?"Edit":"Set"}</Btn>
+                </div>
+              )}
+            </div>
+            {isEdit && (
+              <div style={{ marginTop:14 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:10, marginBottom:12 }}>
+                  {[["basic","Basic Salary"],["allowances","Allowances"],["deductions","Deductions"]].map(([k,l])=>(
+                    <div key={k}>
+                      <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:4, textTransform:"uppercase" }}>{l} (₹)</label>
+                      <input type="number" value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} placeholder="0"
+                        style={{ width:"100%", padding:"8px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background:T.navyXL, borderRadius:8, padding:10, marginBottom:12, display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ fontSize:13 }}>Net Salary</span>
+                  <span style={{ fontSize:16, fontWeight:800, color:T.grn }}>{fmtCurr((Number(form.basic)||0)+(Number(form.allowances)||0)-(Number(form.deductions)||0))}</span>
+                </div>
+                <Input label="Note" value={form.note} onChange={v=>setForm(p=>({...p,note:v}))} placeholder="Optional note"/>
+                <div style={{ display:"flex", gap:10, marginTop:10 }}>
+                  <Btn onClick={()=>save(u.id)} variant="amber">Save</Btn>
+                  <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── MD Feedback All ───────────────────────────────────────────────────────────
+function MDFeedbackAll({ state }) {
+  const [filterCounter, setFilterCounter] = useState("all");
+  const [filterRating,  setFilterRating]  = useState(0);
+  const dr = useDateRange("month");
+
+  const fb = state.feedback
+    .filter(f => f.date>=dr.from && f.date<=dr.to)
+    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===state.counters.find(c=>c.id===filterCounter)?.name)
+    .filter(f => filterRating===0 || f.rating===filterRating)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  const total = state.feedback.reduce((s,f)=>s+f.rating,0);
+  const avg   = state.feedback.length ? (total / state.feedback.length).toFixed(1) : "—";
+  const ratingColor = r => r>=4?T.grn:r===3?T.amber:T.red;
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>All Customer Feedback</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
+        <div style={{ fontSize:28, fontWeight:800, color:T.amber }}>⭐ {avg}</div>
+        <div style={{ fontSize:13, color:T.txt2 }}>{state.feedback.length} total reviews</div>
+        <select value={filterCounter} onChange={e=>setFilterCounter(e.target.value)}
+          style={{ padding:"7px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+          <option value="all">All Counters</option>
+          {state.counters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select value={filterRating} onChange={e=>setFilterRating(Number(e.target.value))}
+          style={{ padding:"7px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}>
+          <option value={0}>All Ratings</option>
+          {[5,4,3,2,1].map(r=><option key={r} value={r}>{r} Star{r!==1?"s":""}</option>)}
+        </select>
+      </div>
+      {fb.map(f => {
+        const bc = ratingColor(f.rating);
+        return (
+          <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid "+bc }}>
+            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+              <div>
+                <div style={{ fontWeight:700 }}>{f.counterName || state.counters.find(c=>c.id===f.counterId)?.name || "—"}</div>
+                <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt||""}</div>
+              </div>
+              <Badge color={bc}>{Array(f.rating).fill("⭐").join("")} {f.rating}</Badge>
+            </div>
+            <div style={{ display:"flex", gap:12, fontSize:12, marginBottom:6, flexWrap:"wrap" }}>
+              {f.vehicleNo && <span><b>{f.vehicleNo}</b></span>}
+              {f.serviceType && <span style={{ color:T.txt2 }}>{f.serviceType}</span>}
+              {f.customerName && <span style={{ color:T.txt2 }}>{f.customerName}</span>}
+            </div>
+            {f.comment && <div style={{ fontSize:13, background:T.surf, padding:"8px 12px", borderRadius:7 }}>{f.comment}</div>}
+          </Card>
+        );
+      })}
+      {fb.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No feedback for {dr.label}</div></Card>}
+    </div>
+  );
+}
+
+// ─── Office: View Reports ──────────────────────────────────────────────────────
+function OfficeReports({ state }) {
+  const dr = useDateRange("today");
+  const [expanded, setExpanded] = useState(null);
+  const reports = state.serviceReports
+    .filter(r => r.date>=dr.from && r.date<=dr.to)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
+  const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
+  const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>View Reports</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      {reports.length>0 && (
+        <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+          <StatCard label={"Reports ("+dr.label+")"} value={reports.length+" reports"} sub={"Total: "+fmtCurr(totalRev)} color={T.amber}/>
+        </div>
+      )}
+      {reports.map(r => (
+        <Card key={r.id} style={{ marginBottom:10, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+            <div>
+              <div style={{ fontWeight:700 }}>{r.counterName||(r.counters||[])[0]?.counterName||"—"}</div>
+              <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)?.name||"—"}</div>
+              {r.submittedBy && <div style={{ fontSize:11, color:T.txt2 }}>By: {state.users.find(u=>u.id===r.submittedBy)?.name||"Office"}</div>}
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
+              <Badge color={T.grn}>submitted</Badge>
+            </div>
+          </div>
+          {expanded===r.id && (
+            <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid "+T.bdr }}>
+              {(() => {
+                const allE = getE(r);
+                const svcE = allE.filter(e=>!SALES_WTS.includes(e.workTypeName)&&e.type!=="sales"&&e.vehicles>0);
+                const salE = allE.filter(e=>(SALES_WTS.includes(e.workTypeName)||e.type==="sales")&&e.amount>0);
+                return <>
+                  {svcE.length>0 && <Table cols={[{key:"workTypeName",label:"Work"},{key:"vehicles",label:"Veh"},{key:"amount",label:"Amt",render:e=>fmtCurr(e.amount)}]} rows={svcE}/>}
+                  {salE.length>0 && <><div style={{fontSize:11,fontWeight:700,color:T.grn,margin:"6px 0 3px"}}>SALES</div><Table cols={[{key:"workTypeName",label:"Product"},{key:"amount",label:"Amt",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>}]} rows={salE}/></>}
+                </>;
+              })()}
+            </div>
+          )}
+        </Card>
+      ))}
+      {reports.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
+    </div>
+  );
+}
+
+// ─── Office: View Attendance with status filter ────────────────────────────────
+function OfficeAttendanceView({ state }) {
+  const dr = useDateRange("today");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const att = state.attendance
+    .filter(a=>a.date>=dr.from&&a.date<=dr.to)
+    .filter(a=>showInactive || state.users.find(u=>u.id===a.staffId)?.active!==false)
+    .filter(a=>filterStatus==="all"||a.status===filterStatus)
+    .filter(a=>!search||state.users.find(u=>u.id===a.staffId)?.name?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>b.date.localeCompare(a.date)||a.status.localeCompare(b.status));
+  const counts = { present:att.filter(a=>a.status==="present").length, absent:att.filter(a=>a.status==="absent").length, half:att.filter(a=>a.status==="half_day").length };
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Attendance Records</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12, alignItems:"center" }}>
+        {["all","present","absent","half_day"].map(s=>(
+          <button key={s} onClick={()=>setFilterStatus(s)} style={{
+            padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+            border:"1px solid "+(filterStatus===s?(s==="present"?T.grn:s==="absent"?T.red:s==="half_day"?T.amber:T.navy):T.bdrS),
+            background:filterStatus===s?(s==="present"?T.grnL:s==="absent"?T.redL:s==="half_day"?T.amberL:T.navy):"transparent",
+            color:filterStatus===s?(s==="all"?"#fff":s==="present"?T.grn:s==="absent"?T.red:T.amberD):T.txt2
+          }}>{s==="half_day"?"Half Day":s==="all"?"All":s.charAt(0).toUpperCase()+s.slice(1)}{s!=="all"?" ("+att.filter(a=>a.status===s).length+")":""}</button>
+        ))}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff..."
+          style={{ padding:"5px 12px", border:"1px solid "+T.bdrS, borderRadius:20, fontSize:12, fontFamily:"inherit", outline:"none", flex:1, minWidth:120 }}/>
+        <button onClick={()=>setShowInactive(p=>!p)} style={{
+          padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+          border:"1px solid "+(showInactive?T.red:T.bdrS),background:showInactive?T.redL:"transparent",color:showInactive?T.red:T.txt2
+        }}>{showInactive?"Hide Inactive":"+ Inactive"}</button>
+      </div>
+      {att.length>0 && <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}><StatCard label="Present" value={counts.present} color={T.grn}/><StatCard label="Absent" value={counts.absent} color={T.red}/><StatCard label="Half Day" value={counts.half} color={T.amber}/></div>}
+      <Table cols={[
+        {key:"date",label:"Date",render:r=>fmtDate(r.date)},
+        {key:"staff",label:"Staff",render:r=><b>{state.users.find(u=>u.id===r.staffId)?.name||r.staffId}</b>},
+        {key:"counter",label:"Counter",render:r=>state.counters.find(c=>c.supervisorId===r.supervisorId)?.name||"—"},
+        {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
+        {key:"reason",label:"Reason",render:r=>r.reason||"—"},
+      ]} rows={att} emptyMsg="No records"/>
+    </div>
+  );
+}
+
+// ─── Office: Sales Entry ────────────────────────────────────────────────────────
+function OfficeSalesEntry({ user, state, setState, toast }) {
+  const [date, setDate] = useState(today());
+  const [selSupervisor, setSelSupervisor] = useState("");
+  const [selCounter, setSelCounter] = useState("");
+  const [bardahl, setBardahl] = useState("");
+  const [other, setOther] = useState("");
+  const [notes, setNotes] = useState("");
+  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
+  const myCounters = selSupervisor ? state.counters.filter(c=>c.supervisorId===selSupervisor) : [];
+
+  const submit = () => {
+    if (!selSupervisor||!selCounter) { toast.show("Select executive and counter","error"); return; }
+    if (!bardahl&&!other) { toast.show("Enter at least one sales amount","error"); return; }
+    const counter = state.counters.find(c=>c.id===selCounter)||{id:selCounter,name:selCounter};
+    const entries = [];
+    if (Number(bardahl)>0) entries.push({workTypeId:"wt_bardahl",workTypeName:"BARDAHL",amount:Number(bardahl),type:"sales",vehicles:0,rate:0});
+    if (Number(other)>0)   entries.push({workTypeId:"wt_other",workTypeName:"OTHER SALES",amount:Number(other),type:"sales",vehicles:0,rate:0});
+    const reportId = "sr_"+selSupervisor+"_"+counter.id+"_"+date;
+    const existing = state.serviceReports.find(r=>r.id===reportId);
+    const prevE = existing ? (existing.entries||[]).filter(e=>!["BARDAHL","OTHER SALES"].includes(e.workTypeName)) : [];
+    const allE  = [...prevE, ...entries];
+    const report = { id:reportId, date, supervisorId:selSupervisor, counterId:counter.id, counterName:counter.name,
+      submittedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+      entries:allE, counters:[{counterName:counter.name,entries:allE}],
+      totalAmount:allE.reduce((s,e)=>s+(Number(e.amount)||0),0), notes, status:"submitted", submittedBy:user.id };
+    setState(p=>({...p,serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id),report]}));
+    toast.show("Sales entry saved ✅");
+    setBardahl(""); setOther(""); setNotes("");
+  };
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Sales Entry</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter Bardahl and other product sales (separate from service revenue)</div>
+      <Card style={{maxWidth:540}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+          <Input label="Date" type="date" value={date} onChange={setDate}/>
+          <div>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive</label>
+            <select value={selSupervisor} onChange={e=>{setSelSupervisor(e.target.value);setSelCounter("");}}
+              style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value="">Select...</option>
+              {executives.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+        </div>
+        {myCounters.length>0 && (
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Counter</label>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {myCounters.map(c=>(
+                <button key={c.id} onClick={()=>setSelCounter(c.id)} style={{
+                  padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                  border:"1px solid "+(selCounter===c.id?T.navy:T.bdrS),
+                  background:selCounter===c.id?T.navy:"transparent",color:selCounter===c.id?"#fff":T.txt
+                }}>{c.name}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{background:T.navyXL,borderRadius:10,padding:16,marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:12}}>Sales Amounts</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Bardahl Sales (₹)</label>
+              <input type="number" value={bardahl} onChange={e=>setBardahl(e.target.value)} min={0} placeholder="0"
+                style={{width:"100%",padding:"9px 12px",border:"1px solid "+(bardahl?"#0369A1":T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:bardahl?"#EFF6FF":"#fff"}}/>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Other Sales (₹)</label>
+              <input type="number" value={other} onChange={e=>setOther(e.target.value)} min={0} placeholder="0"
+                style={{width:"100%",padding:"9px 12px",border:"1px solid "+(other?T.grn:T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:other?T.grnL:"#fff"}}/>
+            </div>
+          </div>
+          {(Number(bardahl)+Number(other))>0 && (
+            <div style={{marginTop:12,padding:"8px 12px",background:T.amberL,borderRadius:8,display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:13,fontWeight:700}}>Total Sales</span>
+              <span style={{fontSize:18,fontWeight:800,color:T.amber}}>{fmtCurr(Number(bardahl)+Number(other))}</span>
+            </div>
+          )}
+        </div>
+        <input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Notes (optional)"
+          style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",marginBottom:14,boxSizing:"border-box"}}/>
+        <Btn onClick={submit} variant="amber">Save Sales Entry</Btn>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Office: Own Attendance ────────────────────────────────────────────────────
+function OfficeOwnAttendance({ user, state, setState, toast }) {
+  const [displayDate, setDisplayDate] = useState(today());
+  const recordsRef = useRef({});
+  const reasonsRef = useRef({});
+  const [formTick, setFormTick] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const mounted = useRef(false);
+  const officeStaff = state.users.filter(u=>(u.role==="office"||u.id===user.id)&&u.active!==false);
+
+  const loadDate = (date) => {
+    const r={}, rs={};
+    state.attendance.filter(a=>a.supervisorId===user.id&&a.date===date).forEach(a=>{ r[a.staffId]=a.status; rs[a.staffId]=a.reason||""; });
+    recordsRef.current=r; reasonsRef.current=rs;
+    setDisplayDate(date); setFormTick(t=>t+1); setDirty(false);
+  };
+  useEffect(()=>{ if(mounted.current)return; mounted.current=true; loadDate(today()); },[]);
+
+  const setStatus = (id,st) => { recordsRef.current={...recordsRef.current,[id]:st}; setFormTick(t=>t+1); setDirty(true); };
+  const save = () => {
+    const atts = officeStaff.map(s=>({ id:"att_"+user.id+"_"+s.id+"_"+displayDate, date:displayDate, supervisorId:user.id, staffId:s.id,
+      status:recordsRef.current[s.id]||"present", reason:reasonsRef.current[s.id]||"",
+      markedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) }));
+    setState(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===displayDate)),...atts]}));
+    setDirty(false); toast.show("Attendance saved ✅");
+  };
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>My Attendance</div>
+      <Card style={{maxWidth:640}}>
+        <Input label="Date" type="date" value={displayDate} onChange={loadDate}/>
+        {officeStaff.map(s=>{ const st=recordsRef.current[s.id]; return (
+          <div key={s.id} style={{display:"grid",gridTemplateColumns:"1fr 220px 1fr",gap:8,alignItems:"center",marginBottom:10,
+            background:s.id===user.id?T.navyXL:"transparent",padding:"4px 8px",borderRadius:6}}>
+            <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
+            <div style={{display:"flex",gap:4}}>
+              {["present","absent","half_day"].map(status=>{ const active=st===status||(!st&&status==="present");
+                return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
+                  padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                  border:"1px solid "+(active?(status==="present"?T.grn:status==="absent"?T.red:T.amber):T.bdrS),
+                  background:active?(status==="present"?T.grnL:status==="absent"?T.redL:T.amberL):"transparent",
+                  color:active?(status==="present"?T.grn:status==="absent"?T.red:T.amberD):T.txt2
+                }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
+              })}
+            </div>
+            <input key={"r"+s.id+formTick} defaultValue={reasonsRef.current[s.id]||""} onChange={e=>{ reasonsRef.current={...reasonsRef.current,[s.id]:e.target.value}; setDirty(true); }}
+              placeholder={st==="absent"?"Reason":"Optional"}
+              style={{padding:"6px 10px",border:"1px solid "+(st==="absent"?T.red:T.bdrS),borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+          </div>
+        );})}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+          <span style={{fontSize:12,color:T.txt2}}>{fmtDate(displayDate)}{dirty&&<span style={{color:T.amber,marginLeft:8}}>● Unsaved</span>}</span>
+          <Btn onClick={save} variant={dirty?"amber":"primary"}>{dirty?"⚠️ Save":"✅ Save Attendance"}</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Office: Export ────────────────────────────────────────────────────────────
+function OfficeExport({ state, toast }) {
+  const dl = (data, name) => {
+    if (!data.length) { toast.show("No data","error"); return; }
+    const h = Object.keys(data[0]);
+    const csv = [h.join(","), ...data.map(r=>h.map(k=>`"${(r[k]||"").toString().replace(/"/g,'""')}"`).join(","))].join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download = name; a.click();
+    toast.show("Exported "+name);
+  };
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Export Data</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
+        {[
+          ["Service Reports","📋",()=>dl(state.serviceReports.map(r=>({ Date:r.date, Counter:r.counterName||"", Executive:state.users.find(u=>u.id===r.supervisorId)?.name||"", Total:r.totalAmount, Status:r.status })),"reports_"+today()+".csv")],
+          ["Attendance","👥",()=>dl(state.attendance.map(a=>({ Date:a.date, Staff:state.users.find(u=>u.id===a.staffId)?.name||"", Status:a.status, Reason:a.reason||"" })),"attendance_"+today()+".csv")],
+          ["Active Staff","👤",()=>dl(state.users.filter(u=>u.active!==false).map(u=>({ ID:u.empId, Name:u.name, Role:ROLE_LABELS[u.role]||u.role, Phone:u.phone||"", Joining:u.joining||"", DOB:u.dob||"" })),"active_staff_"+today()+".csv")],
+          ["All Staff (incl. inactive)","🗂️",()=>dl(state.users.map(u=>({ ID:u.empId, Name:u.name, Role:ROLE_LABELS[u.role]||u.role, Status:u.active===false?"Inactive":"Active", Phone:u.phone||"", Joining:u.joining||"", DOB:u.dob||"" })),"all_staff_"+today()+".csv")],
+          ["Feedback","💬",()=>dl(state.feedback.map(f=>({ Date:f.date, Counter:f.counterName||"", Rating:f.rating, Vehicle:f.vehicleNo||"", Comment:f.comment||"" })),"feedback_"+today()+".csv")],
+        ].map(([label,icon,fn])=>(
+          <Card key={label} style={{cursor:"pointer",textAlign:"center",padding:24}} onClick={fn}>
+            <div style={{fontSize:32,marginBottom:8}}>{icon}</div>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Export {label}</div>
+            <div style={{fontSize:12,color:T.txt2}}>Download as CSV</div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Public Feedback Form ──────────────────────────────────────────────────────
+function PublicFeedbackForm({ counterName, counters, onSubmit }) {
+  const [rating, setRating] = useState(0);
+  const [vehicle, setVehicle] = useState("");
+  const [service, setService] = useState("");
+  const [name, setName] = useState("");
+  const [comment, setComment] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const submit = () => {
+    if (!rating) { alert("Please select a rating"); return; }
+    const counter = counters.find(c=>c.name===counterName);
+    onSubmit({ id:"fb_"+Date.now(), counterId:counter?.id||"", counterName, date:today(),
+      submittedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+      rating, vehicleNo:vehicle.toUpperCase(), serviceType:service, customerName:name, comment, source:"public_form" });
+    setSubmitted(true);
+  };
+
+  if (submitted) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F7F9FC",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{textAlign:"center",padding:40}}>
+        <div style={{fontSize:64,marginBottom:16}}>🎉</div>
+        <div style={{fontSize:24,fontWeight:800,color:"#0F2B4A",marginBottom:8}}>Thank you for your feedback!</div>
+        <div style={{fontSize:15,color:"#64748B"}}>We appreciate your time. See you again!</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:"#F7F9FC",fontFamily:"system-ui,sans-serif",padding:20,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{width:"100%",maxWidth:440}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:32,marginBottom:6}}>✨</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#0F2B4A"}}>Benaka Enterprises</div>
+          <div style={{fontSize:15,color:"#64748B"}}>{counterName}</div>
+        </div>
+        <div style={{background:"#fff",borderRadius:16,padding:28,boxShadow:"0 4px 24px rgba(0,0,0,.08)"}}>
+          <div style={{fontSize:16,fontWeight:700,marginBottom:20,color:"#0F2B4A"}}>How was your service today?</div>
+          <div style={{display:"flex",gap:8,marginBottom:20,justifyContent:"center"}}>
+            {[1,2,3,4,5].map(r=>(
+              <button key={r} onClick={()=>setRating(r)} style={{fontSize:36,background:"none",border:"none",cursor:"pointer",opacity:r<=rating?1:.3,transition:"opacity .15s"}}>⭐</button>
+            ))}
+          </div>
+          {[["Vehicle Number",vehicle,setVehicle,"e.g. KA19AB1234"],["Service Type",service,setService,"e.g. Wash, Polish"],["Your Name (optional)",name,setName,"Optional"]].map(([label,val,setter,ph])=>(
+            <div key={label} style={{marginBottom:14}}>
+              <label style={{display:"block",fontSize:12,fontWeight:700,color:"#64748B",marginBottom:5,textTransform:"uppercase"}}>{label}</label>
+              <input value={val} onChange={e=>setter(e.target.value)} placeholder={ph}
+                style={{width:"100%",padding:"10px 14px",border:"1px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+          ))}
+          <div style={{marginBottom:20}}>
+            <label style={{display:"block",fontSize:12,fontWeight:700,color:"#64748B",marginBottom:5,textTransform:"uppercase"}}>Comments</label>
+            <textarea value={comment} onChange={e=>setComment(e.target.value)} rows={3} placeholder="Tell us about your experience..."
+              style={{width:"100%",padding:"10px 14px",border:"1px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+          </div>
+          <button onClick={submit} style={{width:"100%",padding:"13px",background:"#E8A020",color:"#000",border:"none",borderRadius:10,fontSize:16,fontWeight:800,cursor:"pointer"}}>
+            Submit Feedback
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Planned Leave Portal (field staff) ────────────────────────────────────────
+function PlannedLeavePortal({ user, state, setState, toast, mode }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo]     = useState("");
+  const [reason, setReason] = useState("");
+
+  const myLeaves = (state.plannedLeaves||[]).filter(l=>l.userId===user.id).sort((a,b)=>b.appliedOn?.localeCompare(a.appliedOn||"")||0);
+  const pending  = mode==="executive" ? (state.plannedLeaves||[]).filter(l=>{
+    const staff = state.users.find(u=>u.id===l.userId);
+    return staff?.managerId===user.id && l.status==="pending";
+  }) : [];
+
+  const submit = () => {
+    if (!from||!to||!reason) { toast.show("Fill all fields","error"); return; }
+    const leave = { id:"pl_"+Date.now(), userId:user.id, staffName:state.users.find(u=>u.id===user.id)?.name||"",
+      supervisorId:user.managerId||"", fromDate:from, toDate:to, reason, status:"pending",
+      appliedOn:today(), decidedOn:null };
+    setState(p=>({...p, plannedLeaves:[...(p.plannedLeaves||[]), leave]}));
+    toast.show("Leave request submitted");
+    setFrom(""); setTo(""); setReason("");
+  };
+
+  const decide = (id, status) => {
+    setState(p=>({...p, plannedLeaves:(p.plannedLeaves||[]).map(l=>l.id===id?{...l,status,decidedOn:today()}:l)}));
+    toast.show(status==="approved"?"Leave approved":"Leave rejected");
+  };
+
+  return (
+    <div>
+      {pending.length > 0 && (
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:12,color:T.red}}>⏳ Pending Approvals ({pending.length})</div>
+          {pending.map(l=>{
+            const staff = state.users.find(u=>u.id===l.userId);
+            return (
+              <Card key={l.id} style={{marginBottom:10,borderLeft:"3px solid "+T.amber}}>
+                <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                  <div>
+                    <div style={{fontWeight:700}}>{l.staffName||staff?.name}</div>
+                    <div style={{fontSize:12,color:T.txt2}}>{fmtDate(l.fromDate)} → {fmtDate(l.toDate)}</div>
+                    <div style={{fontSize:13,marginTop:4}}>{l.reason}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn onClick={()=>decide(l.id,"approved")} variant="success" size="sm">Approve</Btn>
+                    <Btn onClick={()=>decide(l.id,"rejected")} variant="danger" size="sm">Reject</Btn>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>Request Planned Leave</div>
+      <Card style={{maxWidth:500,marginBottom:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <Input label="From Date" type="date" value={from} onChange={setFrom}/>
+          <Input label="To Date" type="date" value={to} onChange={setTo}/>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Reason</label>
+          <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={3}
+            style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+        <Btn onClick={submit} variant="amber">Submit Leave Request</Btn>
+      </Card>
+
+      {myLeaves.length > 0 && (
+        <>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Leave Requests</div>
+          <Table cols={[
+            {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
+            {key:"toDate",  label:"To",  render:r=>fmtDate(r.toDate)},
+            {key:"reason",  label:"Reason"},
+            {key:"status",  label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:r.status==="rejected"?T.red:T.amber}>{r.status}</Badge>},
+          ]} rows={myLeaves}/>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Field Staff Portal ────────────────────────────────────────────────────────
+function FieldStaffPortal({ user, state, setState, logout, toast }) {
+  return (
+    <div style={{minHeight:"100vh",background:T.bg,fontFamily:"system-ui,sans-serif"}}>
+      <div style={{background:T.navy,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{user.name}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.6)"}}>Field Staff · {user.empId}</div>
+        </div>
+        <button onClick={logout} style={{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",padding:"6px 14px",borderRadius:8,cursor:"pointer",fontSize:13}}>Sign Out</button>
+      </div>
+      <div style={{padding:20}}>
+        <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="staff"/>
+      </div>
+    </div>
+  );
+}
+
+// ─── IT Admin Portal ────────────────────────────────────────────────────────────
+function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
+  const [page, setPage] = useState("users");
+  const [pageHistory, setPageHistory] = useState([]);
+  const navTo = p => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
+  const navItems = [
+    { id:"users",    icon:"👥", label:"User Management" },
+    { id:"counters", icon:"🏪", label:"Counters" },
+    { id:"worktypes",icon:"🔧", label:"Work Types" },
+    { id:"reports",  icon:"📋", label:"All Reports" },
+    { id:"data",     icon:"🗑️", label:"Data Management" },
+    { id:"export",   icon:"📥", label:"Export" },
+  ];
+  return (
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems}
+      onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
+      {page==="users"     && <UserMgmt     user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="counters"  && <CounterMgmt  user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="worktypes" && <WorkTypeMgmt user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="reports"   && <AllReports   state={state}/>}
+      {page==="data"      && <DataMgmt     user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="export"    && <OfficeExport state={state} toast={toast}/>}
+    </Shell>
+  );
+}
+
+// ─── IT Admin: User Management ─────────────────────────────────────────────────
+function UserMgmt({ user, state, setState, toast }) {
+  const [editing, setEditing] = useState(null);
+  const [form, setForm]       = useState({});
+  const [newPwd, setNewPwd]   = useState("");
+  const openEdit = u => { setEditing(u); setForm({...u}); setNewPwd(""); };
+  const openNew  = ()  => { setEditing({}); setForm({ role:"field_staff", active:true }); setNewPwd(""); };
+
+  const save = () => {
+    if (!form.empId||!form.name) { toast.show("ID and Name required","error"); return; }
+    if (editing?.id) {
+      const updated = state.users.map(u=>u.id===editing.id?{...u,...form}:u);
+      const pwds    = newPwd ? {...state.passwords,[form.empId]:newPwd} : state.passwords;
+      DB.upsertUsers(updated).catch(console.error);
+      DB.upsertPasswords(pwds).catch(console.error);
+      setState(p=>({...p,users:updated,passwords:pwds,_configVersion:(p._configVersion||0)+1}));
+      toast.show("User updated — synced ✅");
+    } else {
+      if (state.users.find(u=>u.empId===form.empId)) { toast.show("ID exists","error"); return; }
+      const nu = { id:"u_"+Date.now(), ...form, dob:form.dob||"", joining:form.joining||"", weddingAnniversary:"", active:true };
+      const newUsers = [...state.users, nu];
+      const newPwds  = {...state.passwords,[form.empId]:newPwd||"pass@123"};
+      DB.upsertUsers(newUsers).catch(console.error);
+      DB.upsertPasswords(newPwds).catch(console.error);
+      setState(p=>({...p,users:newUsers,passwords:newPwds,_configVersion:(p._configVersion||0)+1}));
+      toast.show("User created · pwd: "+(newPwd||"pass@123")+" ✅");
+    }
+    setEditing(null);
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:18,fontWeight:800}}>User Management</div>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={()=>{ if(confirm("Reset to default staff list?")){ setState(p=>({...p,users:INITIAL_STATE.users,passwords:INITIAL_STATE.passwords,_configVersion:0})); toast.show("Reset done"); }}} variant="ghost" size="sm">↺ Reset</Btn>
+          <Btn onClick={openNew} variant="amber">+ Add User</Btn>
+        </div>
+      </div>
+      {editing!==null && (
+        <Card style={{marginBottom:20,borderTop:"3px solid "+T.amber}}>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>{editing?.id?"Edit User":"New User"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
+            {[["empId","Employee ID"],["name","Full Name"],["phone","Phone"]].map(([k,l])=>(
+              <div key={k}><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
+              <input value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            ))}
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Role</label>
+            <select value={form.role||"field_staff"} onChange={e=>setForm(p=>({...p,role:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              {Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+            </select></div>
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Reports To</label>
+            <select value={form.managerId||""} onChange={e=>setForm(p=>({...p,managerId:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value="">None</option>
+              {state.users.filter(u=>["md","manager","supervisor"].includes(u.role)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select></div>
+            {[["dob","Date of Birth","date"],["joining","Joining Date","date"]].map(([k,l,t])=>(
+              <div key={k}><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
+              <input type={t} value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            ))}
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>New Password</label>
+            <input value={newPwd} onChange={e=>setNewPwd(e.target.value)} placeholder={editing?.id?"Leave blank to keep":"Required"}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={save} variant="amber">Save</Btn>
+            <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
+          </div>
+        </Card>
+      )}
+      <Table cols={[
+        {key:"empId",label:"ID",render:r=><span style={{fontFamily:"monospace",fontSize:12}}>{r.empId}</span>},
+        {key:"name",label:"Name",render:r=><b>{r.name}</b>},
+        {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
+        {key:"mgr",label:"Reports To",render:r=>state.users.find(u=>u.id===r.managerId)?.name||"—"},
+        {key:"dob",label:"D.O.B",render:r=>r.dob?r.dob.split("-").reverse().join("/"):"—"},
+        {key:"joining",label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("/"):"—"},
+        {key:"status",label:"Status",render:r=><Badge color={r.active!==false?T.grn:T.red}>{r.active!==false?"Active":"Inactive"}</Badge>},
+        {key:"actions",label:"",render:r=><div style={{display:"flex",gap:4}}>
+          <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>
+          <Btn onClick={()=>{ setState(p=>({...p,users:p.users.map(u=>u.id===r.id?{...u,active:!u.active}:u)})); }} size="sm" variant="ghost">{r.active!==false?"Deactivate":"Activate"}</Btn>
+        </div>},
+      ]} rows={state.users}/>
+    </div>
+  );
+}
+
+// ─── IT Admin: Counter Management ─────────────────────────────────────────────
+function CounterMgmt({ user, state, setState, toast }) {
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({});
+  const open = c => { setEditing(c); setForm(c?{...c}:{name:"",supervisorId:"",dealership:"",city:""}); };
+  const save = () => {
+    if (!form.name) { toast.show("Name required","error"); return; }
+    let newCounters;
+    if (editing?.id) {
+      newCounters = state.counters.map(c=>c.id===editing.id?{...c,...form}:c);
+    } else {
+      newCounters = [...state.counters,{id:"c_"+Date.now(),...form}];
+    }
+    DB.upsertCounters(newCounters).catch(console.error);
+    setState(p=>({...p,counters:newCounters,_configVersion:(p._configVersion||0)+1}));
+    toast.show("Counter saved ✅"); setEditing(null);
+  };
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontSize:18,fontWeight:800}}>Counters</div>
+        <Btn onClick={()=>open(null)} variant="amber">+ Add Counter</Btn>
+      </div>
+      {editing!==null && (
+        <Card style={{marginBottom:20,borderTop:"3px solid "+T.amber}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
+            {[["name","Counter Name"],["dealership","Dealership"],["city","City"]].map(([k,l])=>(
+              <div key={k}><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
+              <input value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            ))}
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Assigned Executive</label>
+            <select value={form.supervisorId||""} onChange={e=>setForm(p=>({...p,supervisorId:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value="">None</option>
+              {state.users.filter(u=>u.role==="supervisor").map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select></div>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={save} variant="amber">Save</Btn>
+            <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
+          </div>
+        </Card>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
+        {state.counters.map(c=>{
+          const sup=state.users.find(u=>u.id===c.supervisorId);
+          return (
+            <Card key={c.id}>
+              <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>{c.name}</div>
+              {c.dealership&&<div style={{fontSize:12,color:T.txt2,marginBottom:4}}>{c.dealership}{c.city?" · "+c.city:""}</div>}
+              <div style={{fontSize:13,marginBottom:10}}>👤 {sup?.name||"Unassigned"}</div>
+              <Btn onClick={()=>open(c)} size="sm" variant="outline">Edit</Btn>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── IT Admin: Work Type Management ───────────────────────────────────────────
+function WorkTypeMgmt({ user, state, setState, toast }) {
+  const [editing, setEditing] = useState(null);
+  const [name, setName] = useState("");
+  const [rate, setRate] = useState("");
+  const [editCat, setEditCat] = useState("service");
+  const open = w => { setEditing(w||null); setName(w?.name||""); setRate(w?.defaultRate||""); setEditCat(w?.category||"service"); };
+  const save = () => {
+    if (!name) { toast.show("Name required","error"); return; }
+    let newWts;
+    if (editing?.id) {
+      newWts = state.workTypes.map(w=>w.id===editing.id?{...w,name,defaultRate:Number(rate),category:editCat}:w);
+    } else {
+      newWts = [...state.workTypes,{id:"wt_"+Date.now(),name,defaultRate:Number(rate),category:editCat||"service"}];
+    }
+    DB.upsertWorkTypes(newWts).catch(console.error);
+    setState(p=>({...p,workTypes:newWts,_configVersion:(p._configVersion||0)+1}));
+    toast.show("Work type saved ✅"); setEditing(null); setName(""); setRate("");
+  };
+  const svc  = state.workTypes.filter(w=>w.category!=="sales");
+  const sales = state.workTypes.filter(w=>w.category==="sales");
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontSize:18,fontWeight:800}}>Work Types & Rates</div>
+        <Btn onClick={()=>open(null)} variant="amber">+ Add</Btn>
+      </div>
+      {editing!==null && (
+        <Card style={{marginBottom:20,borderTop:"3px solid "+T.amber}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:12}}>
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Name</label>
+            <input value={name} onChange={e=>setName(e.target.value)}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Default Rate (₹)</label>
+            <input type="number" value={rate} onChange={e=>setRate(e.target.value)}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Category</label>
+            <select value={editCat} onChange={e=>setEditCat(e.target.value)}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value="service">Service</option>
+              <option value="sales">Sales</option>
+            </select></div>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={save} variant="amber">Save</Btn>
+            <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
+          </div>
+        </Card>
+      )}
+      {[["Service Work Types",svc,T.navy],["Sales Products",sales,T.grn]].map(([title,list,color])=>(
+        <div key={title} style={{marginBottom:20}}>
+          <div style={{fontSize:13,fontWeight:800,color,textTransform:"uppercase",marginBottom:10}}>{title}</div>
+          <Table cols={[
+            {key:"name",label:"Name",render:r=><b>{r.name}</b>},
+            {key:"defaultRate",label:"Default Rate",render:r=>r.defaultRate?fmtCurr(r.defaultRate):"—"},
+            {key:"category",label:"Category",render:r=><Badge color={r.category==="sales"?T.grn:T.navy}>{r.category}</Badge>},
+            {key:"act",label:"",render:r=><Btn onClick={()=>open(r)} size="sm" variant="outline">Edit</Btn>},
+          ]} rows={list}/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── IT Admin: Data Management ─────────────────────────────────────────────────
+function DataMgmt({ user, state, setState, toast }) {
+  const [confirm_, setConfirm] = useState("");
+  const del = (type) => {
+    if (confirm_ !== "DELETE") { toast.show("Type DELETE to confirm","error"); return; }
+    if (type==="reports") setState(p=>({...p,serviceReports:[]}));
+    if (type==="attendance") setState(p=>({...p,attendance:[]}));
+    if (type==="feedback") setState(p=>({...p,feedback:[]}));
+    toast.show(type+" cleared"); setConfirm("");
+  };
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Data Management</div>
+      <Card style={{borderTop:"3px solid "+T.red}}>
+        <div style={{fontSize:14,fontWeight:700,color:T.red,marginBottom:12}}>⚠️ Danger Zone</div>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Type DELETE to confirm</label>
+          <input value={confirm_} onChange={e=>setConfirm(e.target.value)} placeholder="DELETE"
+            style={{padding:"8px 12px",border:"1px solid "+T.red,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+        </div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          <Btn onClick={()=>del("reports")} variant="danger" size="sm">Clear All Reports</Btn>
+          <Btn onClick={()=>del("attendance")} variant="danger" size="sm">Clear Attendance</Btn>
+          <Btn onClick={()=>del("feedback")} variant="danger" size="sm">Clear Feedback</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+
