@@ -1812,23 +1812,30 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Counter Performance — Today</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
-            const rep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
+            // Sum ALL reports for this counter (multiple submissions possible)
+            const reps = todayReports.filter(r=>
+              r.counterId===c.id ||
+              r.counterName===c.name ||
+              (sup && r.supervisorId===sup.id && !r.counterId && !r.counterName)
+            );
+            const amt = reps.reduce((s,r)=>s+r.totalAmount,0);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===month);
-            const amt = rep?.totalAmount||0;
             const pct = tgt&&tgt.dailyTarget>0 ? Math.min(100, Math.round(amt*100/(tgt.dailyTarget+0.001))) : null;
+            const reported = reps.length > 0;
             return (
-              <div key={c.id} style={{ border:"1px solid "+(rep?T.grn+"44":T.bdr), borderRadius:10, padding:14 }}>
+              <div key={c.id} style={{ border:"1px solid "+(reported?T.grn+"66":T.bdr), borderRadius:10, padding:14 }}>
                 <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
                 <div style={{ fontSize:11, color:T.txt2, marginBottom:8 }}>{sup?.name||"—"}</div>
                 <div style={{ fontSize:20, fontWeight:800, color:amt>0?T.amber:T.txt3 }}>{fmtCurr(amt)}</div>
+                {reported && reps.length>1 && <div style={{ fontSize:10, color:T.txt2 }}>{reps.length} submissions</div>}
                 {tgt && pct!==null && <>
                   <div style={{ height:6, background:T.surf, borderRadius:3, margin:"8px 0 4px", overflow:"hidden" }}>
                     <div style={{ height:"100%", width:pct+"%", background:pct>=100?T.grn:pct>=70?T.amber:T.red, borderRadius:3 }}/>
                   </div>
                   <div style={{ fontSize:11, color:T.txt2 }}>{pct}% of {fmtCurr(tgt.dailyTarget)} target</div>
                 </>}
-                {!rep && <div style={{ fontSize:11, color:T.red, marginTop:4 }}>⚠ No report yet</div>}
+                {!reported && <div style={{ fontSize:11, color:T.red, marginTop:4 }}>⚠ No report yet</div>}
               </div>
             );
           })}
@@ -2503,8 +2510,13 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const mdIsSales = (e) => e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName);
 
   const counterStats = state.counters.map(c => {
-    // Match reports to THIS specific counter (not all of supervisor's counters)
-    const reps = reports.filter(r => r.counterId===c.id || r.counterName===c.name);
+    // Match reports to THIS counter by counterId, counterName, OR supervisorId
+    const sup = state.users.find(u=>u.id===c.supervisorId);
+    const reps = reports.filter(r =>
+      r.counterId===c.id ||
+      r.counterName===c.name ||
+      (sup && r.supervisorId===sup.id && (r.counterId===c.id||r.counterName===c.name||(!r.counterId&&!r.counterName)))
+    );
     const allE = reps.flatMap(r => mdGetEntries(r));
     const svcTotal = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
     const salTotal = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -2512,8 +2524,17 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const vehicles = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
     const days = new Set(reps.map(r=>r.date)).size;
     const sup = state.users.find(u=>u.id===c.supervisorId);
-    const todayRep = todayReports.find(r=>r.counterId===c.id||r.counterName===c.name);
-    return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0 };
+    // Match today reports specifically by counterId or counterName
+    // Don't use supervisorId alone - it would double-count multi-counter executives
+    const todayReps = todayReports.filter(r=>
+      r.counterId===c.id ||
+      r.counterName===c.name ||
+      // Fallback: supervisor only has 1 counter and report has no counterId/counterName set
+      (r.supervisorId===c.supervisorId && !r.counterId && !r.counterName)
+    );
+    const todayAmt  = todayReps.reduce((s,r)=>s+r.totalAmount,0);
+    const todayRep  = todayReps[0]; // for backward compat check
+    return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0, todayAmt };
   });
 
   const maxTotal = Math.max(...counterStats.map(c=>c.total),1);
@@ -2610,13 +2631,13 @@ function MDDashboard({ user, state, syncFromCloud }) {
       <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>Counter Status — {dateRange==="today"?"Today":from===to?fmtDate(from):`${fmtDate(from)} → ${fmtDate(to)}`}</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:14, marginBottom:20 }}>
         {counterStats.map(c => (
-          <Card key={c.id} style={{ borderTop:`3px solid ${c.todayRep?T.grn:c.total>0?T.amber:T.bdr}`, padding:16 }}>
+          <Card key={c.id} style={{ borderTop:"3px solid "+(c.todayAmt>0||c.todayRep?T.grn:c.total>0?T.amber:T.bdr), padding:16 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
               <div>
                 <div style={{ fontWeight:800, fontSize:13 }}>{c.name}</div>
                 <div style={{ fontSize:11, color:T.txt2 }}>{c.sup?.name}{c.sup?" ("+ROLE_LABELS[c.sup.role]+")":""}</div>
               </div>
-              <Badge color={c.todayRep?T.grn:T.red}>{c.todayRep?"✓ Reported":"⏳ Pending"}</Badge>
+              <Badge color={c.todayAmt>0||c.todayRep?T.grn:T.red}>{c.todayAmt>0||c.todayRep?"✓ Reported":"⏳ Pending"}</Badge>
             </div>
             <div style={{ fontSize:22, fontWeight:800, color:T.amber, marginBottom:6 }}>{fmtCurr(c.total)}</div>
             <div style={{ height:5, background:T.surf, borderRadius:3, overflow:"hidden", marginBottom:8 }}>
