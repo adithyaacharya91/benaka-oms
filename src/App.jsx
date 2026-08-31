@@ -1813,11 +1813,10 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
-            // Sum ALL reports for this counter (multiple submissions possible)
+            // Sum ALL reports for this counter by counterId or counterName only
             const reps = todayReports.filter(r=>
               r.counterId===c.id ||
-              r.counterName===c.name ||
-              (sup && r.supervisorId===sup.id && !r.counterId && !r.counterName)
+              r.counterName===c.name
             );
             const amt = reps.reduce((s,r)=>s+r.totalAmount,0);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===month);
@@ -2514,8 +2513,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const sup = state.users.find(u=>u.id===c.supervisorId);
     const reps = reports.filter(r =>
       r.counterId===c.id ||
-      r.counterName===c.name ||
-      (sup && r.supervisorId===sup.id && (r.counterId===c.id||r.counterName===c.name||(!r.counterId&&!r.counterName)))
+      r.counterName===c.name
     );
     const allE = reps.flatMap(r => mdGetEntries(r));
     const svcTotal = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -2527,9 +2525,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
     // Don't use supervisorId alone - it would double-count multi-counter executives
     const todayReps = todayReports.filter(r=>
       r.counterId===c.id ||
-      r.counterName===c.name ||
-      // Fallback: supervisor only has 1 counter and report has no counterId/counterName set
-      (r.supervisorId===c.supervisorId && !r.counterId && !r.counterName)
+      r.counterName===c.name
     );
     const todayAmt  = todayReps.reduce((s,r)=>s+r.totalAmount,0);
     const todayRep  = todayReps[0]; // for backward compat check
@@ -3892,7 +3888,7 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
     if (myCounterIds) {
       const names = visibleCounters.map(c=>c.name);
       const supIds = visibleCounters.map(c=>c.supervisorId);
-      return myCounterIds.includes(r.counterId) || names.includes(r.counterName) || supIds.includes(r.supervisorId);
+      return myCounterIds.includes(r.counterId) || names.includes(r.counterName);
     }
     if (counterFilter) return r.counterName===counterFilter || r.counterId===state.counters.find(c=>c.name===counterFilter)?.id;
     return true;
