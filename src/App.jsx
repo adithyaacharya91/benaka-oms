@@ -1814,10 +1814,10 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
           {myCounters.map(c => {
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             // Sum reports for this counter
+            const cN = (c.name||"").trim().toUpperCase().replace(/\s+/g," ");
             const reps = todayReports.filter(r=> {
-              if (r.counterId===c.id) return true;
-              if (r.counterName && r.counterName===c.name) return true;
-              // Fallback for execs with exactly 1 counter when report has no counterName
+              if (r.counterId && r.counterId===c.id) return true;
+              if (r.counterName && r.counterName.trim().toUpperCase().replace(/\s+/g," ")===cN) return true;
               const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
               if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
               return false;
@@ -2512,13 +2512,13 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const mdGetEntries = (r) => r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(x=>x.entries||[]);
   const mdIsSales = (e) => e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName);
 
+  const normCN = s => (s||"").trim().toUpperCase().replace(/\s+/g," ");
   const counterStats = state.counters.map(c => {
-    // Match reports to THIS counter by counterId, counterName, OR supervisorId
     const sup = state.users.find(u=>u.id===c.supervisorId);
+    const cNorm = normCN(c.name);
     const reps = reports.filter(r => {
-      if (r.counterId===c.id) return true;
-      if (r.counterName && r.counterName===c.name) return true;
-      // Fallback for single-counter supervisors
+      if (r.counterId && r.counterId===c.id) return true;
+      if (r.counterName && normCN(r.counterName)===cNorm) return true;
       const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
       if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
       return false;
@@ -2531,9 +2531,10 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const days = new Set(reps.map(r=>r.date)).size;
     // Match today reports specifically by counterId or counterName
     // Don't use supervisorId alone - it would double-count multi-counter executives
+    const cNormT = normCN(c.name);
     const todayReps = todayReports.filter(r => {
-      if (r.counterId===c.id) return true;
-      if (r.counterName && r.counterName===c.name) return true;
+      if (r.counterId && r.counterId===c.id) return true;
+      if (r.counterName && normCN(r.counterName)===cNormT) return true;
       const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
       if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
       return false;
@@ -3899,9 +3900,11 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
     if (myCounterIds) {
       const names = visibleCounters.map(c=>c.name);
       const supIds = visibleCounters.map(c=>c.supervisorId);
-      if (myCounterIds.includes(r.counterId)) return true;
-      if (r.counterName && names.includes(r.counterName)) return true;
-      // Fallback for single-counter supervisors  
+      if (r.counterId && myCounterIds.includes(r.counterId)) return true;
+      if (r.counterName) {
+        const rNorm = r.counterName.trim().toUpperCase().replace(/\s+/g," ");
+        if (visibleCounters.some(c=>(c.name||"").trim().toUpperCase().replace(/\s+/g," ")===rNorm)) return true;
+      }
       const rSupCounters = state.counters.filter(x=>x.supervisorId===r.supervisorId);
       if (rSupCounters.length===1 && myCounterIds.includes(rSupCounters[0]?.id) && !r.counterName && !r.counterId) return true;
       return false;
