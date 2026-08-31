@@ -232,13 +232,26 @@ function useSupabaseSync(localState, setLocalState) {
       }
       await DB.seedConfigIfEmpty();
 
-      const mapReport = r => ({
-        id: r.id, date: r.date, supervisorId: r.supervisor_id,
-        submittedAt: r.submitted_at, counters: r.counters||[],
-        counterId: r.counter_id, counterName: r.counter_name,
-        entries: r.entries||[], totalAmount: r.total_amount,
-        notes: r.notes, status: r.status
-      });
+      const mapReport = r => {
+        let counterId = r.counter_id;
+        let counterName = r.counter_name;
+        // Resolve missing counterId/counterName from supervisorId (legacy reports)
+        if ((!counterId || !counterName) && r.supervisor_id) {
+          const allCtrs = mappedCounters || INITIAL_STATE.counters;
+          const supCtrs = allCtrs.filter(c => (c.supervisorId||c.supervisor_id) === r.supervisor_id);
+          if (supCtrs.length === 1) {
+            counterId = counterId || supCtrs[0].id;
+            counterName = counterName || supCtrs[0].name;
+          }
+        }
+        return {
+          id: r.id, date: r.date, supervisorId: r.supervisor_id,
+          submittedAt: r.submitted_at, counters: r.counters||[],
+          counterId, counterName,
+          entries: r.entries||[], totalAmount: r.total_amount,
+          notes: r.notes, status: r.status
+        };
+      };
       const mapAtt = a => ({
         id: a.id, date: a.date, supervisorId: a.supervisor_id,
         staffId: a.staff_id, status: a.status,
