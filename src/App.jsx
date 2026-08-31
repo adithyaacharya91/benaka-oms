@@ -1792,6 +1792,24 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
   const monthReports = state.serviceReports.filter(r=>r.date.startsWith(month)&&isMyReport(r));
   const monthRevenue = monthReports.reduce((s,r)=>s+r.totalAmount,0);
 
+  // Pre-assign each todayReport to exactly ONE counter (most specific match wins)
+  const reportToCounter = {};
+  todayReports.forEach(r => {
+    // Try counterId match first
+    let matched = myCounters.find(c => r.counterId && r.counterId===c.id);
+    // Try counterName match
+    if (!matched && r.counterName) {
+      const rn = r.counterName.trim().toUpperCase();
+      matched = myCounters.find(c => c.name.trim().toUpperCase()===rn);
+    }
+    // Try supervisorId for single-counter execs
+    if (!matched && r.supervisorId) {
+      const supCtrs = myCounters.filter(c=>c.supervisorId===r.supervisorId);
+      if (supCtrs.length===1) matched = supCtrs[0];
+    }
+    if (matched) reportToCounter[r.id] = matched.id;
+  });
+
   return (
     <div>
       <div style={{ marginBottom:20 }}>
@@ -1814,14 +1832,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
           {myCounters.map(c => {
             const sup = mySupervisors.find(s=>s.id===c.supervisorId);
             // Sum reports for this counter
-            const cN = (c.name||"").trim().toUpperCase().replace(/\s+/g," ");
-            const reps = todayReports.filter(r=> {
-              if (r.counterId && r.counterId===c.id) return true;
-              if (r.counterName && r.counterName.trim().toUpperCase().replace(/\s+/g," ")===cN) return true;
-              const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
-              if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
-              return false;
-            });
+            const reps = todayReports.filter(r => reportToCounter[r.id]===c.id);
             const amt = reps.reduce((s,r)=>s+r.totalAmount,0);
             const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===month);
             const pct = tgt&&tgt.dailyTarget>0 ? Math.min(100, Math.round(amt*100/(tgt.dailyTarget+0.001))) : null;
@@ -2512,17 +2523,21 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const mdGetEntries = (r) => r.entries && r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(x=>x.entries||[]);
   const mdIsSales = (e) => e.type==="sales"||["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName);
 
-  const normCN = s => (s||"").trim().toUpperCase().replace(/\s+/g," ");
+  // Pre-assign each report to exactly one counter (most specific match)
+  const assignReport = (r, counters) => {
+    let m = counters.find(c => r.counterId && r.counterId===c.id);
+    if (!m && r.counterName) { const rn=r.counterName.trim().toUpperCase(); m=counters.find(c=>c.name.trim().toUpperCase()===rn); }
+    if (!m && r.supervisorId) { const sc=counters.filter(c=>c.supervisorId===r.supervisorId); if(sc.length===1) m=sc[0]; }
+    return m?.id;
+  };
+  const reportAssign = {};
+  reports.forEach(r => { const cid=assignReport(r,state.counters); if(cid) reportAssign[r.id]=cid; });
+  const todayAssign = {};
+  todayReports.forEach(r => { const cid=assignReport(r,state.counters); if(cid) todayAssign[r.id]=cid; });
+
   const counterStats = state.counters.map(c => {
     const sup = state.users.find(u=>u.id===c.supervisorId);
-    const cNorm = normCN(c.name);
-    const reps = reports.filter(r => {
-      if (r.counterId && r.counterId===c.id) return true;
-      if (r.counterName && normCN(r.counterName)===cNorm) return true;
-      const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
-      if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
-      return false;
-    });
+    const reps = reports.filter(r => reportAssign[r.id]===c.id);
     const allE = reps.flatMap(r => mdGetEntries(r));
     const svcTotal = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
     const salTotal = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -2531,14 +2546,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const days = new Set(reps.map(r=>r.date)).size;
     // Match today reports specifically by counterId or counterName
     // Don't use supervisorId alone - it would double-count multi-counter executives
-    const cNormT = normCN(c.name);
-    const todayReps = todayReports.filter(r => {
-      if (r.counterId && r.counterId===c.id) return true;
-      if (r.counterName && normCN(r.counterName)===cNormT) return true;
-      const supCounters = state.counters.filter(x=>x.supervisorId===c.supervisorId);
-      if (supCounters.length===1 && r.supervisorId===c.supervisorId && !r.counterName && !r.counterId) return true;
-      return false;
-    });
+    const todayReps = todayReports.filter(r => todayAssign[r.id]===c.id);
     const todayAmt  = todayReps.reduce((s,r)=>s+r.totalAmount,0);
     const todayRep  = todayReps[0]; // for backward compat check
     return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0, todayAmt };
@@ -3895,26 +3903,28 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
       ? state.counters.filter(c => c.name===counterFilter)
       : state.counters;
 
+  // Pre-assign each report to its best matching visible counter
+  const caAssign = (r) => {
+    let m = visibleCounters.find(c => r.counterId && r.counterId===c.id);
+    if (!m && r.counterName) {
+      const rn = r.counterName.trim().toUpperCase();
+      m = visibleCounters.find(c => c.name.trim().toUpperCase()===rn);
+    }
+    if (!m && r.supervisorId) {
+      const sc = visibleCounters.filter(c=>c.supervisorId===r.supervisorId);
+      if (sc.length===1) m = sc[0];
+    }
+    return m;
+  };
   const filteredReports = state.serviceReports.filter(r => {
     if (r.date < dr.from || r.date > dr.to) return false;
-    if (myCounterIds) {
-      const names = visibleCounters.map(c=>c.name);
-      const supIds = visibleCounters.map(c=>c.supervisorId);
-      if (r.counterId && myCounterIds.includes(r.counterId)) return true;
-      if (r.counterName) {
-        const rNorm = r.counterName.trim().toUpperCase().replace(/\s+/g," ");
-        if (visibleCounters.some(c=>(c.name||"").trim().toUpperCase().replace(/\s+/g," ")===rNorm)) return true;
-      }
-      const rSupCounters = state.counters.filter(x=>x.supervisorId===r.supervisorId);
-      if (rSupCounters.length===1 && myCounterIds.includes(rSupCounters[0]?.id) && !r.counterName && !r.counterId) return true;
-      return false;
-    }
-    if (counterFilter) return r.counterName===counterFilter || r.counterId===state.counters.find(c=>c.name===counterFilter)?.id;
-    return true;
+    if (!myCounterIds && !counterFilter) return true;
+    return !!caAssign(r);
   });
 
+
   const counterStats = visibleCounters.map(c => {
-    const reps = filteredReports.filter(r => r.counterId===c.id||r.counterName===c.name);
+    const reps = filteredReports.filter(r => caAssign(r)?.id===c.id);
     const allE = reps.flatMap(r => getE(r));
     const svc  = allE.filter(e=>!isSale(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
     const sal  = allE.filter(e=>isSale(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
