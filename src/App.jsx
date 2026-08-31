@@ -1079,7 +1079,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
     if (r.date < dr.from || r.date > dr.to) return false;
     if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== myCounters.find(c=>c.id===selCounter)?.name) return false;
     // Only show this executive's counters
-    return myCounters.some(c=>c.id===r.counterId||c.name===r.counterName);
+    return myCounters.some(c=>c.id===r.counterId||c.name===r.counterName) || r.supervisorId===user.id;
   });
 
   return (
@@ -1674,8 +1674,11 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"directory",   icon:"👤", label:"Staff Directory" },
   ];
 
-  const mySupervisors = state.users.filter(u=>u.managerId===user.id&&u.role==="supervisor"&&u.active);
+  const mySupervisors = state.users.filter(u=>u.managerId===user.id&&u.role==="supervisor"&&u.active!==false);
   const myCounters = state.counters.filter(c=>mySupervisors.some(s=>s.id===c.supervisorId));
+  // All counter names belonging to this manager's supervisors (for reliable report matching)
+  const _myCounterNames = myCounters.map(c=>c.name);
+  const _mySupIds = mySupervisors.map(s=>s.id);
 
   return (
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
@@ -1711,7 +1714,8 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
 
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    const inScope = mySupervisors.some(s=>s.id===r.supervisorId)||myCounters.some(c=>c.id===r.counterId||c.name===r.counterName);
+    const inScope = mySupervisors.some(s=>s.id===r.supervisorId) ||
+      myCounters.some(c=>c.id===r.counterId||c.name===r.counterName||c.supervisorId===r.supervisorId);
     if(!inScope) return false;
     if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==myCounters.find(c=>c.id===selCounter)?.name) return false;
     return true;
@@ -1774,11 +1778,13 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
   const today_ = today();
   const myCounterIds   = myCounters.map(c=>c.id);
   const myCounterNames = myCounters.map(c=>c.name);
-  // Match by supervisorId OR counterId/counterName (office-submitted reports use counterId)
+  // Match by supervisorId OR counterId OR counterName (office reports use counterId+counterName)
   const isMyReport = r =>
     mySupervisors.some(s=>s.id===r.supervisorId) ||
-    myCounterIds.includes(r.counterId) ||
-    myCounterNames.includes(r.counterName);
+    (r.counterId && myCounterIds.includes(r.counterId)) ||
+    (r.counterName && myCounterNames.includes(r.counterName)) ||
+    // Also check supervisor field against counter's supervisorId
+    myCounters.some(c=>c.supervisorId===r.supervisorId);
   const todayReports = state.serviceReports.filter(r=>r.date===today_&&isMyReport(r));
   const totalRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
   const pendingLeaves = (state.leaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending").length;
@@ -1852,7 +1858,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
   const relevantReports = state.serviceReports.filter(r =>
     mySupervisors.some(s=>s.id===r.supervisorId) ||
-    myCounters.some(c=>c.id===r.counterId||c.name===r.counterName)
+    myCounters.some(c=>c.id===r.counterId||c.name===r.counterName||c.supervisorId===r.supervisorId)
   );
   const dailyReports = relevantReports.filter(r=>r.date>=dr.from&&r.date<=dr.to);
   const monthReports = relevantReports.filter(r=>r.date.startsWith(selMonth));
@@ -2132,7 +2138,11 @@ function MgrTargets({ user, state, setState, mySupervisors, toast }) {
   const getActual = (sup) => {
     const myCounterIds = state.counters.filter(c=>c.supervisorId===sup.id).map(c=>c.id);
     const myCounterNames = state.counters.filter(c=>c.supervisorId===sup.id).map(c=>c.name);
-    let reps = state.serviceReports.filter(r=>myCounterIds.includes(r.counterId)||myCounterNames.includes(r.counterName));
+    let reps = state.serviceReports.filter(r=>
+      r.supervisorId===sup.id ||
+      myCounterIds.includes(r.counterId) ||
+      myCounterNames.includes(r.counterName)
+    );
     if (selPeriod==="daily")     reps = reps.filter(r=>r.date===selRef);
     if (selPeriod==="weekly")    reps = reps.filter(r=>{ const d=new Date(r.date); return d>=new Date(selRef.replace(/W/g,"-").replace(/-(\d\d)$/,"-W$1").slice(0,10)); });
     if (selPeriod==="monthly")   reps = reps.filter(r=>r.date.startsWith(selRef));
@@ -3861,7 +3871,8 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
     if (r.date < dr.from || r.date > dr.to) return false;
     if (myCounterIds) {
       const names = visibleCounters.map(c=>c.name);
-      return myCounterIds.includes(r.counterId) || names.includes(r.counterName);
+      const supIds = visibleCounters.map(c=>c.supervisorId);
+      return myCounterIds.includes(r.counterId) || names.includes(r.counterName) || supIds.includes(r.supervisorId);
     }
     if (counterFilter) return r.counterName===counterFilter || r.counterId===state.counters.find(c=>c.name===counterFilter)?.id;
     return true;
