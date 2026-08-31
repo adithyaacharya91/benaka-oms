@@ -3636,6 +3636,89 @@ function MDAttendance({ state }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+function DebugReports({ state }) {
+  const now = new Date(new Date().getTime() + (330 + new Date().getTimezoneOffset()) * 60000);
+  const tod = now.toISOString().split("T")[0];
+  const todayReps = (state.serviceReports||[]).filter(r=>r.date===tod);
+
+  const matchCounter = (r) => {
+    let m = state.counters.find(c=>r.counterId&&r.counterId===c.id);
+    if(!m&&r.counterName){ const rn=r.counterName.trim().toUpperCase(); m=state.counters.find(c=>c.name.trim().toUpperCase()===rn); }
+    if(!m&&r.supervisorId){ const sc=state.counters.filter(c=>c.supervisorId===r.supervisorId); if(sc.length===1) m=sc[0]; }
+    return m;
+  };
+
+  const unmatched = todayReps.filter(r=>!matchCounter(r));
+
+  return (
+    <div style={{fontFamily:"monospace",fontSize:12}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Debug Reports</div>
+      <Card style={{marginBottom:16,background:"#0f1117",color:"#4ade80"}}>
+        <div style={{fontWeight:800,marginBottom:8,color:"#fbbf24"}}>TODAY {tod}: {todayReps.length} reports, Total Rs.{todayReps.reduce((s,r)=>s+r.totalAmount,0).toLocaleString("en-IN")}</div>
+        <div style={{marginBottom:8,color:unmatched.length>0?"#f87171":"#4ade80"}}>Unmatched reports: {unmatched.length}</div>
+        <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:700}}>
+          <thead><tr style={{background:"#1e293b",color:"#fbbf24"}}>
+            {["Exec","counterId","counterName","Total","Matched To","OK?"].map(h=><th key={h} style={{padding:"4px 8px",textAlign:"left",border:"1px solid #334"}}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {todayReps.map((r,i)=>{
+              const sup=state.users.find(u=>u.id===r.supervisorId);
+              const ctr=matchCounter(r);
+              return (
+                <tr key={i} style={{background:ctr?"#0d1f0d":"#1f0d0d"}}>
+                  <td style={{padding:"3px 8px",border:"1px solid #334"}}>{sup?.name||r.supervisorId}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:r.counterId?"#4ade80":"#f87171"}}>{r.counterId||"NONE"}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:r.counterName?"#4ade80":"#f87171"}}>{r.counterName||"NONE"}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:"#fbbf24"}}>Rs.{r.totalAmount}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:ctr?"#4ade80":"#f87171"}}>{ctr?ctr.name:"NO MATCH"}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:ctr?"#4ade80":"#f87171"}}>{ctr?"YES":"NO"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+      </Card>
+      <Card style={{marginBottom:16,background:"#0f1117",color:"#4ade80"}}>
+        <div style={{fontWeight:800,marginBottom:8,color:"#fbbf24"}}>COUNTERS in state ({state.counters.length})</div>
+        <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead><tr style={{background:"#1e293b",color:"#fbbf24"}}>
+            {["id","name","supervisorId","Supervisor Name"].map(h=><th key={h} style={{padding:"4px 8px",textAlign:"left",border:"1px solid #334"}}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {state.counters.map((c,i)=>{
+              const sup=state.users.find(u=>u.id===c.supervisorId);
+              return (
+                <tr key={i}>
+                  <td style={{padding:"3px 8px",border:"1px solid #334"}}>{c.id}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:"#fbbf24"}}>{c.name}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334",color:c.supervisorId?"#4ade80":"#f87171"}}>{c.supervisorId||"EMPTY"}</td>
+                  <td style={{padding:"3px 8px",border:"1px solid #334"}}>{sup?.name||"?"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+      </Card>
+      <Card style={{background:"#0f1117",color:"#4ade80"}}>
+        <div style={{fontWeight:800,marginBottom:8,color:"#fbbf24"}}>COUNTER TOTALS (Today)</div>
+        {state.counters.map((c,i)=>{
+          const reps=todayReps.filter(r=>matchCounter(r)?.id===c.id);
+          const total=reps.reduce((s,r)=>s+r.totalAmount,0);
+          return (
+            <div key={i} style={{padding:"4px 0",borderBottom:"1px solid #223",color:total>0?"#4ade80":"#475569"}}>
+              {c.name}: {reps.length} reports, Rs.{total.toLocaleString("en-IN")}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
 //  ROOT APP
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
@@ -4730,6 +4813,7 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"reports",  icon:"📋", label:"All Reports" },
     { id:"data",     icon:"🗑️", label:"Data Management" },
     { id:"export",   icon:"📥", label:"Export" },
+    { id:"debug",    icon:"🔍", label:"Debug Reports" },
   ];
   return (
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems}
@@ -4740,6 +4824,8 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="reports"   && <AllReports   state={state}/>}
       {page==="data"      && <DataMgmt     user={user} state={state} setState={setState} toast={toast}/>}
       {page==="export"    && <OfficeExport state={state} toast={toast}/>}
+      {page==="debug"     && <DebugReports state={state}/>}
+      {page==="debug"     && <DebugReports state={state}/>}
     </Shell>
   );
 }
