@@ -1,7 +1,7 @@
 // Benaka OMS v2.1 — 2026-08-30 14:47
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-// ─── Supabase client ──────────────────────────────────────────────────────────
+// ─── Supabas1e client ──────────────────────────────────────────────────────────
 // Supabase credentials — configured for benakaoms project
 const SUPABASE_URL = "https://hrqyuxwpxiffyqolpgdo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhycXl1eHdweGlmZnlxb2xwZ2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTYzOTMsImV4cCI6MjEwMzU5MjM5M30.EOMujy8n-pHPaBcYj8UZe_u2Bfa3IQ02dRPT_ZioKAs";
