@@ -1884,7 +1884,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
             const reported = reps.length > 0;
             return (
               <div key={c.id} style={{ border:"1px solid "+(reported?T.grn+"66":T.bdr), borderRadius:10, padding:14 }}>
-                <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
+                <div style={{ fontSize:13, fontWeight:700 }}>{c.name==="OFFICE"?"SALES":c.name}</div>
                 <div style={{ fontSize:11, color:T.txt2, marginBottom:8 }}>{sup?.name||"—"}</div>
                 <div style={{ fontSize:20, fontWeight:800, color:amt>0?T.amber:T.txt3 }}>{fmtCurr(amt)}</div>
                 {reported && reps.length>1 && <div style={{ fontSize:10, color:T.txt2 }}>{reps.length} submissions</div>}
@@ -2438,7 +2438,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
     { id:"collection",  icon:"📊", label:"Collection Report" },
     { id:"analysis",    icon:"📈", label:"Counter Analysis" },
     { id:"reports",     icon:"📋", label:"All Reports" },
-    { id:"execreport",  icon:"📄", label:"Executive Report" },
+    { id:"execreport",  icon:"📄", label:"MD Report" },
     { id:"financial",   icon:"💰", label:"Financial Trends" },
     { id:"operations",  icon:"🏪", label:"Operations" },
     { id:"salary",      icon:"💳", label:"Salary & P&L" },
@@ -3922,36 +3922,21 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
           <thead><tr style={{ background:T.surf }}>
             <th style={{ padding:"6px 10px", textAlign:"left", fontSize:11, fontWeight:800, color:T.txt2 }}>Counter</th>
-            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.txt2 }}>Service (₹)</th>
-            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.txt2 }}>Sales (₹)</th>
-            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.amber }}>Total (₹)</th>
+            <th style={{ padding:"6px 10px", textAlign:"right", fontSize:11, fontWeight:800, color:T.txt2 }}>Service Total (₹)</th>
           </tr></thead>
           <tbody>
             {counterSummary.map(c => (
               <tr key={c.name} style={{ borderBottom:"1px solid "+T.bdr }}>
                 <td style={{ padding:"6px 10px" }}>{c.name}</td>
-                <td style={{ padding:"6px 10px", textAlign:"right" }}>{c.svc.toLocaleString("en-IN")}</td>
-                <td style={{ padding:"6px 10px", textAlign:"right", color:T.grn }}>{c.sal.toLocaleString("en-IN")}</td>
-                <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:700, color:T.amber }}>{c.total.toLocaleString("en-IN")}</td>
+                <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:700, color:T.amber }}>{c.svc.toLocaleString("en-IN")}</td>
               </tr>
             ))}
             {counterSummary.length===0 && <tr><td colSpan={4} style={{ padding:12, textAlign:"center", color:T.txt3 }}>No reports for this period</td></tr>}
           </tbody>
           <tfoot>
-            <tr style={{ background:T.surf }}>
-              <td style={{ padding:"6px 10px", fontWeight:700, textAlign:"right" }}>TOTAL SERVICE</td>
-              <td></td><td></td>
-              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800 }}>{fmtCurr(totalSvc)}</td>
-            </tr>
-            <tr style={{ background:T.grnL }}>
-              <td style={{ padding:"6px 10px", fontWeight:700, color:T.grn, textAlign:"right" }}>TOTAL SALES</td>
-              <td></td><td></td>
-              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.grn }}>{fmtCurr(totalSales)}</td>
-            </tr>
             <tr style={{ background:T.amberL }}>
-              <td style={{ padding:"6px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>GRAND TOTAL (SERVICE + SALES)</td>
-              <td></td><td></td>
-              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.amber, fontSize:15 }}>{fmtCurr(grandTotal)}</td>
+              <td style={{ padding:"6px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>TOTAL SERVICE</td>
+              <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.amber, fontSize:15 }}>{fmtCurr(totalSvc)}</td>
             </tr>
           </tfoot>
         </table>
@@ -4072,7 +4057,7 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
           const barW = maxTotal > 0 ? Math.round(c.total*100/(maxTotal+0.001)) : 0;
           return (
             <Card key={c.id}>
-              <div style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>{c.name}</div>
+              <div style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>{c.name==="OFFICE"?"SALES":c.name}</div>
               <div style={{ fontSize:12, color:T.txt2, marginBottom:10 }}>
                 {state.users.find(u=>u.id===c.supervisorId)?.name||"—"} · {c.days} days · {c.repCount} reports
               </div>
@@ -4094,7 +4079,11 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
                 <div style={{ height:"100%", width:barW+"%", background:T.amber, borderRadius:3 }}/>
               </div>
               <div style={{ marginTop:6, fontSize:11, color:T.txt2 }}>
-                Vehicles: {c.veh} · Daily avg: {fmtCurr(c.avg)}
+                {c.name==="OFFICE" ? (
+                  <span>Bardahl: {fmtCurr(c.reps?.flatMap?.(r=>(r.entries||[])).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+e.amount,0)||0)} · Other: {fmtCurr(c.reps?.flatMap?.(r=>(r.entries||[])).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+e.amount,0)||0)}</span>
+                ) : (
+                  <span>Vehicles: {c.veh} · Daily avg: {fmtCurr(c.avg)}</span>
+                )}
               </div>
             </Card>
           );
@@ -4154,6 +4143,15 @@ function AllReports({ state }) {
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
               <Badge color={T.grn}>submitted</Badge>
+              <div style={{marginTop:4}}>
+                <Btn onClick={e=>{e.stopPropagation();
+                  if(confirm("Recall this report? You can re-enter and resubmit.")){
+                    setState(p=>({...p,serviceReports:p.serviceReports.filter(x=>x.id!==r.id)}));
+                    supabase.from("service_reports").delete().eq("id",r.id).catch(console.error);
+                    toast.show("Report recalled ✅");
+                  }
+                }} size="sm" variant="ghost">↩ Recall</Btn>
+              </div>
             </div>
           </div>
           {expanded===r.id && (
@@ -4429,6 +4427,15 @@ function OfficeReports({ state }) {
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
               <Badge color={T.grn}>submitted</Badge>
+              <div style={{marginTop:4}}>
+                <Btn onClick={e=>{e.stopPropagation();
+                  if(confirm("Recall this report? You can re-enter and resubmit.")){
+                    setState(p=>({...p,serviceReports:p.serviceReports.filter(x=>x.id!==r.id)}));
+                    supabase.from("service_reports").delete().eq("id",r.id).catch(console.error);
+                    toast.show("Report recalled ✅");
+                  }
+                }} size="sm" variant="ghost">↩ Recall</Btn>
+              </div>
             </div>
           </div>
           {expanded===r.id && (
@@ -5000,7 +5007,15 @@ function CounterMgmt({ user, state, setState, toast }) {
               <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>{c.name}</div>
               {c.dealership&&<div style={{fontSize:12,color:T.txt2,marginBottom:4}}>{c.dealership}{c.city?" · "+c.city:""}</div>}
               <div style={{fontSize:13,marginBottom:10}}>👤 {sup?.name||"Unassigned"}</div>
-              <Btn onClick={()=>open(c)} size="sm" variant="outline">Edit</Btn>
+              <div style={{display:"flex",gap:6}}>
+                <Btn onClick={()=>open(c)} size="sm" variant="outline">Edit</Btn>
+                <Btn onClick={()=>{ if(confirm("Delete counter "+c.name+"? This cannot be undone.")){
+                  const newCounters=state.counters.filter(x=>x.id!==c.id);
+                  DB.upsertCounters(newCounters).catch(console.error);
+                  setState(p=>({...p,counters:newCounters,_configVersion:(p._configVersion||0)+1}));
+                  toast.show(c.name+" deleted");
+                }}} size="sm" variant="danger">Delete</Btn>
+              </div>
             </Card>
           );
         })}
