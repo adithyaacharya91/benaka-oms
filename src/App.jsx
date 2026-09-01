@@ -2595,7 +2595,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const todayReps = todayReports.filter(r => todayAssign[r.id]===c.id);
     const todayAmt  = todayReps.reduce((s,r)=>s+r.totalAmount,0);
     const todayRep  = todayReps[0]; // for backward compat check
-    return { ...c, total, svcTotal, salTotal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0, todayAmt };
+    return { ...c, total, svcTotal, salTotal, bardahl, otherSal, vehicles, days, sup, todayRep, dailyAvg:days?Math.round(total/days):0, todayAmt };
   });
 
   const maxTotal = Math.max(...counterStats.map(c=>c.total),1);
@@ -2705,9 +2705,15 @@ function MDDashboard({ user, state, syncFromCloud }) {
               <div style={{ height:"100%", width:Math.round(c.total*100/(maxTotal+0.001))+"%", background:T.amber, borderRadius:3 }}/>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4, fontSize:11, color:T.txt2 }}>
-              <div><div style={{ fontWeight:700, color:T.navy, fontSize:12 }}>{c.vehicles}</div>Vehicles</div>
-              <div><div style={{ fontWeight:700, color:T.grn, fontSize:12 }}>{fmtCurr(c.salTotal)}</div>Sales</div>
-              <div><div style={{ fontWeight:700, color:T.txt2, fontSize:12 }}>{c.days}d</div>Days</div>
+              {c.name==="OFFICE" ? (<>
+                <div><div style={{ fontWeight:700, color:"#15803D", fontSize:12 }}>{fmtCurr(c.bardahl||0)}</div>Bardahl</div>
+                <div><div style={{ fontWeight:700, color:"#0369A1", fontSize:12 }}>{fmtCurr(c.otherSal||0)}</div>Other Sales</div>
+                <div><div style={{ fontWeight:700, color:T.txt2, fontSize:12 }}>{c.days}d</div>Days</div>
+              </>) : (<>
+                <div><div style={{ fontWeight:700, color:T.navy, fontSize:12 }}>{c.vehicles}</div>Vehicles</div>
+                <div><div style={{ fontWeight:700, color:T.grn, fontSize:12 }}>{fmtCurr(c.salTotal||0)}</div>Sales</div>
+                <div><div style={{ fontWeight:700, color:T.txt2, fontSize:12 }}>{c.days}d</div>Days</div>
+              </>)}
             </div>
           </Card>
         ))}
@@ -3315,13 +3321,15 @@ function ExecutiveReportGenerator({ state }) {
 
   const buildSummary = (exec) => {
     const myCounters = state.counters.filter(c=>c.supervisorId===exec.id);
-    const dayReps    = state.serviceReports.filter(r=>r.date===selDate&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
-    const monthReps  = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&myCounters.some(c=>c.id===r.counterId||c.name===r.counterName));
+    const matchesExec = r => myCounters.some(c=>c.id===r.counterId||c.name===r.counterName) || r.supervisorId===exec.id;
+    const dayReps    = state.serviceReports.filter(r=>r.date===selDate&&matchesExec(r));
+    const monthReps  = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&matchesExec(r));
     const dayAtt     = state.attendance.filter(a=>a.date===selDate&&a.supervisorId===exec.id);
 
     // Per-counter daily breakdown
     const counterRows = myCounters.map(c=>{
-      const reps = dayReps.filter(r=>r.counterId===c.id||r.counterName===c.name);
+      const supCtrs = myCounters.filter(x=>x.supervisorId===c.supervisorId);
+      const reps = dayReps.filter(r=>r.counterId===c.id||r.counterName===c.name||(supCtrs.length===1&&r.supervisorId===c.supervisorId&&!r.counterId&&!r.counterName));
       const allE = reps.flatMap(r=>getE(r));
       return {
         name:     c.name,
@@ -5011,9 +5019,9 @@ function CounterMgmt({ user, state, setState, toast }) {
                 <Btn onClick={()=>open(c)} size="sm" variant="outline">Edit</Btn>
                 <Btn onClick={()=>{ if(confirm("Delete counter "+c.name+"? This cannot be undone.")){
                   const newCounters=state.counters.filter(x=>x.id!==c.id);
-                  DB.upsertCounters(newCounters).catch(console.error);
+                  supabase.from("app_counters").delete().eq("id",c.id).catch(console.error);
                   setState(p=>({...p,counters:newCounters,_configVersion:(p._configVersion||0)+1}));
-                  toast.show(c.name+" deleted");
+                  toast.show(c.name+" deleted ✅");
                 }}} size="sm" variant="danger">Delete</Btn>
               </div>
             </Card>
