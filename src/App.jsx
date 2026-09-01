@@ -233,7 +233,9 @@ function useSupabaseSync(localState, setLocalState) {
       }
 
       // If tables are empty, seed from INITIAL_STATE
+      // Only seed users if DB is empty AND we don't have local users
       if (Array.isArray(config.users) && config.users.length === 0) {
+        // Double-check: only seed if truly empty (avoid race conditions)
         await DB.seedUsersIfEmpty(INITIAL_STATE.users, INITIAL_STATE.passwords);
       }
       await DB.seedConfigIfEmpty();
@@ -1327,7 +1329,12 @@ function SupReport({ user, state, setState, toast }) {
   INITIAL_STATE.workTypes.forEach(iwt => { if(!allWTs.find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
   const serviceWTs = allWTs.filter(w => w.category !== "sales");
   const salesWTs   = allWTs.filter(w => w.category === "sales");
-  const blankServiceRows = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
+  const blankServiceRows = () => [
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+  ];
   const blankSalesRows   = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, amount:0, type:"sales" }));
 
   // Per-counter local state: { [counterId]: { entries, salesEntries } }
@@ -1508,7 +1515,7 @@ function SupReport({ user, state, setState, toast }) {
             {(d.entries||[]).map((e, ei) => (
               <div key={ei} style={{ display:"grid", gridTemplateColumns:"1fr 80px 90px 100px", gap:8, marginBottom:8, alignItems:"center" }}>
                 <select value={e.workTypeName} onChange={ev=>{
-                  const wt = state.workTypes.find(w=>w.name===ev.target.value||w.id===ev.target.value);
+                  const wt = allWTs.find(w=>w.name===ev.target.value||w.id===ev.target.value);
                   updateServiceEntry(activeC.id, ei, "workTypeName", ev.target.value);
                   if(wt?.defaultRate) updateServiceEntry(activeC.id, ei, "rate", wt.defaultRate);
                 }} style={{ padding:"7px 8px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}>
@@ -1524,6 +1531,8 @@ function SupReport({ user, state, setState, toast }) {
                 </div>
               </div>
             ))}
+            <button onClick={()=>setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:[...(getData(activeC.id).entries||[]),{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}}))}
+              style={{background:"none",border:"none",color:T.navy,cursor:"pointer",fontSize:12,fontWeight:700,padding:"4px 0",fontFamily:"inherit"}}>+ Add Row</button>
             <div style={{ marginTop:8, padding:"10px 12px", background:T.navyXL, borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <span style={{ fontSize:13, fontWeight:700, color:T.navy }}>Service Total</span>
               <span style={{ fontSize:16, fontWeight:800, color:T.navy }}>{fmtCurr(svcTotal)}</span>
@@ -2954,7 +2963,12 @@ function OfficeEnterReport({ user, state, setState, toast }) {
   const serviceWTs = allWTs.filter(w => w.category !== "sales");
   const salesWTs   = allWTs.filter(w => w.category === "sales");
 
-  const blankServiceRows = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
+  const blankServiceRows = () => [
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+    { workTypeId:"", workTypeName:"", vehicles:0, rate:0, amount:0, type:"service" },
+  ];
   const blankSalesRows   = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, qty:0, amount:0, type:"sales" }));
 
   useEffect(() => {
@@ -3071,7 +3085,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
                 {(counter.entries||[]).map((e,ei)=>(
                   <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
                     <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                      <select value={e.workTypeName||e.workTypeId||""} onChange={ev=>{ const wt=state.workTypes.find(w=>w.name===ev.target.value||w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
+                      <select value={e.workTypeName||e.workTypeId||""} onChange={ev=>{ const wt=allWTs.find(w=>w.name===ev.target.value||w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
                         style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:"100%" }}>
                         <option value="">Select...</option>
                         {serviceWTs.map(wt=><option key={wt.id} value={wt.name}>{wt.name}</option>)}
@@ -3088,6 +3102,14 @@ function OfficeEnterReport({ user, state, setState, toast }) {
                     <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 12px",textAlign:"right",fontWeight:700,color:e.amount>0?T.navy:T.txt3 }}>{e.amount>0?e.amount.toLocaleString("en-IN"):"0"}</td>
                   </tr>
                 ))}
+              </tbody>
+              <tbody>
+                <tr>
+                  <td colSpan={4} style={{ padding:"4px 8px", border:`1px solid ${T.bdr}` }}>
+                    <button onClick={()=>setReportCounters(p=>p.map((c2,ci2)=>ci2!==ci?c2:{...c2,entries:[...c2.entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}))}
+                      style={{ background:"none", border:"none", color:T.navy, cursor:"pointer", fontSize:12, fontWeight:700, padding:"2px 4px", fontFamily:"inherit" }}>+ Add Row</button>
+                  </td>
+                </tr>
               </tbody>
               <tfoot><tr style={{ background:T.navyXL }}>
                 <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy }}>SERVICE TOTAL</td>
