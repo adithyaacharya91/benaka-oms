@@ -3070,14 +3070,12 @@ function OfficeEnterReport({ user, state, setState, toast }) {
               </tr></tfoot>
             </table>
           </div>
-
-</div>
         </Card>
       ))}
 
       {selSupervisor && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-          <Btn onClick={()=>setReportCounters(p=>[...p,{counterName:"",entries:blankServiceRows(),salesEntries:blankSalesRows()}])} variant="outline">+ Add Counter</Btn>
+          <Btn onClick={()=>setReportCounters(p=>[...p,{counterName:"",entries:blankServiceRows()}])} variant="outline">+ Add Counter</Btn>
           <div style={{ display:"flex", alignItems:"center", gap:16 }}>
             <div style={{ background:T.navy,padding:"12px 20px",borderRadius:10,color:"#fff",textAlign:"right" }}>
               <div style={{ fontSize:11,opacity:.6,textTransform:"uppercase" }}>Grand Total</div>
