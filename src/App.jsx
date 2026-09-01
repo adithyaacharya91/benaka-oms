@@ -2927,7 +2927,6 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"sales",        icon:"🛒",  label:"Sales Entry" },
     { id:"collection",   icon:"📊",  label:"Collection Report" },
     { id:"attendance",   icon:"👥",  label:"Mark Attendance" },
-    { id:"myattendance", icon:"🗓️",  label:"My Attendance" },
     { id:"reports",      icon:"📋",  label:"View Reports" },
     { id:"viewatt",      icon:"📅",  label:"All Attendance" },
     { id:"execreport",   icon:"📄",  label:"Executive Report" },
@@ -2940,8 +2939,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="enter"        && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="sales"        && <OfficeSalesEntry user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection"   && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="attendance"   && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="myattendance" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="attendance"   && <OfficeCombinedAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="reports"      && <OfficeReports state={state}/>}
       {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
       {page==="execreport"   && <ExecutiveReportGenerator state={state}/>}
@@ -4499,78 +4497,65 @@ function OfficeAttendanceView({ state }) {
 }
 
 // ─── Office: Sales Entry ────────────────────────────────────────────────────────
+function OfficeCombinedAttendance({ user, state, setState, toast }) {
+  const [tab, setTab] = useState("exec");
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Mark Attendance</div>
+      <Tabs tabs={[{id:"exec",label:"For Executives & Staff"},{id:"office",label:"Office Staff"}]} active={tab} onChange={setTab}/>
+      {tab==="exec"   && <OfficeMarkAttendance   user={user} state={state} setState={setState} toast={toast}/>}
+      {tab==="office" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
+    </div>
+  );
+}
+
+
 function OfficeSalesEntry({ user, state, setState, toast }) {
   const [date, setDate] = useState(today());
-  const [selSupervisor, setSelSupervisor] = useState("");
-  const [selCounter, setSelCounter] = useState("");
   const [bardahl, setBardahl] = useState("");
   const [other, setOther] = useState("");
   const [notes, setNotes] = useState("");
-  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
-  const myCounters = selSupervisor ? state.counters.filter(c=>c.supervisorId===selSupervisor) : [];
 
   const submit = () => {
-    if (!selSupervisor||!selCounter) { toast.show("Select executive and counter","error"); return; }
-    if (!bardahl&&!other) { toast.show("Enter at least one sales amount","error"); return; }
-    const counter = state.counters.find(c=>c.id===selCounter)||{id:selCounter,name:selCounter};
+    if (!bardahl && !other) { toast.show("Enter at least one sales amount","error"); return; }
     const entries = [];
     if (Number(bardahl)>0) entries.push({workTypeId:"wt_bardahl",workTypeName:"BARDAHL",amount:Number(bardahl),type:"sales",vehicles:0,rate:0});
     if (Number(other)>0)   entries.push({workTypeId:"wt_other",workTypeName:"OTHER SALES",amount:Number(other),type:"sales",vehicles:0,rate:0});
-    const reportId = "sr_"+selSupervisor+"_"+counter.id+"_"+date;
-    const existing = state.serviceReports.find(r=>r.id===reportId);
-    const prevE = existing ? (existing.entries||[]).filter(e=>!["BARDAHL","OTHER SALES"].includes(e.workTypeName)) : [];
-    const allE  = [...prevE, ...entries];
-    const report = { id:reportId, date, supervisorId:selSupervisor, counterId:counter.id, counterName:counter.name,
-      submittedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
-      entries:allE, counters:[{counterName:counter.name,entries:allE}],
-      totalAmount:allE.reduce((s,e)=>s+(Number(e.amount)||0),0), notes, status:"submitted", submittedBy:user.id };
+    const reportId = "sr_sales_office_"+date+"_"+Date.now();
+    const report = {
+      id: reportId, date,
+      supervisorId: user.id,
+      counterId: "c1",
+      counterName: "OFFICE",
+      submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+      entries, counters:[{counterName:"OFFICE",entries}],
+      totalAmount: entries.reduce((s,e)=>s+e.amount,0),
+      notes, status:"submitted", submittedBy:user.id,
+    };
     setState(p=>({...p,serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id),report]}));
-    DB.upsertReport(report).catch(e => console.error("Sales save:", e));
+    DB.upsertReport(report).catch(e=>console.error("Sales save:",e));
     toast.show("Sales entry saved ✅");
     setBardahl(""); setOther(""); setNotes("");
   };
+
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Sales Entry</div>
-      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter Bardahl and other product sales (separate from service revenue)</div>
-      <Card style={{maxWidth:540}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-          <Input label="Date" type="date" value={date} onChange={setDate}/>
-          <div>
-            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive</label>
-            <select value={selSupervisor} onChange={e=>{setSelSupervisor(e.target.value);setSelCounter("");}}
-              style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value="">Select...</option>
-              {executives.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-        </div>
-        {myCounters.length>0 && (
-          <div style={{marginBottom:14}}>
-            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Counter</label>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {myCounters.map(c=>(
-                <button key={c.id} onClick={()=>setSelCounter(c.id)} style={{
-                  padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                  border:"1px solid "+(selCounter===c.id?T.navy:T.bdrS),
-                  background:selCounter===c.id?T.navy:"transparent",color:selCounter===c.id?"#fff":T.txt
-                }}>{c.name}</button>
-              ))}
-            </div>
-          </div>
-        )}
-        <div style={{background:T.navyXL,borderRadius:10,padding:16,marginBottom:14}}>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter Bardahl and other product sales (company-level, not counter-specific)</div>
+      <Card style={{maxWidth:480}}>
+        <Input label="Date" type="date" value={date} onChange={setDate}/>
+        <div style={{background:T.navyXL,borderRadius:10,padding:16,margin:"14px 0"}}>
           <div style={{fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:12}}>Sales Amounts</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div>
               <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Bardahl Sales (₹)</label>
               <input type="number" value={bardahl} onChange={e=>setBardahl(e.target.value)} min={0} placeholder="0"
-                style={{width:"100%",padding:"9px 12px",border:"1px solid "+(bardahl?"#0369A1":T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:bardahl?"#EFF6FF":"#fff"}}/>
+                style={{width:"100%",padding:"9px 12px",border:"1px solid "+(bardahl?"#0369A1":T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:bardahl?"#EFF6FF":"#fff",fontWeight:bardahl?"700":"400"}}/>
             </div>
             <div>
               <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Other Sales (₹)</label>
               <input type="number" value={other} onChange={e=>setOther(e.target.value)} min={0} placeholder="0"
-                style={{width:"100%",padding:"9px 12px",border:"1px solid "+(other?T.grn:T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:other?T.grnL:"#fff"}}/>
+                style={{width:"100%",padding:"9px 12px",border:"1px solid "+(other?T.grn:T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:other?T.grnL:"#fff",fontWeight:other?"700":"400"}}/>
             </div>
           </div>
           {(Number(bardahl)+Number(other))>0 && (
@@ -4588,7 +4573,7 @@ function OfficeSalesEntry({ user, state, setState, toast }) {
   );
 }
 
-// ─── Office: Own Attendance ────────────────────────────────────────────────────
+
 function OfficeOwnAttendance({ user, state, setState, toast }) {
   const [displayDate, setDisplayDate] = useState(today());
   const recordsRef = useRef({});
