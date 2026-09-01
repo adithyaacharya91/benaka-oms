@@ -199,6 +199,12 @@ const DB = {
       await DB.upsertPasswords(passwords);
     }
   },
+  async deleteTable(table) {
+    const H = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY, "Content-Type": "application/json", "Prefer": "return=minimal" };
+    const r = await fetch(SUPABASE_URL+"/rest/v1/"+table+"?id=like.*", { method:"DELETE", headers:H });
+    if (!r.ok) return fetch(SUPABASE_URL+"/rest/v1/"+table+"?date=gte.2000-01-01", { method:"DELETE", headers:H });
+    return r;
+  },
 };
 
 // ─── Sync hook — loads all data from Supabase, falls back to localStorage ─────
@@ -5036,138 +5042,41 @@ function DataMgmt({ user, state, setState, toast }) {
 
   const del = async (type) => {
     if (confirm_ !== "DELETE") { toast.show("Type DELETE to confirm","error"); return; }
-    
-    // Helper to delete all rows from a Supabase table
     const clearTable = async (table) => {
-      try {
-        await DB.deleteAll(table);
-      } catch(e) { console.warn("Supabase clear failed for", table, e); }
+      try { await DB.deleteTable(table); } catch(e) { console.warn("DB clear:", e); }
     };
-
-    if (type==="reports") {
-      await clearTable("service_reports");
-      setState(p=>({...p, serviceReports:[]}));
-    }
-    if (type==="attendance") {
-      await clearTable("attendance");
-      setState(p=>({...p, attendance:[]}));
-    }
-    if (type==="feedback") {
-      await clearTable("feedback");
-      setState(p=>({...p, feedback:[]}));
-    }
-    if (type==="collection") {
-      await clearTable("collection_reports");
-      setState(p=>({...p, collectionReports:[]}));
-    }
-    if (type==="salaries") {
-      await clearTable("salaries");
-      setState(p=>({...p, salaries:[]}));
-    }
-    if (type==="leaves") {
-      await clearTable("leaves");
-      setState(p=>({...p, leaves:[], plannedLeaves:[]}));
-    }
-    if (type==="all_data") {
-      await Promise.all([
-        clearTable("service_reports"), clearTable("attendance"),
-        clearTable("feedback"), clearTable("collection_reports"),
-        clearTable("salaries"), clearTable("leaves"),
-      ]);
-      setState(p=>({...p,
-        serviceReports:[], attendance:[], feedback:[],
-        collectionReports:[], salaries:[], leaves:[], plannedLeaves:[]
-      }));
-    }
-    if (type==="operational") {
-      await Promise.all([
-        clearTable("service_reports"), clearTable("attendance"),
-        clearTable("collection_reports"),
-      ]);
-      setState(p=>({...p,
-        serviceReports:[], attendance:[], collectionReports:[]
-      }));
-    }
-    if (type==="full_reset") {
-      await Promise.all([
-        clearTable("service_reports"), clearTable("attendance"),
-        clearTable("feedback"), clearTable("collection_reports"),
-        clearTable("salaries"), clearTable("leaves"),
-      ]);
-      localStorage.removeItem("benaka_state");
-      toast.show("Full reset done — reloading...");
-      setTimeout(()=>window.location.reload(), 1200);
-      return;
-    }
-    toast.show(type + " cleared from app and database ✅"); setConfirm("");
+    toast.show("Clearing from database...");
+    if (type==="reports")    { await clearTable("service_reports"); setState(p=>({...p,serviceReports:[]})); }
+    if (type==="attendance") { await clearTable("attendance");      setState(p=>({...p,attendance:[]})); }
+    if (type==="both")       { await Promise.all([clearTable("service_reports"),clearTable("attendance")]); setState(p=>({...p,serviceReports:[],attendance:[]})); }
+    toast.show("Cleared from database ✅"); setConfirm("");
   };
-
-  const sections = [
-    { type:"reports",    label:"Service Reports",    count: state.serviceReports?.length||0 },
-    { type:"attendance", label:"Attendance Records", count: state.attendance?.length||0 },
-    { type:"feedback",   label:"Customer Feedback",  count: state.feedback?.length||0 },
-    { type:"collection", label:"Collection Reports", count: state.collectionReports?.length||0 },
-    { type:"salaries",   label:"Salary Records",     count: state.salaries?.length||0 },
-    { type:"leaves",     label:"Leave Requests",     count: (state.leaves?.length||0)+(state.plannedLeaves?.length||0) },
-  ];
 
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Data Management</div>
-
-      {/* Data summary */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:20}}>
-        {sections.map(s=>(
-          <Card key={s.type} style={{textAlign:"center",padding:14}}>
-            <div style={{fontSize:22,fontWeight:800,color:s.count>0?T.navy:T.txt3}}>{s.count}</div>
-            <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>{s.label}</div>
-          </Card>
-        ))}
+        <Card style={{textAlign:"center",padding:14}}>
+          <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{state.serviceReports?.length||0}</div>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Service Reports</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:14}}>
+          <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{state.attendance?.length||0}</div>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Attendance Records</div>
+        </Card>
       </div>
-
-      {/* Confirm input */}
       <Card style={{marginBottom:16,background:T.redL,border:"1px solid "+T.red}}>
-        <div style={{fontSize:13,fontWeight:700,color:T.red,marginBottom:8}}>⚠️ Type DELETE to enable reset buttons</div>
-        <input value={confirm_} onChange={e=>setConfirm(e.target.value)} placeholder="Type DELETE here"
-          style={{padding:"10px 14px",border:"2px solid "+(confirm_==="DELETE"?T.red:T.bdrS),
-            borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",
-            background:confirm_==="DELETE"?"#fff":T.surf,boxSizing:"border-box"}}/>
-        {confirm_==="DELETE" && <div style={{color:T.red,fontSize:12,marginTop:6,fontWeight:700}}>✓ Ready — select what to clear below</div>}
+        <div style={{fontSize:13,fontWeight:700,color:T.red,marginBottom:8}}>⚠️ Type DELETE to enable buttons</div>
+        <input value={confirm_} onChange={e=>setConfirm(e.target.value)} placeholder="DELETE"
+          style={{padding:"10px 14px",border:"2px solid "+(confirm_==="DELETE"?T.red:T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",background:"#fff",boxSizing:"border-box"}}/>
+        {confirm_==="DELETE"&&<div style={{color:T.red,fontSize:12,marginTop:6}}>✓ Ready to clear</div>}
       </Card>
-
-      {/* Individual clears */}
-      <Card style={{marginBottom:16}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Clear Specific Data</div>
-        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-          {sections.map(s=>(
-            <Btn key={s.type} onClick={()=>del(s.type)} variant="danger" size="sm"
-              style={{opacity:confirm_==="DELETE"?1:.4}}>
-              Clear {s.label} ({s.count})
-            </Btn>
-          ))}
-          <Btn onClick={()=>del("operational")} variant="danger"
-            style={{opacity:confirm_==="DELETE"?1:.4,background:T.amber,color:"#000"}}>
-            📋 Clear Reports + Attendance Only
-          </Btn>
-          <Btn onClick={()=>del("all_data")} variant="danger"
-            style={{opacity:confirm_==="DELETE"?1:.4}}>
-            🗑 Clear ALL Operational Data
-          </Btn>
-        </div>
-      </Card>
-
-      {/* Full reset */}
-      <Card style={{borderTop:"4px solid #7f1d1d",background:"#1a0000"}}>
-        <div style={{fontSize:14,fontWeight:800,color:"#fca5a5",marginBottom:8}}>☢️ Full Factory Reset</div>
-        <div style={{fontSize:12,color:"#fca5a5",marginBottom:12}}>
-          Wipes ALL data including users, counters, work types, reports, and settings.
-          App reloads fresh with default data. Cannot be undone.
-        </div>
-        <Btn onClick={()=>del("full_reset")} variant="danger"
-          style={{opacity:confirm_==="DELETE"?1:.4,background:"#7f1d1d",color:"#fff"}}>
-          ☢️ FULL FACTORY RESET
-        </Btn>
-      </Card>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        <Btn onClick={()=>del("reports")}    variant="danger" style={{opacity:confirm_==="DELETE"?1:.4}}>🗑 Clear Reports</Btn>
+        <Btn onClick={()=>del("attendance")} variant="danger" style={{opacity:confirm_==="DELETE"?1:.4}}>🗑 Clear Attendance</Btn>
+        <Btn onClick={()=>del("both")}       variant="danger" style={{opacity:confirm_==="DELETE"?1:.4,background:"#7f1d1d",color:"#fff"}}>☢️ Clear Both</Btn>
+      </div>
+      <div style={{fontSize:12,color:T.txt2,marginTop:12}}>Deletes permanently from database — will not return on refresh.</div>
     </div>
   );
 }
