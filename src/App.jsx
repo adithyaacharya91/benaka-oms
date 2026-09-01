@@ -1323,8 +1323,10 @@ function SupReport({ user, state, setState, toast }) {
   const myCounters = state.counters.filter(c => c.supervisorId === user.id);
   const [activeCounter, setActiveCounter] = useState(myCounters[0]?.id || "");
 
-  const serviceWTs = state.workTypes.filter(w => w.category !== "sales");
-  const salesWTs   = state.workTypes.filter(w => w.category === "sales");
+  const allWTs = [...state.workTypes];
+  INITIAL_STATE.workTypes.forEach(iwt => { if(!allWTs.find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
+  const serviceWTs = allWTs.filter(w => w.category !== "sales");
+  const salesWTs   = allWTs.filter(w => w.category === "sales");
   const blankServiceRows = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
   const blankSalesRows   = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, amount:0, type:"sales" }));
 
@@ -1488,7 +1490,11 @@ function SupReport({ user, state, setState, toast }) {
               <div style={{ display:"flex", gap:8 }}>
                 <Btn onClick={()=>printCounter(activeC)} size="sm" variant="ghost">🖨 Print</Btn>
                 {!isSubmitted && <Btn onClick={()=>submitCounter(activeC)} variant="amber">Submit Report</Btn>}
-                {isSubmitted  && <Btn onClick={()=>{ setState(p=>({...p,serviceReports:p.serviceReports.filter(r=>!((r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date))})); setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),submitted:false}})); toast.show("Report recalled"); }} size="sm" variant="ghost">↩ Recall</Btn>}
+                {isSubmitted  && <Btn onClick={()=>{ const recallId = "sr_"+user.id+"_"+activeC.id+"_"+date;
+                  setState(p=>({...p,serviceReports:p.serviceReports.filter(r=>!((r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date))}));
+                  setCounterData(p=>({...p,[activeC.id]:{entries:blankServiceRows(),notes:"",submitted:false}}));
+                  supabase.from("service_reports").delete().eq("id",recallId).catch(e=>console.error("Recall delete:",e));
+                  toast.show("Report recalled ✅"); }} size="sm" variant="ghost">↩ Recall</Btn>}
               </div>
             </div>
 
@@ -2942,8 +2948,11 @@ function OfficeEnterReport({ user, state, setState, toast }) {
   const [notes, setNotes] = useState("");
 
   const executives = state.users.filter(u => u.role === "supervisor" && u.active);
-  const serviceWTs = state.workTypes.filter(w => w.category !== "sales");
-  const salesWTs   = state.workTypes.filter(w => w.category === "sales");
+  // Merge DB work types with defaults so all work types always available
+  const allWTs = [...state.workTypes];
+  INITIAL_STATE.workTypes.forEach(iwt => { if(!allWTs.find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
+  const serviceWTs = allWTs.filter(w => w.category !== "sales");
+  const salesWTs   = allWTs.filter(w => w.category === "sales");
 
   const blankServiceRows = () => serviceWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, vehicles:0, rate:wt.defaultRate, amount:0, type:"service" }));
   const blankSalesRows   = () => salesWTs.map(wt => ({ workTypeId:wt.id, workTypeName:wt.name, qty:0, amount:0, type:"sales" }));
@@ -3062,7 +3071,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
                 {(counter.entries||[]).map((e,ei)=>(
                   <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
                     <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                      <select value={e.workTypeId} onChange={ev=>{ const wt=state.workTypes.find(w=>w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
+                      <select value={e.workTypeName||e.workTypeId||""} onChange={ev=>{ const wt=state.workTypes.find(w=>w.name===ev.target.value||w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
                         style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:"100%" }}>
                         <option value="">Select...</option>
                         {serviceWTs.map(wt=><option key={wt.id} value={wt.name}>{wt.name}</option>)}
