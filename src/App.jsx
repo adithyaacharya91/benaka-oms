@@ -1512,7 +1512,7 @@ function SupReport({ user, state, setState, toast }) {
                 <div key={h} style={{ fontSize:10, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>{h}</div>
               ))}
             </div>
-            {<datalist id="sup-wt-list">
+            <datalist id="sup-wt-list">
                 {serviceWTs.map(w=><option key={w.id} value={w.name}/>)}
               </datalist>
               {(d.entries||[]).map((e, ei) => (
