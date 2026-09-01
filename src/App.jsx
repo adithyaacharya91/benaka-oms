@@ -3055,10 +3055,10 @@ function OfficeEnterReport({ user, state, setState, toast }) {
         </div>
       </Card>
 
-      {selSupervisor && <datalist id="off-wt-list">
+      <datalist id="off-wt-list">
         {serviceWTs.map(wt=><option key={wt.id} value={wt.name}/>)}
       </datalist>
-      reportCounters.map((counter, ci) => (
+      {reportCounters.map((counter, ci) => (
         <Card key={ci} style={{ marginBottom:16, borderTop:`3px solid ${T.amber}` }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
             <div style={{ width:26,height:26,background:T.navy,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800 }}>{ci+1}</div>
