@@ -1512,16 +1512,19 @@ function SupReport({ user, state, setState, toast }) {
                 <div key={h} style={{ fontSize:10, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>{h}</div>
               ))}
             </div>
-            {(d.entries||[]).map((e, ei) => (
+            {<datalist id="sup-wt-list">
+                {serviceWTs.map(w=><option key={w.id} value={w.name}/>)}
+              </datalist>
+              {(d.entries||[]).map((e, ei) => (
               <div key={ei} style={{ display:"grid", gridTemplateColumns:"1fr 80px 90px 100px", gap:8, marginBottom:8, alignItems:"center" }}>
-                <select value={e.workTypeName} onChange={ev=>{
-                  const wt = allWTs.find(w=>w.name===ev.target.value||w.id===ev.target.value);
-                  updateServiceEntry(activeC.id, ei, "workTypeName", ev.target.value);
-                  if(wt?.defaultRate) updateServiceEntry(activeC.id, ei, "rate", wt.defaultRate);
-                }} style={{ padding:"7px 8px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}>
-                  <option value="">Select work type</option>
-                  {(state.workTypes||[]).filter(w=>w.category!=="sales").map(w=><option key={w.id} value={w.name}>{w.name}</option>)}
-                </select>
+                <input list="sup-wt-list" value={e.workTypeName||""} placeholder="Type work type..."
+                  onChange={ev=>{
+                    const val=ev.target.value;
+                    const wt=allWTs.find(w=>w.name===val);
+                    if(wt) setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:getData(activeC.id).entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate||row.rate,amount:(row.vehicles||0)*(wt.defaultRate||row.rate||0)})}}));
+                    else updateServiceEntry(activeC.id,ei,"workTypeName",val);
+                  }}
+                  style={{padding:"7px 8px",border:"1px solid "+(e.workTypeName?T.navy:T.bdrS),borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",background:e.workTypeName?"#EFF6FF":"#fff"}}/>
                 <input type="number" value={e.vehicles||""} onChange={ev=>updateServiceEntry(activeC.id,ei,"vehicles",ev.target.value)} min={0} placeholder="0"
                   style={{ padding:"7px 8px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none", textAlign:"center" }}/>
                 <input type="number" value={e.rate||""} onChange={ev=>updateServiceEntry(activeC.id,ei,"rate",ev.target.value)} min={0} placeholder="0"
@@ -3052,7 +3055,10 @@ function OfficeEnterReport({ user, state, setState, toast }) {
         </div>
       </Card>
 
-      {selSupervisor && reportCounters.map((counter, ci) => (
+      {selSupervisor && <datalist id="off-wt-list">
+        {serviceWTs.map(wt=><option key={wt.id} value={wt.name}/>)}
+      </datalist>
+      reportCounters.map((counter, ci) => (
         <Card key={ci} style={{ marginBottom:16, borderTop:`3px solid ${T.amber}` }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
             <div style={{ width:26,height:26,background:T.navy,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800 }}>{ci+1}</div>
@@ -3085,11 +3091,17 @@ function OfficeEnterReport({ user, state, setState, toast }) {
                 {(counter.entries||[]).map((e,ei)=>(
                   <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
                     <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                      <select value={e.workTypeName||e.workTypeId||""} onChange={ev=>{ const wt=allWTs.find(w=>w.name===ev.target.value||w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
-                        style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:"100%" }}>
-                        <option value="">Select...</option>
-                        {serviceWTs.map(wt=><option key={wt.id} value={wt.name}>{wt.name}</option>)}
-                      </select>
+                      <input list="off-wt-list" value={e.workTypeName||""} placeholder="Type work type..."
+                        onChange={ev=>{
+                          const val=ev.target.value;
+                          const wt=allWTs.find(w=>w.name===val);
+                          if(wt){
+                            setReportCounters(p=>p.map((c2,ci2)=>ci2!==ci?c2:{...c2,entries:c2.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})}));
+                          } else {
+                            updateEntry(ci,ei,"workTypeName",val);
+                          }
+                        }}
+                        style={{ width:"100%",padding:"4px 6px",border:"1px solid "+(e.workTypeName?T.navy:T.bdrS),borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",background:e.workTypeName?"#EFF6FF":"#fff" }}/>
                     </td>
                     <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
                       <input type="number" value={e.vehicles} onChange={ev=>updateEntry(ci,ei,"vehicles",ev.target.value)} min={0}
