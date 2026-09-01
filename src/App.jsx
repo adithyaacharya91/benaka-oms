@@ -1463,7 +1463,7 @@ function SupReport({ user, state, setState, toast }) {
       {/* Active counter form */}
       {activeC && (() => {
         const d = getData(activeC.id);
-        const isSubmitted = !!state.serviceReports.find(r=>r.counterId===activeC.id&&r.supervisorId===user.id&&r.date===date);
+        const isSubmitted = !!state.serviceReports.find(r=>(r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date);
         const svcTotal = (d.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
         return (
           <Card>
@@ -1475,7 +1475,7 @@ function SupReport({ user, state, setState, toast }) {
               <div style={{ display:"flex", gap:8 }}>
                 <Btn onClick={()=>printCounter(activeC)} size="sm" variant="ghost">🖨 Print</Btn>
                 {!isSubmitted && <Btn onClick={()=>submitCounter(activeC)} variant="amber">Submit Report</Btn>}
-                {isSubmitted  && <Btn onClick={()=>{ setState(p=>({...p,serviceReports:p.serviceReports.filter(r=>!(r.counterId===activeC.id&&r.supervisorId===user.id&&r.date===date))})); setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),submitted:false}})); toast.show("Report recalled"); }} size="sm" variant="ghost">↩ Recall</Btn>}
+                {isSubmitted  && <Btn onClick={()=>{ setState(p=>({...p,serviceReports:p.serviceReports.filter(r=>!((r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date))})); setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),submitted:false}})); toast.show("Report recalled"); }} size="sm" variant="ghost">↩ Recall</Btn>}
               </div>
             </div>
 
@@ -2947,7 +2947,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
       setNotes(existing.notes || "");
     } else {
       const myCtrs = state.counters.filter(c => c.supervisorId === selSupervisor);
-      setReportCounters(myCtrs.length ? myCtrs.map(c => ({ counterName:c.name, entries:blankServiceRows(), salesEntries:blankSalesRows() })) : [{ counterName:"", entries:blankServiceRows(), salesEntries:blankSalesRows() }]);
+      setReportCounters(myCtrs.length ? myCtrs.map(c => ({ counterName:c.name, entries:blankServiceRows() })) : [{ counterName:"", entries:blankServiceRows() }]);
       setNotes("");
     }
   }, [date, selSupervisor]);
@@ -2976,7 +2976,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
       .filter(c => c.counterName)
       .map(c => {
         const counter = state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName};
-        const allEntries = [...(c.entries||[]),...(c.salesEntries||[]).map(e=>({...e,vehicles:0,rate:0}))];
+        const allEntries = (c.entries||[]).filter(e=>e.workTypeName&&(e.vehicles>0||e.amount>0));
         const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0),0);
         return {
           id: "sr_" + selSupervisor + "_" + counter.id + "_" + date,
@@ -3049,7 +3049,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
                       <select value={e.workTypeId} onChange={ev=>{ const wt=state.workTypes.find(w=>w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,entries:c.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})})); }}
                         style={{ flex:1,padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:"100%" }}>
                         <option value="">Select...</option>
-                        {serviceWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
+                        {serviceWTs.map(wt=><option key={wt.id} value={wt.name}>{wt.name}</option>)}
                       </select>
                     </td>
                     <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
@@ -3071,39 +3071,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
             </table>
           </div>
 
-          {/* SALES rows */}
-          <div style={{ fontSize:12,fontWeight:800,color:T.grn,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🛒 Sales (Amount only — no rate card)</div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-              <thead><tr style={{ background:T.grnL }}>
-                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Product</th>
-                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:140,fontSize:11,fontWeight:800,color:T.grn,textTransform:"uppercase" }}>Amount (₹)</th>
-              </tr></thead>
-              <tbody>
-                {(counter.salesEntries||[]).map((e,ei)=>(
-                  <tr key={ei} style={{ background:e.amount>0?"#F0FDF4":"#fff" }}>
-                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                      <select value={e.workTypeId} onChange={ev=>{ const wt=state.workTypes.find(w=>w.id===ev.target.value); if(wt) setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,salesEntries:c.salesEntries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name})})); }}
-                        style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",marginRight:6 }}>
-                        <option value="">Select product...</option>
-                        {salesWTs.map(wt=><option key={wt.id} value={wt.id}>{wt.name}</option>)}
-                      </select>
-                      <input value={e.workTypeName} onChange={ev=>setReportCounters(p=>p.map((c,ci2)=>ci2!==ci?c:{...c,salesEntries:c.salesEntries.map((row,ri)=>ri!==ei?row:{...row,workTypeName:ev.target.value})}))}
-                        placeholder="Or type product name" style={{ padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",width:140 }}/>
-                    </td>
-                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
-                      <input type="number" value={e.amount} onChange={ev=>updateEntry(ci,ei,"amount",ev.target.value,true)} min={0}
-                        style={{ width:"100%",padding:"4px 8px",border:`1px solid ${e.amount>0?T.grn:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"right",background:e.amount>0?T.grnL:"#fff",fontWeight:e.amount>0?700:400 }}/>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot><tr style={{ background:T.grnL }}>
-                <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,color:T.grn }}>SALES TOTAL</td>
-                <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.grn,textAlign:"right" }}>{counterSalesTotal(counter).toLocaleString("en-IN")}</td>
-              </tr></tfoot>
-            </table>
-          </div>
+</div>
         </Card>
       ))}
 
