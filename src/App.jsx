@@ -1231,8 +1231,9 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
       markedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
     }));
     setState(p => ({ ...p, attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===d)),...newAtts] }));
+    DB.upsertAttendance(newAtts).catch(e => console.error("Att save:", e));
     setDirty(false);
-    toast.show("Attendance saved for " + d);
+    toast.show("Attendance saved ✅");
   };
 
   const histAtt = state.attendance.filter(a => a.supervisorId===user.id && a.date===histDate);
@@ -1385,8 +1386,7 @@ function SupReport({ user, state, setState, toast }) {
   const submitCounter = (counter) => {
     const d = getData(counter.id);
     const allEntries = [
-      ...d.entries,
-      ...d.salesEntries.map(e => ({ ...e, vehicles:0, rate:0 }))
+      ...(d.entries||[]).filter(e => e.workTypeName && (e.vehicles>0||e.amount>0)),
     ];
     const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0), 0);
     const report = {
