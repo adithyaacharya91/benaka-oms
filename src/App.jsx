@@ -1090,6 +1090,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    DB.upsertCollectionReport(rep).catch(e => console.error("Collection save:", e));
     toast.show("Collection report saved ✅");
   };
 
@@ -1404,7 +1405,8 @@ function SupReport({ user, state, setState, toast }) {
     };
     setState(p => ({ ...p, serviceReports: [...p.serviceReports.filter(r=>r.id!==report.id), report] }));
     setCounterData(p => ({ ...p, [counter.id]: { ...getData(counter.id), submitted: true } }));
-    toast.show(`${counter.name} report submitted`);
+    DB.upsertReport(report).catch(e => console.error("Report save failed:", e));
+    toast.show(counter.name + " report submitted ✅");
   };
 
   const printCounter = (counter) => {
@@ -1733,6 +1735,7 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    DB.upsertCollectionReport(rep).catch(e => console.error("Collection save:", e));
     toast.show("Collection report saved ✅");
   };
 
@@ -2455,6 +2458,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:"admin", bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    DB.upsertCollectionReport(rep).catch(e => console.error("Collection save:", e));
     toast.show("Collection report saved ✅");
   };
   const filteredReports = state.serviceReports.filter(r => {
@@ -3004,6 +3008,7 @@ function OfficeEnterReport({ user, state, setState, toast }) {
     if (!newReports.length) { toast.show("Add at least one counter","error"); return; }
     const newIds = newReports.map(r=>r.id);
     setState(p=>({ ...p, serviceReports:[...p.serviceReports.filter(r=>!newIds.includes(r.id)), ...newReports] }));
+    newReports.forEach(r => DB.upsertReport(r).catch(e => console.error("Report save:", e)));
     toast.show("Report submitted for " + newReports.length + " counter(s) ✅");
   };
 
@@ -3110,6 +3115,7 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
   const save = (bankEntries, expenses) => {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
+    DB.upsertCollectionReport(rep).catch(e => console.error("Collection save:", e));
     toast.show("Collection report saved ✅");
   };
   const filteredReports = state.serviceReports.filter(r => {
@@ -3187,6 +3193,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
       markedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})
     }));
     setState(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.supervisorId===selExec&&a.date===displayDate)),...newAtts]}));
+    DB.upsertAttendance(newAtts).catch(e => console.error("Attendance save:", e));
     setDirty(false);
     toast.show("Attendance saved ✅");
   };
@@ -4475,6 +4482,7 @@ function OfficeSalesEntry({ user, state, setState, toast }) {
       entries:allE, counters:[{counterName:counter.name,entries:allE}],
       totalAmount:allE.reduce((s,e)=>s+(Number(e.amount)||0),0), notes, status:"submitted", submittedBy:user.id };
     setState(p=>({...p,serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id),report]}));
+    DB.upsertReport(report).catch(e => console.error("Sales save:", e));
     toast.show("Sales entry saved ✅");
     setBardahl(""); setOther(""); setNotes("");
   };
@@ -4561,6 +4569,7 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
       status:recordsRef.current[s.id]||"present", reason:reasonsRef.current[s.id]||"",
       markedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) }));
     setState(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===displayDate)),...atts]}));
+    DB.upsertAttendance(atts).catch(e => console.error("Attendance save:", e));
     setDirty(false); toast.show("Attendance saved ✅");
   };
   return (
