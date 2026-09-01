@@ -1326,26 +1326,31 @@ function SupReport({ user, state, setState, toast }) {
   // Load existing report data for each counter when date changes
   useEffect(() => {
     const newData = {};
+    const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
     myCounters.forEach(c => {
+      // Match by counterId OR counterName to catch office-submitted reports
       const existing = state.serviceReports.find(r =>
-        r.counterId === c.id && r.supervisorId === user.id && r.date === date
+        (r.counterId === c.id || r.counterName === c.name) &&
+        r.supervisorId === user.id && r.date === date
       );
       if (existing) {
+        const svcEntries = (existing.entries||[]).filter(e => e.type !== "sales" && !SALES_WTS_SET.has(e.workTypeName));
         newData[c.id] = {
-          entries: (existing.entries||[]).filter(e => e.type !== "sales" && !salesWTs.some(w=>w.name===e.workTypeName)),
-          salesEntries: (existing.entries||[]).filter(e => e.type === "sales" || salesWTs.some(w=>w.name===e.workTypeName)),
+          // Pre-fill blank rows if no service entries (office may have submitted sales-only)
+          entries: svcEntries.length > 0 ? svcEntries : blankServiceRows(),
           notes: existing.notes || "",
-          submitted: true,
+          // Only mark submitted if there are actual service entries
+          submitted: svcEntries.length > 0,
         };
       } else {
-        newData[c.id] = { entries: blankServiceRows(), salesEntries: blankSalesRows(), notes: "", submitted: false };
+        newData[c.id] = { entries: blankServiceRows(), notes: "", submitted: false };
       }
     });
     setCounterData(newData);
     if (myCounters.length > 0 && !activeCounter) setActiveCounter(myCounters[0].id);
   }, [date, state.serviceReports.length]);
 
-  const getData = (cid) => counterData[cid] || { entries: blankServiceRows(), salesEntries: blankSalesRows(), notes: "" };
+  const getData = (cid) => counterData[cid] || { entries: blankServiceRows(), notes: "" };
 
   const updateServiceEntry = (cid, ei, field, val) => {
     setCounterData(p => {
@@ -5029,33 +5034,72 @@ function WorkTypeMgmt({ user, state, setState, toast }) {
 function DataMgmt({ user, state, setState, toast }) {
   const [confirm_, setConfirm] = useState("");
 
-  const del = (type) => {
+  const del = async (type) => {
     if (confirm_ !== "DELETE") { toast.show("Type DELETE to confirm","error"); return; }
-    if (type==="reports")    setState(p=>({...p, serviceReports:[]}));
-    if (type==="attendance") setState(p=>({...p, attendance:[]}));
-    if (type==="feedback")   setState(p=>({...p, feedback:[]}));
-    if (type==="collection") setState(p=>({...p, collectionReports:[]}));
-    if (type==="salaries")   setState(p=>({...p, salaries:[]}));
-    if (type==="leaves")     setState(p=>({...p, leaves:[], plannedLeaves:[]}));
+    
+    // Helper to delete all rows from a Supabase table
+    const clearTable = async (table) => {
+      try {
+        await DB.deleteAll(table);
+      } catch(e) { console.warn("Supabase clear failed for", table, e); }
+    };
+
+    if (type==="reports") {
+      await clearTable("service_reports");
+      setState(p=>({...p, serviceReports:[]}));
+    }
+    if (type==="attendance") {
+      await clearTable("attendance");
+      setState(p=>({...p, attendance:[]}));
+    }
+    if (type==="feedback") {
+      await clearTable("feedback");
+      setState(p=>({...p, feedback:[]}));
+    }
+    if (type==="collection") {
+      await clearTable("collection_reports");
+      setState(p=>({...p, collectionReports:[]}));
+    }
+    if (type==="salaries") {
+      await clearTable("salaries");
+      setState(p=>({...p, salaries:[]}));
+    }
+    if (type==="leaves") {
+      await clearTable("leaves");
+      setState(p=>({...p, leaves:[], plannedLeaves:[]}));
+    }
     if (type==="all_data") {
+      await Promise.all([
+        clearTable("service_reports"), clearTable("attendance"),
+        clearTable("feedback"), clearTable("collection_reports"),
+        clearTable("salaries"), clearTable("leaves"),
+      ]);
       setState(p=>({...p,
         serviceReports:[], attendance:[], feedback:[],
         collectionReports:[], salaries:[], leaves:[], plannedLeaves:[]
       }));
     }
     if (type==="operational") {
+      await Promise.all([
+        clearTable("service_reports"), clearTable("attendance"),
+        clearTable("collection_reports"),
+      ]);
       setState(p=>({...p,
         serviceReports:[], attendance:[], collectionReports:[]
       }));
     }
     if (type==="full_reset") {
-      // Wipe localStorage and reload — complete factory reset
+      await Promise.all([
+        clearTable("service_reports"), clearTable("attendance"),
+        clearTable("feedback"), clearTable("collection_reports"),
+        clearTable("salaries"), clearTable("leaves"),
+      ]);
       localStorage.removeItem("benaka_state");
       toast.show("Full reset done — reloading...");
       setTimeout(()=>window.location.reload(), 1200);
       return;
     }
-    toast.show(type + " cleared ✅"); setConfirm("");
+    toast.show(type + " cleared from app and database ✅"); setConfirm("");
   };
 
   const sections = [
