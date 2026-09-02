@@ -2585,11 +2585,13 @@ function MDDashboard({ user, state, syncFromCloud }) {
     const sup = state.users.find(u=>u.id===c.supervisorId);
     const reps = reports.filter(r => reportAssign[r.id]===c.id);
     const allE = reps.flatMap(r => mdGetEntries(r));
-    const svcTotal = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const salTotal = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const total = svcTotal + salTotal;
-    const vehicles = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
-    const days = new Set(reps.map(r=>r.date)).size;
+    const svcTotal  = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const salTotal  = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const bardahl   = allE.filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const otherSal  = allE.filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const total     = svcTotal + salTotal;
+    const vehicles  = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
+    const days      = new Set(reps.map(r=>r.date)).size;
     // Match today reports specifically by counterId or counterName
     // Don't use supervisorId alone - it would double-count multi-counter executives
     const todayReps = todayReports.filter(r => todayAssign[r.id]===c.id);
