@@ -4871,6 +4871,12 @@ function DebugReports({ state }) {
   );
 }
 
+// MDAttendance — full attendance view for MD (all staff, all dates)
+function MDAttendance({ state }) {
+  return <OfficeAttendanceView state={state}/>;
+}
+
+
 export default function App() {
   const [state, setState] = useLocalStorage("benaka_state", INITIAL_STATE);
   const { syncStatus, syncFromCloud } = useSupabaseSync(state, setState);
