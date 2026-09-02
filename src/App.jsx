@@ -4875,12 +4875,13 @@ export default function App() {
   const [state, setState] = useLocalStorage("benaka_state", INITIAL_STATE);
   const { syncStatus, syncFromCloud } = useSupabaseSync(state, setState);
   const toast = useToast();
+  const { Toast } = toast;
 
   if (!state.currentUser) {
     return (
       <ErrorBoundary>
         <LoginScreen state={state} setState={setState} toast={toast}/>
-        {toast.toasts.map(t => <Toast key={t.id} msg={t.msg} type={t.type} onDone={()=>toast.remove(t.id)}/>)}
+        <Toast/>
       </ErrorBoundary>
     );
   }
@@ -4897,7 +4898,7 @@ export default function App() {
       {user.role === "office"       && <OfficePortal     {...props}/>}
       {user.role === "it_admin"     && <ITAdminPortal    {...props}/>}
       {user.role === "field_staff"  && <FieldStaffPortal {...props}/>}
-      {toast.toasts.map(t => <Toast key={t.id} msg={t.msg} type={t.type} onDone={()=>toast.remove(t.id)}/>)}
+      <Toast/>
     </ErrorBoundary>
   );
 }
