@@ -4883,10 +4883,18 @@ export default function App() {
   const toast = useToast();
   const { Toast } = toast;
 
+  const handleLogin = (user) => setState(p => ({ ...p, currentUser: user }));
+  const handleUsersLoaded = (users, passwords) => setState(p => ({ ...p, users, passwords }));
+
   if (!state.currentUser) {
     return (
       <ErrorBoundary>
-        <LoginScreen state={state} setState={setState} toast={toast}/>
+        <LoginScreen
+          onLogin={handleLogin}
+          users={state.users}
+          passwords={state.passwords}
+          onUsersLoaded={handleUsersLoaded}
+        />
         <Toast/>
       </ErrorBoundary>
     );
