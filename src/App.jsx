@@ -353,16 +353,22 @@ function useSupabaseSync(localState, setLocalState) {
         })) : p.leaves,
         feedback:          Array.isArray(feedback)    ? feedback    : p.feedback,
         salaries:          Array.isArray(salaries)    ? salaries    : p.salaries,
-        collectionReports: Array.isArray(collReports) ? collReports.map(r=>({
-        id: r.id, date: r.date,
-        supervisorId: r.supervisor_id || r.supervisorId,
-        bankEntries: typeof r.bank_entries==="string" ? JSON.parse(r.bank_entries||"[]") : (r.bank_entries || r.bankEntries || []),
-        expenses: typeof r.expenses==="string" ? JSON.parse(r.expenses||"[]") : (r.expenses || []),
+        collectionReports: Array.isArray(collReports) ? collReports.map(r=>{
+          // Parse from notes JSON blob (primary) or direct columns (fallback)
+          let parsed = {};
+          try { parsed = r.notes ? JSON.parse(r.notes) : {}; } catch(e) {}
+          const bankEntries = parsed.bankEntries || (typeof r.bank_entries==="string" ? JSON.parse(r.bank_entries||"[]") : (r.bank_entries||[]));
+          const expenses    = parsed.expenses || (typeof r.expenses==="string" ? JSON.parse(r.expenses||"[]") : (r.expenses||[]));
+          return {
+          id: r.id, date: r.date,
+          supervisorId: r.supervisor_id || r.supervisorId,
+          bankEntries, expenses,
         notes: r.notes || "",
-        totalBank: r.total_bank || r.totalBank || 0,
-        totalExpenses: r.total_expenses || r.totalExpenses || 0,
-        netCollection: r.net_collection || r.netCollection || 0,
-      })) : p.collectionReports,
+        totalBank: parsed.totalBank || r.total_bank || 0,
+        totalExpenses: parsed.totalExp || r.total_expenses || 0,
+        netCollection: (parsed.totalBank||0) - (parsed.totalExp||0) || r.net_collection || 0,
+          };
+        }) : p.collectionReports,
       }));
       setSyncStatus("ok");
     } catch(e) {
