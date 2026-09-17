@@ -1797,7 +1797,7 @@ function LeavePortal({ user, state, setState, toast }) {
 }
 
 
-function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
+function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
