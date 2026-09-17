@@ -98,7 +98,18 @@ const DB = {
     return r.json();
   },
   async upsertCollectionReport(rep) {
-    return supabase.from("collection_reports").upsert(rep);
+    const row = {
+      id: rep.id,
+      date: rep.date,
+      supervisor_id: rep.supervisorId || rep.supervisor_id,
+      bank_entries: rep.bankEntries || rep.bank_entries || [],
+      expenses: rep.expenses || [],
+      notes: rep.notes || "",
+      total_bank: rep.totalBank || 0,
+      total_expenses: rep.totalExpenses || 0,
+      net_collection: rep.netCollection || 0,
+    };
+    return supabase.from("collection_reports").upsert(row);
   },
   // Salaries
   async getSalaries(month) {
@@ -313,7 +324,16 @@ function useSupabaseSync(localState, setLocalState) {
         leaves:            Array.isArray(leaves)      ? leaves      : p.leaves,
         feedback:          Array.isArray(feedback)    ? feedback    : p.feedback,
         salaries:          Array.isArray(salaries)    ? salaries    : p.salaries,
-        collectionReports: Array.isArray(collReports) ? collReports : p.collectionReports,
+        collectionReports: Array.isArray(collReports) ? collReports.map(r=>({
+        id: r.id, date: r.date,
+        supervisorId: r.supervisor_id || r.supervisorId,
+        bankEntries: r.bank_entries || r.bankEntries || [],
+        expenses: r.expenses || [],
+        notes: r.notes || "",
+        totalBank: r.total_bank || r.totalBank || 0,
+        totalExpenses: r.total_expenses || r.totalExpenses || 0,
+        netCollection: r.net_collection || r.netCollection || 0,
+      })) : p.collectionReports,
       }));
       setSyncStatus("ok");
     } catch(e) {
@@ -1832,7 +1852,13 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
     myCounters.some(c=>c.supervisorId===r.supervisorId);
   const todayReports = state.serviceReports.filter(r=>r.date===today_&&isMyReport(r));
   const totalRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
-  const pendingLeaves = (state.leaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending").length;
+  const pendingLeaves = (
+    (state.leaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending").length +
+    (state.plannedLeaves||[]).filter(l=>{
+      const mySupIds2 = mySupervisors.map(s=>s.id);
+      return (l.approverId===user.id||mySupIds2.includes(l.supervisorId)||mySupIds2.includes(l.userId))&&l.status==="pending";
+    }).length
+  );
   const month = today_.slice(0,7);
   const monthReports = state.serviceReports.filter(r=>r.date.startsWith(month)&&isMyReport(r));
   const monthRevenue = monthReports.reduce((s,r)=>s+r.totalAmount,0);
@@ -2038,34 +2064,63 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
 
 function MgrLeaves({ user, state, setState, toast }) {
-  const pending = state.leaves.filter(l=>l.approverId===user.id&&l.status==="pending");
-  const all = state.leaves.filter(l=>l.approverId===user.id);
+  // Unify state.leaves and state.plannedLeaves into one view
+  const mySupIds = state.users.filter(u=>u.managerId===user.id).map(u=>u.id);
 
-  const decide = (id, status) => {
-    setState(p=>({ ...p, leaves: p.leaves.map(l=>l.id===id?{...l,status,decidedAt:new Date().toISOString()}:l) }));
-    toast.show(status==="approved"?"Leave approved":"Leave rejected");
+  // From state.leaves (old system)
+  const pendingOld = (state.leaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending");
+  const allOld     = (state.leaves||[]).filter(l=>l.approverId===user.id);
+
+  // From state.plannedLeaves (new system via PlannedLeavePortal)
+  const pendingNew = (state.plannedLeaves||[]).filter(l=>
+    (l.approverId===user.id || mySupIds.includes(l.supervisorId) || mySupIds.includes(l.userId)) &&
+    l.status==="pending"
+  );
+  const allNew     = (state.plannedLeaves||[]).filter(l=>
+    l.approverId===user.id || mySupIds.includes(l.supervisorId) || mySupIds.includes(l.userId)
+  );
+
+  const decideOld = (id, status) => {
+    const updated = (state.leaves||[]).map(l=>l.id===id?{...l,status,decidedAt:today(),decidedBy:user.id}:l);
+    setState(p=>({...p, leaves:updated}));
+    toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
   };
+
+  const decideNew = (id, status) => {
+    const updated = (state.plannedLeaves||[]).map(l=>l.id===id?{...l,status,decidedOn:today(),decidedBy:user.id}:l);
+    setState(p=>({...p, plannedLeaves:updated}));
+    const leave = updated.find(l=>l.id===id);
+    if (leave) DB.upsertPlannedLeave(leave).catch(console.error);
+    toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
+  };
+
+  const totalPending = pendingOld.length + pendingNew.length;
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Leave Approvals</div>
-      {pending.length > 0 && (
-        <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.red }}>⏳ Pending ({pending.length})</div>
-          {pending.map(l => {
+      <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Leave Approvals</div>
+
+      {totalPending === 0 && (
+        <Card><div style={{textAlign:"center",padding:20,color:T.grn}}>✅ No pending approvals</div></Card>
+      )}
+
+      {pendingNew.length > 0 && (
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:12,color:T.red}}>⏳ Pending ({pendingNew.length})</div>
+          {pendingNew.map(l=>{
             const applicant = state.users.find(u=>u.id===l.userId);
             return (
-              <Card key={l.id} style={{ marginBottom:12, borderLeft:"4px solid " + (T.amber) }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
+              <Card key={l.id} style={{marginBottom:12,borderLeft:"4px solid "+T.amber}}>
+                <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                   <div>
-                    <div style={{ fontWeight:700, fontSize:15 }}>{applicant?.name}</div>
-                    <div style={{ fontSize:12, color:T.txt2 }}>{ROLE_LABELS[applicant?.role]} · {l.type}</div>
-                    <div style={{ fontSize:13, margin:"4px 0" }}>{fmtDate(l.date)}{l.toDate!==l.date?` → ${fmtDate(l.toDate)}`:""}</div>
-                    <div style={{ fontSize:13, color:T.txt2 }}>{l.reason}</div>
+                    <div style={{fontWeight:700}}>{l.staffName||applicant?.name||"—"}</div>
+                    <div style={{fontSize:12,color:T.txt2}}>{fmtDate(l.fromDate)} → {fmtDate(l.toDate)}</div>
+                    <div style={{fontSize:13,marginTop:4}}>{l.reason}</div>
+                    <div style={{fontSize:11,color:T.txt3}}>Applied: {fmtDate(l.appliedOn)}</div>
                   </div>
-                  <div style={{ display:"flex", gap:8 }}>
-                    <Btn onClick={()=>decide(l.id,"approved")} variant="success" size="sm">✓ Approve</Btn>
-                    <Btn onClick={()=>decide(l.id,"rejected")} variant="danger" size="sm">✗ Reject</Btn>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <Btn onClick={()=>decideNew(l.id,"approved")} variant="success" size="sm">✅ Approve</Btn>
+                    <Btn onClick={()=>decideNew(l.id,"rejected")} variant="danger" size="sm">❌ Reject</Btn>
                   </div>
                 </div>
               </Card>
@@ -2073,18 +2128,48 @@ function MgrLeaves({ user, state, setState, toast }) {
           })}
         </div>
       )}
-      <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>All Requests</div>
-      <Table cols={[
-        {key:"name",label:"Staff",render:r=>state.users.find(u=>u.id===r.userId)?.name},
-        {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[state.users.find(u=>u.id===r.userId)?.role]||T.navy}>{ROLE_LABELS[state.users.find(u=>u.id===r.userId)?.role]}</Badge>},
-        {key:"date",label:"Date",render:r=>fmtDate(r.date)},
-        {key:"type",label:"Type",render:r=>r.type},
-        {key:"reason",label:"Reason"},
-        {key:"status",label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:r.status==="rejected"?T.red:T.amber}>{r.status}</Badge>},
-      ]} rows={all}/>
+
+      {pendingOld.length > 0 && (
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.amber}}>Legacy Requests ({pendingOld.length})</div>
+          {pendingOld.map(l=>{
+            const applicant = state.users.find(u=>u.id===l.userId);
+            return (
+              <Card key={l.id} style={{marginBottom:10,borderLeft:"3px solid "+T.bdrS}}>
+                <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                  <div>
+                    <div style={{fontWeight:700}}>{applicant?.name||l.userId}</div>
+                    <div style={{fontSize:12,color:T.txt2}}>{l.fromDate} → {l.toDate}</div>
+                    <div style={{fontSize:13}}>{l.reason}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn onClick={()=>decideOld(l.id,"approved")} variant="success" size="sm">Approve</Btn>
+                    <Btn onClick={()=>decideOld(l.id,"rejected")} variant="danger" size="sm">Reject</Btn>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* All leaves history */}
+      {allNew.length > 0 && (
+        <>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>All Leave Requests</div>
+          <Table cols={[
+            {key:"name",label:"Staff",render:r=>r.staffName||state.users.find(u=>u.id===r.userId)?.name||"—"},
+            {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
+            {key:"toDate",label:"To",render:r=>fmtDate(r.toDate)},
+            {key:"reason",label:"Reason"},
+            {key:"status",label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:r.status==="rejected"?T.red:T.amber}>{r.status}</Badge>},
+          ]} rows={[...allNew].sort((a,b)=>(b.appliedOn||"").localeCompare(a.appliedOn||""))}/>
+        </>
+      )}
     </div>
   );
 }
+
 
 function MgrPeople({ user, state, setState, toast }) {
   const [tab, setTab] = useState("supervisors");
@@ -3723,7 +3808,7 @@ function UserMgmt({ user, state, setState, toast }) {
 function CounterMgmt({ user, state, setState, toast }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
-  const open = c => { setEditing(c); setForm(c?{...c}:{name:"",supervisorId:"",dealership:"",city:""}); };
+  const open = c => { setEditing(c||{}); setForm(c&&c.id?{...c}:{name:"",supervisorId:"",dealership:"",city:""}); };
   const save = () => {
     if (!form.name) { toast.show("Name required","error"); return; }
     let newCounters;
@@ -3905,8 +3990,11 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
   const [expenses,    setExpenses]    = useState(report?.expenses    || [{ desc:"", amount:"" }]);
 
   useEffect(() => {
-    setBankEntries(report?.bankEntries || [{ bank:"SBI", amount:"" }, { bank:"KBL", amount:"" }]);
-    setExpenses(report?.expenses || [{ desc:"", amount:"" }]);
+    // Only restore from report if it has actual saved data
+    if (report?.bankEntries?.length > 0 || report?.expenses?.length > 0) {
+      setBankEntries(report.bankEntries || [{ bank:"SBI", amount:"" }, { bank:"KBL", amount:"" }]);
+      setExpenses(report.expenses || [{ desc:"", amount:"" }]);
+    }
   }, [report?.id]);
 
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
@@ -4477,64 +4565,36 @@ function OfficeAttendanceView({ state }) {
 // ─── Office: Sales Entry ────────────────────────────────────────────────────────
 function OfficeSalesEntry({ user, state, setState, toast }) {
   const [date, setDate] = useState(today());
-  const [selSupervisor, setSelSupervisor] = useState("");
-  const [selCounter, setSelCounter] = useState("");
   const [bardahl, setBardahl] = useState("");
   const [other, setOther] = useState("");
   const [notes, setNotes] = useState("");
-  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
-  const myCounters = selSupervisor ? state.counters.filter(c=>c.supervisorId===selSupervisor) : [];
 
   const submit = () => {
-    if (!selSupervisor||!selCounter) { toast.show("Select executive and counter","error"); return; }
-    if (!bardahl&&!other) { toast.show("Enter at least one sales amount","error"); return; }
-    const counter = state.counters.find(c=>c.id===selCounter)||{id:selCounter,name:selCounter};
+    if (!bardahl && !other) { toast.show("Enter at least one sales amount","error"); return; }
     const entries = [];
     if (Number(bardahl)>0) entries.push({workTypeId:"wt_bardahl",workTypeName:"BARDAHL",amount:Number(bardahl),type:"sales",vehicles:0,rate:0});
     if (Number(other)>0)   entries.push({workTypeId:"wt_other",workTypeName:"OTHER SALES",amount:Number(other),type:"sales",vehicles:0,rate:0});
-    const reportId = "sr_"+selSupervisor+"_"+counter.id+"_"+date;
-    const existing = state.serviceReports.find(r=>r.id===reportId);
-    const prevE = existing ? (existing.entries||[]).filter(e=>!["BARDAHL","OTHER SALES"].includes(e.workTypeName)) : [];
-    const allE  = [...prevE, ...entries];
-    const report = { id:reportId, date, supervisorId:selSupervisor, counterId:counter.id, counterName:counter.name,
-      submittedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
-      entries:allE, counters:[{counterName:counter.name,entries:allE}],
-      totalAmount:allE.reduce((s,e)=>s+(Number(e.amount)||0),0), notes, status:"submitted", submittedBy:user.id };
-    setState(p=>({...p,serviceReports:[...p.serviceReports.filter(r=>r.id!==report.id),report]}));
+    const report = {
+      id: "sr_sales_office_"+date+"_"+Date.now(),
+      date, supervisorId:user.id, counterId:"c1", counterName:"OFFICE",
+      submittedAt: new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),
+      entries, counters:[{counterName:"OFFICE",entries}],
+      totalAmount: entries.reduce((s,e)=>s+e.amount,0),
+      notes, status:"submitted", submittedBy:user.id,
+    };
+    setState(p=>({...p,serviceReports:[...p.serviceReports,report]}));
+    DB.upsertReport(report).catch(console.error);
     toast.show("Sales entry saved ✅");
     setBardahl(""); setOther(""); setNotes("");
   };
+
   return (
     <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Sales Entry</div>
-      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter Bardahl and other product sales (separate from service revenue)</div>
-      <Card style={{maxWidth:540}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-          <Input label="Date" type="date" value={date} onChange={setDate}/>
-          <div>
-            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive</label>
-            <select value={selSupervisor} onChange={e=>{setSelSupervisor(e.target.value);setSelCounter("");}}
-              style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value="">Select...</option>
-              {executives.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-        </div>
-        {myCounters.length>0 && (
-          <div style={{marginBottom:14}}>
-            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Counter</label>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {myCounters.map(c=>(
-                <button key={c.id} onClick={()=>setSelCounter(c.id)} style={{
-                  padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-                  border:"1px solid "+(selCounter===c.id?T.navy:T.bdrS),
-                  background:selCounter===c.id?T.navy:"transparent",color:selCounter===c.id?"#fff":T.txt
-                }}>{c.name}</button>
-              ))}
-            </div>
-          </div>
-        )}
-        <div style={{background:T.navyXL,borderRadius:10,padding:16,marginBottom:14}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Sales Entry</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Company-level Bardahl and product sales — not linked to any counter or executive</div>
+      <Card style={{maxWidth:480}}>
+        <Input label="Date" type="date" value={date} onChange={setDate}/>
+        <div style={{background:T.navyXL,borderRadius:10,padding:16,margin:"14px 0"}}>
           <div style={{fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:12}}>Sales Amounts</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div>
@@ -4548,7 +4608,7 @@ function OfficeSalesEntry({ user, state, setState, toast }) {
                 style={{width:"100%",padding:"9px 12px",border:"1px solid "+(other?T.grn:T.bdrS),borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:other?T.grnL:"#fff"}}/>
             </div>
           </div>
-          {(Number(bardahl)+Number(other))>0 && (
+          {(Number(bardahl)+Number(other))>0&&(
             <div style={{marginTop:12,padding:"8px 12px",background:T.amberL,borderRadius:8,display:"flex",justifyContent:"space-between"}}>
               <span style={{fontSize:13,fontWeight:700}}>Total Sales</span>
               <span style={{fontSize:18,fontWeight:800,color:T.amber}}>{fmtCurr(Number(bardahl)+Number(other))}</span>
@@ -4563,7 +4623,7 @@ function OfficeSalesEntry({ user, state, setState, toast }) {
   );
 }
 
-// ─── Office: Own Attendance ────────────────────────────────────────────────────
+
 function OfficeOwnAttendance({ user, state, setState, toast }) {
   const [displayDate, setDisplayDate] = useState(today());
   const recordsRef = useRef({});
@@ -4718,35 +4778,62 @@ function PublicFeedbackForm({ counterName, counters, onSubmit }) {
 
 // ─── Planned Leave Portal (field staff) ────────────────────────────────────────
 function PlannedLeavePortal({ user, state, setState, toast, mode }) {
-  const [from, setFrom] = useState("");
-  const [to, setTo]     = useState("");
+  const [from, setFrom]     = useState("");
+  const [to, setTo]         = useState("");
   const [reason, setReason] = useState("");
+  const [forStaff, setForStaff] = useState(user.id); // who the leave is for
 
-  const myLeaves = (state.plannedLeaves||[]).filter(l=>l.userId===user.id).sort((a,b)=>b.appliedOn?.localeCompare(a.appliedOn||"")||0);
-  const pending  = mode==="executive" ? (state.plannedLeaves||[]).filter(l=>{
+  // Staff this executive manages (for applying on behalf)
+  const myStaff = state.users.filter(u=>u.managerId===user.id&&u.active!==false);
+  const isExec  = mode==="executive" || user.role==="supervisor";
+
+  // Pending approvals: leaves from my staff waiting for approval
+  const pending = (state.plannedLeaves||[]).filter(l=>{
     const staff = state.users.find(u=>u.id===l.userId);
     return staff?.managerId===user.id && l.status==="pending";
-  }) : [];
+  });
+
+  // My own leaves (or the selected staff member's)
+  const myLeaves = (state.plannedLeaves||[])
+    .filter(l=>l.userId===forStaff||l.userId===user.id)
+    .sort((a,b)=>(b.appliedOn||"").localeCompare(a.appliedOn||""));
 
   const submit = () => {
     if (!from||!to||!reason) { toast.show("Fill all fields","error"); return; }
-    const leave = { id:"pl_"+Date.now(), userId:user.id, staffName:state.users.find(u=>u.id===user.id)?.name||"",
-      supervisorId:user.managerId||"", fromDate:from, toDate:to, reason, status:"pending",
-      appliedOn:today(), decidedOn:null };
+    const targetUser = state.users.find(u=>u.id===forStaff)||state.users.find(u=>u.id===user.id);
+    const leave = {
+      id: "pl_"+Date.now(),
+      userId: forStaff,
+      staffName: targetUser?.name||"",
+      supervisorId: targetUser?.managerId||user.id,
+      approverId: targetUser?.managerId||user.managerId||"",
+      fromDate: from, toDate: to, reason,
+      status: "pending",
+      appliedOn: today(),
+      appliedBy: user.id,
+      decidedOn: null,
+    };
     setState(p=>({...p, plannedLeaves:[...(p.plannedLeaves||[]), leave]}));
-    toast.show("Leave request submitted");
-    setFrom(""); setTo(""); setReason("");
+    DB.upsertPlannedLeave(leave).catch(console.error);
+    toast.show("Leave request submitted ✅");
+    setFrom(""); setTo(""); setReason(""); setForStaff(user.id);
   };
 
   const decide = (id, status) => {
-    setState(p=>({...p, plannedLeaves:(p.plannedLeaves||[]).map(l=>l.id===id?{...l,status,decidedOn:today()}:l)}));
-    toast.show(status==="approved"?"Leave approved":"Leave rejected");
+    const updated = (state.plannedLeaves||[]).map(l=>
+      l.id===id ? {...l, status, decidedOn:today(), decidedBy:user.id} : l
+    );
+    setState(p=>({...p, plannedLeaves:updated}));
+    const leave = updated.find(l=>l.id===id);
+    if (leave) DB.upsertPlannedLeave(leave).catch(console.error);
+    toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
   };
 
   return (
     <div>
+      {/* Pending approvals for this executive/manager */}
       {pending.length > 0 && (
-        <div style={{marginBottom:20}}>
+        <div style={{marginBottom:24}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:12,color:T.red}}>⏳ Pending Approvals ({pending.length})</div>
           {pending.map(l=>{
             const staff = state.users.find(u=>u.id===l.userId);
@@ -4756,11 +4843,12 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
                   <div>
                     <div style={{fontWeight:700}}>{l.staffName||staff?.name}</div>
                     <div style={{fontSize:12,color:T.txt2}}>{fmtDate(l.fromDate)} → {fmtDate(l.toDate)}</div>
-                    <div style={{fontSize:13,marginTop:4}}>{l.reason}</div>
+                    <div style={{fontSize:13,marginTop:4,color:T.txt}}>{l.reason}</div>
+                    <div style={{fontSize:11,color:T.txt3}}>Applied: {fmtDate(l.appliedOn)}</div>
                   </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <Btn onClick={()=>decide(l.id,"approved")} variant="success" size="sm">Approve</Btn>
-                    <Btn onClick={()=>decide(l.id,"rejected")} variant="danger" size="sm">Reject</Btn>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <Btn onClick={()=>decide(l.id,"approved")} variant="success" size="sm">✅ Approve</Btn>
+                    <Btn onClick={()=>decide(l.id,"rejected")} variant="danger" size="sm">❌ Reject</Btn>
                   </div>
                 </div>
               </Card>
@@ -4769,8 +4857,20 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
         </div>
       )}
 
-      <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>Request Planned Leave</div>
-      <Card style={{maxWidth:500,marginBottom:20}}>
+      {/* Apply leave form */}
+      <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>Apply Leave</div>
+      <Card style={{maxWidth:520,marginBottom:20}}>
+        {/* Staff selection for executives */}
+        {isExec && myStaff.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>For (self or staff member)</label>
+            <select value={forStaff} onChange={e=>setForStaff(e.target.value)}
+              style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value={user.id}>Myself ({state.users.find(u=>u.id===user.id)?.name})</option>
+              {myStaff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
           <Input label="From Date" type="date" value={from} onChange={setFrom}/>
           <Input label="To Date" type="date" value={to} onChange={setTo}/>
@@ -4783,14 +4883,19 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
         <Btn onClick={submit} variant="amber">Submit Leave Request</Btn>
       </Card>
 
+      {/* My leave history */}
       {myLeaves.length > 0 && (
         <>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Leave Requests</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>
+            {forStaff===user.id ? "My Leave Requests" : state.users.find(u=>u.id===forStaff)?.name+"'s Leaves"}
+          </div>
           <Table cols={[
+            {key:"staffName",label:"Staff",render:r=>r.staffName||state.users.find(u=>u.id===r.userId)?.name||"—"},
             {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
-            {key:"toDate",  label:"To",  render:r=>fmtDate(r.toDate)},
-            {key:"reason",  label:"Reason"},
-            {key:"status",  label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:r.status==="rejected"?T.red:T.amber}>{r.status}</Badge>},
+            {key:"toDate",label:"To",render:r=>fmtDate(r.toDate)},
+            {key:"reason",label:"Reason"},
+            {key:"status",label:"Status",render:r=><Badge color={r.status==="approved"?T.grn:r.status==="rejected"?T.red:T.amber}>{r.status}</Badge>},
+            {key:"decidedOn",label:"Decided",render:r=>r.decidedOn?fmtDate(r.decidedOn):"—"},
           ]} rows={myLeaves}/>
         </>
       )}
@@ -4798,121 +4903,4 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
   );
 }
 
-// ─── Field Staff Portal ────────────────────────────────────────────────────────
-function OfficeCombinedAttendance({ user, state, setState, toast }) {
-  const [tab, setTab] = useState("exec");
-  return (
-    <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Mark Attendance</div>
-      <Tabs tabs={[{id:"exec",label:"For Executives & Staff"},{id:"office",label:"Office Staff"}]} active={tab} onChange={setTab}/>
-      {tab==="exec"   && <OfficeMarkAttendance   user={user} state={state} setState={setState} toast={toast}/>}
-      {tab==="office" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
-    </div>
-  );
-}
 
-function DebugReports({ state }) {
-  const now = new Date(new Date().getTime() + (330 + new Date().getTimezoneOffset()) * 60000);
-  const tod = now.toISOString().split("T")[0];
-  const todayReps = (state.serviceReports||[]).filter(r=>r.date===tod);
-  const matchCounter = (r) => {
-    let m = state.counters.find(c=>r.counterId&&r.counterId===c.id);
-    if(!m&&r.counterName){ const rn=r.counterName.trim().toUpperCase(); m=state.counters.find(c=>c.name.trim().toUpperCase()===rn); }
-    if(!m&&r.supervisorId){ const sc=state.counters.filter(c=>c.supervisorId===r.supervisorId); if(sc.length===1) m=sc[0]; }
-    return m;
-  };
-  const unmatched = todayReps.filter(r=>!matchCounter(r));
-  return (
-    <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Debug Reports</div>
-      <Card style={{marginBottom:16,background:"#0f1117",color:"#4ade80"}}>
-        <div style={{fontWeight:800,marginBottom:8,color:"#fbbf24"}}>TODAY {tod}: {todayReps.length} reports · Total Rs.{todayReps.reduce((s,r)=>s+r.totalAmount,0).toLocaleString("en-IN")}</div>
-        <div style={{marginBottom:8,color:unmatched.length>0?"#f87171":"#4ade80"}}>Unmatched: {unmatched.length}</div>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:700}}>
-            <thead><tr style={{background:"#1e293b",color:"#fbbf24"}}>
-              {["Exec","counterId","counterName","Total","Matched To","OK?"].map(h=><th key={h} style={{padding:"4px 8px",textAlign:"left",border:"1px solid #334"}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {todayReps.map((r,i)=>{ const sup=state.users.find(u=>u.id===r.supervisorId); const ctr=matchCounter(r); return (
-                <tr key={i} style={{background:ctr?"#0d1f0d":"#1f0d0d"}}>
-                  <td style={{padding:"3px 8px",border:"1px solid #334"}}>{sup?.name||r.supervisorId}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:r.counterId?"#4ade80":"#f87171"}}>{r.counterId||"NONE"}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:r.counterName?"#4ade80":"#f87171"}}>{r.counterName||"NONE"}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:"#fbbf24"}}>Rs.{r.totalAmount}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:ctr?"#4ade80":"#f87171"}}>{ctr?ctr.name:"NO MATCH"}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:ctr?"#4ade80":"#f87171"}}>{ctr?"YES":"NO"}</td>
-                </tr>
-              );})}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-      <Card style={{background:"#0f1117",color:"#4ade80"}}>
-        <div style={{fontWeight:800,marginBottom:8,color:"#fbbf24"}}>COUNTERS ({state.counters.length})</div>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-            <thead><tr style={{background:"#1e293b",color:"#fbbf24"}}>
-              {["id","name","supervisorId","Supervisor"].map(h=><th key={h} style={{padding:"4px 8px",textAlign:"left",border:"1px solid #334"}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {state.counters.map((c,i)=>{ const sup=state.users.find(u=>u.id===c.supervisorId); return (
-                <tr key={i}><td style={{padding:"3px 8px",border:"1px solid #334"}}>{c.id}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:"#fbbf24"}}>{c.name}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334",color:c.supervisorId?"#4ade80":"#f87171"}}>{c.supervisorId||"EMPTY"}</td>
-                  <td style={{padding:"3px 8px",border:"1px solid #334"}}>{sup?.name||"?"}</td>
-                </tr>
-              );})}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// MDAttendance — full attendance view for MD (all staff, all dates)
-function MDAttendance({ state }) {
-  return <OfficeAttendanceView state={state}/>;
-}
-
-
-export default function App() {
-  const [state, setState] = useLocalStorage("benaka_state", INITIAL_STATE);
-  const { syncStatus, syncFromCloud } = useSupabaseSync(state, setState);
-  const toast = useToast();
-  const { Toast } = toast;
-
-  const handleLogin = (user) => setState(p => ({ ...p, currentUser: user }));
-  const handleUsersLoaded = (users, passwords) => setState(p => ({ ...p, users, passwords }));
-
-  if (!state.currentUser) {
-    return (
-      <ErrorBoundary>
-        <LoginScreen
-          onLogin={handleLogin}
-          users={state.users}
-          passwords={state.passwords}
-          onUsersLoaded={handleUsersLoaded}
-        />
-        <Toast/>
-      </ErrorBoundary>
-    );
-  }
-
-  const user   = state.currentUser;
-  const logout = () => setState(p => ({ ...p, currentUser: null }));
-  const props  = { user, state, setState, toast, logout, syncFromCloud, syncStatus };
-
-  return (
-    <ErrorBoundary>
-      {user.role === "supervisor"   && <SupervisorPortal {...props}/>}
-      {user.role === "manager"      && <ManagerPortal    {...props}/>}
-      {user.role === "md"           && <MDPortal         {...props}/>}
-      {user.role === "office"       && <OfficePortal     {...props}/>}
-      {user.role === "it_admin"     && <ITAdminPortal    {...props}/>}
-      {user.role === "field_staff"  && <FieldStaffPortal {...props}/>}
-      <Toast/>
-    </ErrorBoundary>
-  );
-}
