@@ -1937,7 +1937,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
 
       {/* Collection & Sales Summary */}
       {(() => {
-        const todayDate = today_();
+        const todayDate = today_;
         const monthPfx  = todayDate.slice(0,7);
         const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
         const todayBank = (todayColRep?.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
