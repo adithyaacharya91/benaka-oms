@@ -109,26 +109,9 @@ const DB = {
     let url = `${SUPABASE_URL}/rest/v1/collection_reports?select=*`;
     if (filter.date) url += `&date=eq.${filter.date}`;
     const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
-    return r.json();
-  },
-  async upsertCollectionReport(rep) {
-    const bankEntries = rep.bankEntries || rep.bank_entries || [];
-    const expenses    = rep.expenses || [];
-    const totalBank   = bankEntries.reduce((s,b)=>s+(Number(b.amount)||0),0);
-    const totalExp    = expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const row = {
-      id: rep.id,
-      date: rep.date,
-      supervisor_id: rep.supervisorId || rep.supervisor_id,
-      bank_entries: bankEntries,
-      expenses: expenses,
-      notes: rep.notes || "",
-      total_bank: totalBank,
-      total_expenses: totalExp,
-      net_collection: totalBank - totalExp,
-    };
-    return supabase.from("collection_reports").upsert(row);
-  },
+    const d = await r.json();
+    return Array.isArray(d) ? d : [];
+    },
   // Salaries
   async getSalaries(month) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/salaries?select=*${month?`&month=eq.${month}`:""}`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -373,8 +356,8 @@ function useSupabaseSync(localState, setLocalState) {
         collectionReports: Array.isArray(collReports) ? collReports.map(r=>({
         id: r.id, date: r.date,
         supervisorId: r.supervisor_id || r.supervisorId,
-        bankEntries: r.bank_entries || r.bankEntries || [],
-        expenses: r.expenses || [],
+        bankEntries: typeof r.bank_entries==="string" ? JSON.parse(r.bank_entries||"[]") : (r.bank_entries || r.bankEntries || []),
+        expenses: typeof r.expenses==="string" ? JSON.parse(r.expenses||"[]") : (r.expenses || []),
         notes: r.notes || "",
         totalBank: r.total_bank || r.totalBank || 0,
         totalExpenses: r.total_expenses || r.totalExpenses || 0,
