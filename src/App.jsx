@@ -1935,8 +1935,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         </div>
       )}
     </div>
-  );
-}      )}
+      )}
 
       {/* Collection & Sales Summary */}
       {(() => {
