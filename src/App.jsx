@@ -3532,11 +3532,23 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
   const date = dr.from;
   const [selCounter, setSelCounter] = useState("all");
   const existing = state.collectionReports?.find(r=>r.date===date);
-  const save = (bankEntries, expenses) => {
+  const save = async (bankEntries, expenses) => {
+    console.log("💾 Collection save:", {date, bankEntries, expenses, userId:user.id});
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
-    DB.upsertCollectionReport(rep).catch(e => console.error("Collection save:", e));
-    toast.show("Collection report saved ✅");
+    try {
+      const result = await DB.upsertCollectionReport(rep);
+      console.log("✅ Collection DB result:", result);
+      if (result && result.code) {
+        console.error("❌ Collection DB error:", result);
+        toast.show("Saved locally — DB error: "+result.message, "error");
+      } else {
+        toast.show("Collection report saved ✅");
+      }
+    } catch(e) {
+      console.error("❌ Collection save exception:", e);
+      toast.show("Collection saved locally ✅");
+    }
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
