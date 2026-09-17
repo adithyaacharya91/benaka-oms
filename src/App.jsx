@@ -1934,8 +1934,6 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
           <Btn onClick={()=>setPage("leaves")} size="sm" variant="amber">Review Now</Btn>
         </div>
       )}
-    </div>
-      )}
 
       {/* Collection & Sales Summary */}
       {(() => {
