@@ -1677,6 +1677,7 @@ function LeavePortal({ user, state, setState, toast }) {
     if (!manager) { toast.show("No manager assigned","error"); return; }
     const leave = { id:`l_${Date.now()}`, userId:user.id, role:user.role, date:from, toDate:to, type, reason, status:"pending", approverId:manager.id, submittedAt:new Date().toISOString() };
     setState(p=>({...p, leaves:[...p.leaves, leave]}));
+    DB.upsertLeave(leave).catch(console.error);
     toast.show("Leave request submitted to " + manager.name);
     setReason("");
   };
@@ -1935,7 +1936,70 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
       )}
     </div>
   );
+}      )}
+
+      {/* Collection & Sales Summary */}
+      {(() => {
+        const todayDate = today_();
+        const monthPfx  = todayDate.slice(0,7);
+        const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
+        const todayBank = (todayColRep?.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
+        const todayExp  = (todayColRep?.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const OFFICE_ID = state.counters.find(c=>c.name==="OFFICE")?.id||"c1";
+        const salesToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
+        const getE = r=>r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+        const todayBardahl = salesToday.flatMap(getE).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const todayOther   = salesToday.flatMap(getE).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const hasColl  = todayBank>0||todayExp>0;
+        const hasSales = todayBardahl>0||todayOther>0;
+        if (!hasColl && !hasSales) return null;
+        return (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginTop:16}}>
+            {hasColl && (
+              <Card style={{borderTop:"3px solid "+T.navy}}>
+                <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:10}}>💰 Today's Collection</div>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1,background:T.navyXL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:T.txt2}}>Bank In</div>
+                    <div style={{fontSize:15,fontWeight:800,color:T.navy}}>{fmtCurr(todayBank)}</div>
+                  </div>
+                  <div style={{flex:1,background:T.redL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:T.red}}>Expenses</div>
+                    <div style={{fontSize:15,fontWeight:800,color:T.red}}>{fmtCurr(todayExp)}</div>
+                  </div>
+                  <div style={{flex:1,background:todayBank-todayExp>=0?T.grnL:T.redL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:todayBank-todayExp>=0?T.grn:T.red}}>Net</div>
+                    <div style={{fontSize:15,fontWeight:800,color:todayBank-todayExp>=0?T.grn:T.red}}>{fmtCurr(todayBank-todayExp)}</div>
+                  </div>
+                </div>
+              </Card>
+            )}
+            {hasSales && (
+              <Card style={{borderTop:"3px solid #15803D"}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#15803D",marginBottom:10}}>🛢 Company Sales Today</div>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1,background:"#F0FDF4",borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:"#15803D"}}>Bardahl</div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#15803D"}}>{fmtCurr(todayBardahl)}</div>
+                  </div>
+                  <div style={{flex:1,background:"#EFF6FF",borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:"#0369A1"}}>Other</div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#0369A1"}}>{fmtCurr(todayOther)}</div>
+                  </div>
+                  <div style={{flex:1,background:T.amberL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:T.amberD}}>Total</div>
+                    <div style={{fontSize:15,fontWeight:800,color:T.amber}}>{fmtCurr(todayBardahl+todayOther)}</div>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        );
+      })()}
+    </div>
+  );
 }
+
 
 function MgrReports({ user, state, mySupervisors, myCounters }) {
   const [tab, setTab] = useState("daily");
@@ -2083,6 +2147,8 @@ function MgrLeaves({ user, state, setState, toast }) {
   const decideOld = (id, status) => {
     const updated = (state.leaves||[]).map(l=>l.id===id?{...l,status,decidedAt:today(),decidedBy:user.id}:l);
     setState(p=>({...p, leaves:updated}));
+    const leave = updated.find(l=>l.id===id);
+    if (leave) DB.upsertLeave(leave).catch(console.error);
     toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
   };
 
@@ -2805,6 +2871,76 @@ function MDDashboard({ user, state, syncFromCloud }) {
           </Card>
         ))}
       </div>
+
+      {/* Collection & Sales Summary */}
+      {(() => {
+        const todayDate = today();
+        const monthPfx  = todayDate.slice(0,7);
+        const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
+        const allMonthCol = (state.collectionReports||[]).filter(r=>r.date.startsWith(monthPfx));
+        const todayBank   = (todayColRep?.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
+        const todayExp    = (todayColRep?.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const todayNet    = todayBank - todayExp;
+        const moBank      = allMonthCol.reduce((s,r)=>(r.bankEntries||[]).reduce((ss,b)=>ss+(Number(b.amount)||0),s),0);
+        const moExp       = allMonthCol.reduce((s,r)=>(r.expenses||[]).reduce((ss,e)=>ss+(Number(e.amount)||0),s),0);
+        const moNet       = moBank - moExp;
+        // Sales (OFFICE counter only)
+        const OFFICE_ID = state.counters.find(c=>c.name==="OFFICE")?.id||"c1";
+        const salesRepsToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
+        const salesRepsMo    = state.serviceReports.filter(r=>r.date.startsWith(monthPfx)&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
+        const getEntries = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+        const todayBardahl = salesRepsToday.flatMap(getEntries).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const todayOther   = salesRepsToday.flatMap(getEntries).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const moBardahl    = salesRepsMo.flatMap(getEntries).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const moOther      = salesRepsMo.flatMap(getEntries).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
+        const hasColl = todayBank>0||todayExp>0;
+        const hasSales = todayBardahl>0||todayOther>0;
+        if (!hasColl && !hasSales) return null;
+        return (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:14,marginBottom:20}}>
+            {hasColl && (
+              <Card style={{borderTop:"3px solid "+T.navy}}>
+                <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:12}}>💰 Today's Collection</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+                  <div style={{background:T.navyXL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:T.txt2,textTransform:"uppercase"}}>Bank In</div>
+                    <div style={{fontSize:16,fontWeight:800,color:T.navy}}>{fmtCurr(todayBank)}</div>
+                  </div>
+                  <div style={{background:T.redL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:T.red,textTransform:"uppercase"}}>Expenses</div>
+                    <div style={{fontSize:16,fontWeight:800,color:T.red}}>{fmtCurr(todayExp)}</div>
+                  </div>
+                  <div style={{background:todayNet>=0?T.grnL:T.redL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:todayNet>=0?T.grn:T.red,textTransform:"uppercase"}}>Net</div>
+                    <div style={{fontSize:16,fontWeight:800,color:todayNet>=0?T.grn:T.red}}>{fmtCurr(todayNet)}</div>
+                  </div>
+                </div>
+                <div style={{fontSize:11,color:T.txt2}}>Month — Bank: {fmtCurr(moBank)} · Exp: {fmtCurr(moExp)} · Net: <b style={{color:moNet>=0?T.grn:T.red}}>{fmtCurr(moNet)}</b></div>
+              </Card>
+            )}
+            {hasSales && (
+              <Card style={{borderTop:"3px solid #15803D"}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#15803D",marginBottom:12}}>🛢 Today's Company Sales</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+                  <div style={{background:"#F0FDF4",borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:"#15803D",textTransform:"uppercase"}}>Bardahl</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#15803D"}}>{fmtCurr(todayBardahl)}</div>
+                  </div>
+                  <div style={{background:"#EFF6FF",borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:"#0369A1",textTransform:"uppercase"}}>Other</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#0369A1"}}>{fmtCurr(todayOther)}</div>
+                  </div>
+                  <div style={{background:T.amberL,borderRadius:7,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:T.amberD,textTransform:"uppercase"}}>Total</div>
+                    <div style={{fontSize:16,fontWeight:800,color:T.amber}}>{fmtCurr(todayBardahl+todayOther)}</div>
+                  </div>
+                </div>
+                <div style={{fontSize:11,color:T.txt2}}>Month — Bardahl: {fmtCurr(moBardahl)} · Other: {fmtCurr(moOther)} · Total: <b style={{color:"#15803D"}}>{fmtCurr(moBardahl+moOther)}</b></div>
+              </Card>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Growth chart — month over month */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
