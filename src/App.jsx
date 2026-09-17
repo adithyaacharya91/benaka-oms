@@ -2204,7 +2204,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 }
 
 
-function MgrLeaves({ user, state, setState, toast, syncFromCloud }) {
+function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
   // Unify state.leaves and state.plannedLeaves into one view
   const mySupIds = state.users.filter(u=>u.managerId===user.id).map(u=>u.id);
 
@@ -3543,11 +3543,12 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
     const result = await DB.upsertCollectionReport(rep).catch(e=>({error:e.message}));
-    console.log("Collection DB result:", result);
+    const totalBank = (bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
+    const totalExp  = (expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
     if (result && (result.code || result.error)) {
-      toast.show("⚠ DB error — data saved locally only: "+(result.message||result.error||"unknown"), "error");
+      toast.show("⚠ DB error: "+(result.message||result.error||"unknown")+" — saved locally", "error");
     } else {
-      toast.show("Collection report saved ✅");
+      toast.show("✅ Saved — Bank: "+fmtCurr(totalBank)+" | Expenses: "+fmtCurr(totalExp)+" | Net: "+fmtCurr(totalBank-totalExp));
     }
   };
   const filteredReports = state.serviceReports.filter(r => {
@@ -3760,6 +3761,7 @@ function ExecutiveReportGenerator({ state }) {
   const gMoTotal  = gMoSvc  + moBardahlCo  + moOtherCo;
 
   const printReport = () => {
+    const todayColRep = (state.collectionReports||[]).find(r=>r.date===selDate);
     const rows = summaries.map(s=>`
       <tr style="background:#f0f4ff">
         <td colspan="5" style="padding:8px 10px;font-weight:800;font-size:13px;border:1px solid #ccc">${s.exec.name} — ${s.myCounters.map(c=>c.name).join(", ")}
@@ -3797,11 +3799,20 @@ function ExecutiveReportGenerator({ state }) {
         <td style="padding:4px 10px;text-align:right;font-weight:700;border:1px solid #ccc">₹${(moBardahlCo+moOtherCo).toLocaleString("en-IN")}</td>
       </tr>` : "";
 
+    const colBankTotal = todayColRep ? (todayColRep.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0) : 0;
+    const colExpTotal  = todayColRep ? (todayColRep.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0) : 0;
+    const colNet       = colBankTotal - colExpTotal;
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>MD Report ${selDate}</title>
     <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}h2{color:#0f2b4a}table{width:100%;border-collapse:collapse}@media print{body{padding:8px}}</style>
     </head><body>
     <h2>Benaka Enterprises — MD Report</h2>
     <p style="color:#666">${selDate} · Generated ${new Date().toLocaleString("en-IN")}</p>
+    ${todayColRep ? `<table style="margin-bottom:16px;border-collapse:collapse;width:100%">
+      <tr style="background:#0f2b4a;color:#fff"><th colspan="2" style="padding:6px 10px;text-align:left">Collection Report</th></tr>
+      ${(todayColRep.bankEntries||[]).map(b=>`<tr><td style="padding:4px 10px;border:1px solid #ddd">${b.bank||"Bank"}</td><td style="padding:4px 10px;border:1px solid #ddd;text-align:right">₹${Number(b.amount||0).toLocaleString("en-IN")}</td></tr>`).join("")}
+      ${(todayColRep.expenses||[]).map(e=>`<tr style="color:#dc2626"><td style="padding:4px 10px;border:1px solid #ddd">${e.desc||"Expense"}</td><td style="padding:4px 10px;border:1px solid #ddd;text-align:right">-₹${Number(e.amount||0).toLocaleString("en-IN")}</td></tr>`).join("")}
+      <tr style="background:#f0fdf4;font-weight:800"><td style="padding:6px 10px;border:1px solid #ddd">Net Collection</td><td style="padding:6px 10px;border:1px solid #ddd;text-align:right;color:#15803D">₹${colNet.toLocaleString("en-IN")}</td></tr>
+    </table>` : ""}
     <table>
       <thead><tr style="background:#0f2b4a;color:#fff">
         <th style="padding:7px 10px;text-align:left">Counter / Executive</th>
@@ -3812,6 +3823,12 @@ function ExecutiveReportGenerator({ state }) {
       </tr></thead>
       <tbody>${rows}${salesRow}</tbody>
       <tfoot>
+        <tr style="background:#f0f9ff">
+          <td colspan="2" style="padding:8px 10px;border:1px solid #ccc;font-weight:700;color:#0369A1">COLLECTION REPORT</td>
+          <td style="padding:8px 10px;text-align:right;border:1px solid #ccc;color:#0369A1">Bank In: ₹${todayColRep?((todayColRep.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0)).toLocaleString("en-IN"):"0"}</td>
+          <td style="padding:8px 10px;text-align:right;border:1px solid #ccc;color:#dc2626">Expenses: ₹${todayColRep?((todayColRep.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0)).toLocaleString("en-IN"):"0"}</td>
+          <td style="padding:8px 10px;text-align:right;border:1px solid #ccc;font-weight:800;color:#15803D">Net: ₹${todayColRep?(((todayColRep.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0))-((todayColRep.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0))).toLocaleString("en-IN"):"0"}</td>
+        </tr>
         <tr style="background:#e8a020;color:#000;font-weight:800;font-size:14px">
           <td colspan="2" style="padding:8px 10px;border:1px solid #ccc">GRAND TOTAL</td>
           <td style="padding:8px 10px;text-align:right;border:1px solid #ccc">₹${gDaySvc.toLocaleString("en-IN")} (Svc)</td>
