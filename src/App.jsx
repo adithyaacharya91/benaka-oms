@@ -196,9 +196,11 @@ const DB = {
   async upsertPlannedLeave(leave) {
     const row = {
       id: leave.id, user_id: leave.userId, staff_name: leave.staffName,
-      supervisor_id: leave.supervisorId, from_date: leave.fromDate,
-      to_date: leave.toDate, reason: leave.reason, status: leave.status,
-      applied_on: leave.appliedOn, decided_on: leave.decidedOn||null
+      supervisor_id: leave.supervisorId, approver_id: leave.approverId||"",
+      from_date: leave.fromDate, to_date: leave.toDate,
+      reason: leave.reason, status: leave.status,
+      applied_on: leave.appliedOn, applied_by: leave.appliedBy||leave.userId,
+      decided_on: leave.decidedOn||null, decided_by: leave.decidedBy||null
     };
     return supabase.from("planned_leaves").upsert(row);
   },
@@ -331,7 +333,21 @@ function useSupabaseSync(localState, setLocalState) {
         passwords: pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
         counters:  mappedCounters  || p.counters,
         workTypes: mappedWorkTypes || p.workTypes,
-        plannedLeaves:     Array.isArray(plannedLeaves) ? plannedLeaves : p.plannedLeaves,
+        plannedLeaves: Array.isArray(plannedLeaves) ? plannedLeaves.map(l=>({
+          id: l.id,
+          userId: l.user_id||l.userId,
+          staffName: l.staff_name||l.staffName||"",
+          supervisorId: l.supervisor_id||l.supervisorId,
+          approverId: l.approver_id||l.approverId||"",
+          fromDate: l.from_date||l.fromDate,
+          toDate: l.to_date||l.toDate,
+          reason: l.reason||"",
+          status: l.status||"pending",
+          appliedOn: l.applied_on||l.appliedOn,
+          appliedBy: l.applied_by||l.appliedBy,
+          decidedOn: l.decided_on||l.decidedOn,
+          decidedBy: l.decided_by||l.decidedBy,
+        })) : p.plannedLeaves,
         serviceReports:    reports.map(mapReport),
         attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
         leaves: Array.isArray(leaves) ? leaves.map(l=>({
@@ -2158,10 +2174,16 @@ function MgrLeaves({ user, state, setState, toast }) {
   const allOld     = (state.leaves||[]).filter(l=>l.approverId===user.id);
 
   // From state.plannedLeaves (new system via PlannedLeavePortal)
-  const pendingNew = (state.plannedLeaves||[]).filter(l=>
-    (l.approverId===user.id || mySupIds.includes(l.supervisorId) || mySupIds.includes(l.userId)) &&
-    l.status==="pending"
-  );
+  const pendingNew = (state.plannedLeaves||[]).filter(l=> {
+    if (l.status!=="pending") return false;
+    if (l.approverId===user.id) return true;
+    if (mySupIds.includes(l.supervisorId)) return true;
+    if (mySupIds.includes(l.userId)) return true;
+    // Also match if the staff member reports to one of my supervisors
+    const staffUser = state.users.find(u=>u.id===l.userId);
+    if (staffUser?.managerId===user.id) return true;
+    return false;
+  });
   const allNew     = (state.plannedLeaves||[]).filter(l=>
     l.approverId===user.id || mySupIds.includes(l.supervisorId) || mySupIds.includes(l.userId)
   );
@@ -2842,7 +2864,10 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const absentToday = state.attendance.filter(a=>a.date===today()&&a.status==="absent");
 
   // Pending leaves
-  const pendingLeaves = state.leaves.filter(l=>l.approverId===user.id&&l.status==="pending");
+  const pendingLeaves = [
+    ...(state.leaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending"),
+    ...(state.plannedLeaves||[]).filter(l=>l.approverId===user.id&&l.status==="pending"),
+  ];
 
   const refresh = () => { syncFromCloud && syncFromCloud(); setLastRefresh(new Date()); };
 
@@ -3218,6 +3243,19 @@ function MDPeople({ state, setState, toast }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  OFFICE PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
+function OfficeCombinedAttendance({ user, state, setState, toast }) {
+  const [tab, setTab] = useState("exec");
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Mark Attendance</div>
+      <Tabs tabs={[{id:"exec",label:"For Executives & Staff"},{id:"office",label:"Office Staff"}]} active={tab} onChange={setTab}/>
+      {tab==="exec"   && <OfficeMarkAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {tab==="office" && <OfficeOwnAttendance  user={user} state={state} setState={setState} toast={toast}/>}
+    </div>
+  );
+}
+
+
 function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("reports");
   const [pageHistory, setPageHistory] = useState([]);
@@ -3229,6 +3267,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"attendance",   icon:"👥",  label:"Mark Attendance" },
     { id:"reports",      icon:"📋",  label:"View Reports" },
     { id:"viewatt",      icon:"📅",  label:"All Attendance" },
+    { id:"myleaves",     icon:"🌿",  label:"My Leave" },
     { id:"execreport",   icon:"📄",  label:"Executive Report" },
     { id:"export",       icon:"📥",  label:"Export Data" },
     { id:"directory",    icon:"👤",  label:"Staff Directory" },
@@ -3242,6 +3281,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="attendance"   && <OfficeCombinedAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="reports"      && <OfficeReports state={state}/>}
       {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
+      {page==="myleaves"     && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="execreport"   && <ExecutiveReportGenerator state={state}/>}
       {page==="export"       && <OfficeExport state={state} toast={toast}/>}
       {page==="directory"    && <StaffDirectory state={state}/>}
@@ -5023,7 +5063,13 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
       userId: forStaff,
       staffName: targetUser?.name||"",
       supervisorId: targetUser?.managerId||user.id,
-      approverId: targetUser?.managerId||user.managerId||"",
+      approverId: (()=>{
+        // Find the correct approver: manager of the target user
+        const tu = targetUser || state.users.find(u=>u.id===user.id);
+        // If target is field staff, their supervisor's manager approves
+        const tuSup = tu?.role==="field_staff" ? state.users.find(u=>u.id===tu.managerId) : tu;
+        return tuSup?.managerId || tu?.managerId || user.managerId || "";
+      })(),
       fromDate: from, toDate: to, reason,
       status: "pending",
       appliedOn: today(),
