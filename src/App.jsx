@@ -321,7 +321,7 @@ function useSupabaseSync(localState, setLocalState) {
         passwords: pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
         counters:  mappedCounters  || p.counters,
         workTypes: mappedWorkTypes || p.workTypes,
-        plannedLeaves: Array.isArray(plannedLeaves) ? plannedLeaves.map(l=>({
+        plannedLeaves: Array.isArray(plannedLeaves) && plannedLeaves.length > 0 ? plannedLeaves.map(l=>({
           id: l.id,
           userId: l.user_id||l.userId,
           staffName: l.staff_name||l.staffName||"",
@@ -338,7 +338,7 @@ function useSupabaseSync(localState, setLocalState) {
         })) : p.plannedLeaves,
         serviceReports:    reports.map(mapReport),
         attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
-        leaves: Array.isArray(leaves) ? leaves.map(l=>({
+        leaves: Array.isArray(leaves) && leaves.length > 0 ? leaves.map(l=>({
           id: l.id,
           userId: l.user_id||l.userId,
           role: l.role||"",
@@ -353,7 +353,7 @@ function useSupabaseSync(localState, setLocalState) {
         })) : p.leaves,
         feedback:          Array.isArray(feedback)    ? feedback    : p.feedback,
         salaries:          Array.isArray(salaries)    ? salaries    : p.salaries,
-        collectionReports: Array.isArray(collReports) ? collReports.map(r=>{
+        collectionReports: Array.isArray(collReports) && collReports.length > 0 ? collReports.map(r=>{
           // Parse from notes JSON blob (primary) or direct columns (fallback)
           let parsed = {};
           try { parsed = r.notes ? JSON.parse(r.notes) : {}; } catch(e) {}
@@ -3542,18 +3542,12 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
     console.log("💾 Collection save:", {date, bankEntries, expenses, userId:user.id});
     const rep = { id:existing?.id||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
-    try {
-      const result = await DB.upsertCollectionReport(rep);
-      console.log("✅ Collection DB result:", result);
-      if (result && result.code) {
-        console.error("❌ Collection DB error:", result);
-        toast.show("Saved locally — DB error: "+result.message, "error");
-      } else {
-        toast.show("Collection report saved ✅");
-      }
-    } catch(e) {
-      console.error("❌ Collection save exception:", e);
-      toast.show("Collection saved locally ✅");
+    const result = await DB.upsertCollectionReport(rep).catch(e=>({error:e.message}));
+    console.log("Collection DB result:", result);
+    if (result && (result.code || result.error)) {
+      toast.show("⚠ DB error — data saved locally only: "+(result.message||result.error||"unknown"), "error");
+    } else {
+      toast.show("Collection report saved ✅");
     }
   };
   const filteredReports = state.serviceReports.filter(r => {
