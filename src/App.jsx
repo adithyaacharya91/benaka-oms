@@ -80,7 +80,20 @@ const DB = {
     return r.json();
   },
   async upsertLeave(leave) {
-    return supabase.from("leaves").upsert(leave);
+    const row = {
+      id: leave.id,
+      user_id: leave.userId || leave.user_id,
+      role: leave.role || "",
+      date: leave.date || leave.fromDate || leave.from_date,
+      to_date: leave.toDate || leave.to_date,
+      type: leave.type || "other",
+      reason: leave.reason || "",
+      status: leave.status || "pending",
+      approver_id: leave.approverId || leave.approver_id,
+      submitted_at: leave.submittedAt || leave.submitted_at || new Date().toISOString(),
+      decided_at: leave.decidedAt || leave.decided_at || null,
+    };
+    return supabase.from("leaves").upsert(row);
   },
   // Feedback
   async getFeedback() {
@@ -321,7 +334,19 @@ function useSupabaseSync(localState, setLocalState) {
         plannedLeaves:     Array.isArray(plannedLeaves) ? plannedLeaves : p.plannedLeaves,
         serviceReports:    reports.map(mapReport),
         attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
-        leaves:            Array.isArray(leaves)      ? leaves      : p.leaves,
+        leaves: Array.isArray(leaves) ? leaves.map(l=>({
+          id: l.id,
+          userId: l.user_id||l.userId,
+          role: l.role||"",
+          date: l.date,
+          toDate: l.to_date||l.toDate,
+          type: l.type||"other",
+          reason: l.reason||"",
+          status: l.status||"pending",
+          approverId: l.approver_id||l.approverId,
+          submittedAt: l.submitted_at||l.submittedAt,
+          decidedAt: l.decided_at||l.decidedAt,
+        })) : p.leaves,
         feedback:          Array.isArray(feedback)    ? feedback    : p.feedback,
         salaries:          Array.isArray(salaries)    ? salaries    : p.salaries,
         collectionReports: Array.isArray(collReports) ? collReports.map(r=>({
@@ -2577,6 +2602,55 @@ function MgrFeedback({ user, state, myCounters }) {
 }
 
 
+function MDAttendance({ state }) {
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const dr = useDateRange("today");
+  const att = (state.attendance||[])
+    .filter(a=>a.date>=dr.from&&a.date<=dr.to)
+    .filter(a=>showInactive||state.users.find(u=>u.id===a.staffId)?.active!==false)
+    .filter(a=>filterStatus==="all"||a.status===filterStatus)
+    .filter(a=>!search||state.users.find(u=>u.id===a.staffId)?.name?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>b.date.localeCompare(a.date)||a.status.localeCompare(b.status));
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>All Attendance</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+        {["all","present","absent","half_day"].map(s=>(
+          <button key={s} onClick={()=>setFilterStatus(s)} style={{
+            padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(filterStatus===s?(s==="present"?T.grn:s==="absent"?T.red:s==="half_day"?T.amber:T.navy):T.bdrS),
+            background:filterStatus===s?(s==="present"?T.grnL:s==="absent"?T.redL:s==="half_day"?T.amberL:T.navy):"transparent",
+            color:filterStatus===s?(s==="all"?"#fff":s==="present"?T.grn:s==="absent"?T.red:T.amberD):T.txt2
+          }}>{s==="half_day"?"Half Day":s==="all"?"All":s.charAt(0).toUpperCase()+s.slice(1)}</button>
+        ))}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff..."
+          style={{padding:"5px 12px",border:"1px solid "+T.bdrS,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:120}}/>
+        <button onClick={()=>setShowInactive(p=>!p)} style={{
+          padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+          border:"1px solid "+(showInactive?T.red:T.bdrS),background:showInactive?T.redL:"transparent",color:showInactive?T.red:T.txt2
+        }}>{showInactive?"Hide Inactive":"+ Inactive"}</button>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+        <StatCard label="Present" value={att.filter(a=>a.status==="present").length} color={T.grn}/>
+        <StatCard label="Absent"  value={att.filter(a=>a.status==="absent").length}  color={T.red}/>
+        <StatCard label="Half Day" value={att.filter(a=>a.status==="half_day").length} color={T.amber}/>
+      </div>
+      <Table cols={[
+        {key:"date",   label:"Date",   render:r=>fmtDate(r.date)},
+        {key:"staff",  label:"Staff",  render:r=>{const u=state.users.find(u=>u.id===r.staffId);return <b style={{color:u?.active===false?T.txt3:T.txt}}>{u?.name||r.staffId}</b>;}},
+        {key:"exec",   label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
+        {key:"status", label:"Status", render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
+        {key:"reason", label:"Reason", render:r=>r.reason||"—"},
+      ]} rows={att} emptyMsg="No records"/>
+    </div>
+  );
+}
+
+
 function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
@@ -4012,7 +4086,7 @@ function WorkTypeMgmt({ user, state, setState, toast }) {
   const [name, setName] = useState("");
   const [rate, setRate] = useState("");
   const [editCat, setEditCat] = useState("service");
-  const open = w => { setEditing(w||null); setName(w?.name||""); setRate(w?.defaultRate||""); setEditCat(w?.category||"service"); };
+  const open = w => { setEditing(w||{}); setName(w?.name||""); setRate(w?.defaultRate||""); setEditCat(w?.category||"service"); };
   const save = () => {
     if (!name) { toast.show("Name required","error"); return; }
     let newWts;
@@ -4062,7 +4136,17 @@ function WorkTypeMgmt({ user, state, setState, toast }) {
             {key:"name",label:"Name",render:r=><b>{r.name}</b>},
             {key:"defaultRate",label:"Default Rate",render:r=>r.defaultRate?fmtCurr(r.defaultRate):"—"},
             {key:"category",label:"Category",render:r=><Badge color={r.category==="sales"?T.grn:T.navy}>{r.category}</Badge>},
-            {key:"act",label:"",render:r=><Btn onClick={()=>open(r)} size="sm" variant="outline">Edit</Btn>},
+            {key:"act",label:"",render:r=><div style={{display:"flex",gap:4}}>
+              <Btn onClick={()=>open(r)} size="sm" variant="outline">Edit</Btn>
+              <Btn onClick={()=>{
+                if(confirm("Delete "+r.name+"?")){
+                  const nw=state.workTypes.filter(w=>w.id!==r.id);
+                  DB.upsertWorkTypes(nw).catch(console.error);
+                  setState(p=>({...p,workTypes:nw}));
+                  toast.show(r.name+" deleted");
+                }
+              }} size="sm" variant="danger">Delete</Btn>
+            </div>},
           ]} rows={list}/>
         </div>
       ))}
