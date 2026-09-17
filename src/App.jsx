@@ -4904,3 +4904,43 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
 }
 
 
+
+export default function App() {
+  const [state, setState] = useLocalStorage("benaka_state", INITIAL_STATE);
+  const { syncStatus, syncFromCloud } = useSupabaseSync(state, setState);
+  const toast = useToast();
+  const { Toast } = toast;
+
+  const handleLogin = (user) => setState(p => ({ ...p, currentUser: user }));
+  const handleUsersLoaded = (users, passwords) => setState(p => ({ ...p, users, passwords }));
+
+  if (!state.currentUser) {
+    return (
+      <ErrorBoundary>
+        <LoginScreen
+          onLogin={handleLogin}
+          users={state.users}
+          passwords={state.passwords}
+          onUsersLoaded={handleUsersLoaded}
+        />
+        <Toast/>
+      </ErrorBoundary>
+    );
+  }
+
+  const user   = state.currentUser;
+  const logout = () => setState(p => ({ ...p, currentUser: null }));
+  const props  = { user, state, setState, toast, logout, syncFromCloud, syncStatus };
+
+  return (
+    <ErrorBoundary>
+      {user.role === "supervisor"   && <SupervisorPortal {...props}/>}
+      {user.role === "manager"      && <ManagerPortal    {...props}/>}
+      {user.role === "md"           && <MDPortal         {...props}/>}
+      {user.role === "office"       && <OfficePortal     {...props}/>}
+      {user.role === "it_admin"     && <ITAdminPortal    {...props}/>}
+      {user.role === "field_staff"  && <FieldStaffPortal {...props}/>}
+      <Toast/>
+    </ErrorBoundary>
+  );
+}
