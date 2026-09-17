@@ -2668,48 +2668,114 @@ function MgrFeedback({ user, state, myCounters }) {
 
 function MDAttendance({ state }) {
   const [filterStatus, setFilterStatus] = useState("all");
-  const [search, setSearch] = useState("");
-  const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch]             = useState("");
+  const [showUnmarked, setShowUnmarked] = useState(true);
   const dr = useDateRange("today");
-  const att = (state.attendance||[])
-    .filter(a=>a.date>=dr.from&&a.date<=dr.to)
-    .filter(a=>showInactive||state.users.find(u=>u.id===a.staffId)?.active!==false)
-    .filter(a=>filterStatus==="all"||a.status===filterStatus)
-    .filter(a=>!search||state.users.find(u=>u.id===a.staffId)?.name?.toLowerCase().includes(search.toLowerCase()))
-    .sort((a,b)=>b.date.localeCompare(a.date)||a.status.localeCompare(b.status));
+
+  // All active staff
+  const allStaff = state.users.filter(u=>
+    u.active!==false && u.role!=="md" && u.role!=="it_admin"
+  );
+
+  // Build attendance rows: one per staff per day in range
+  // Get all dates in range
+  const dates = [];
+  const cur = new Date(dr.from);
+  const end = new Date(dr.to);
+  while (cur <= end && dates.length < 60) {
+    dates.push(cur.toISOString().split("T")[0]);
+    cur.setDate(cur.getDate()+1);
+  }
+
+  // Build unified rows: attendance record OR synthetic "not marked" row
+  const allRows = [];
+  dates.forEach(date => {
+    allStaff.forEach(staff => {
+      const attRec = (state.attendance||[]).find(a=>a.staffId===staff.id&&a.date===date);
+      // Check for approved leave
+      const leave = [...(state.leaves||[]),...(state.plannedLeaves||[])].find(l=>{
+        const uid = l.userId||l.user_id;
+        const from = l.fromDate||l.from_date||l.date;
+        const to   = l.toDate||l.to_date||from;
+        return uid===staff.id && date>=from && date<=to;
+      });
+      const supervisor = state.users.find(u=>u.id===staff.managerId)||state.users.find(u=>u.id===attRec?.supervisorId);
+      allRows.push({
+        date,
+        staffId: staff.id,
+        staffName: staff.name,
+        role: staff.role,
+        supervisorName: supervisor?.name||"—",
+        status: attRec?.status || (leave?.status==="approved"?"on_leave":"not_marked"),
+        reason: attRec?.reason || (leave ? `Leave (${leave.status}): ${leave.reason||""}` : ""),
+        leaveStatus: leave?.status||null,
+        leaveType: leave?.type||null,
+        marked: !!attRec,
+      });
+    });
+  });
+
+  const filtered = allRows
+    .filter(r=>filterStatus==="all"||r.status===filterStatus)
+    .filter(r=>showUnmarked||r.marked||r.status==="on_leave")
+    .filter(r=>!search||r.staffName.toLowerCase().includes(search.toLowerCase())||r.supervisorName.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>b.date.localeCompare(a.date)||a.staffName.localeCompare(b.staffName));
+
+  const statuses = ["all","present","absent","half_day","on_leave","not_marked"];
+  const statusLabel = s => ({all:"All",present:"Present",absent:"Absent",half_day:"Half Day",on_leave:"On Leave",not_marked:"Not Marked"}[s]||s);
+  const statusColor = s => ({present:T.grn,absent:T.red,half_day:T.amber,on_leave:"#7C3AED",not_marked:T.txt3}[s]||T.txt2);
+  const statusBg    = s => ({present:T.grnL,absent:T.redL,half_day:T.amberL,on_leave:"#EDE9FE",not_marked:T.surf}[s]||T.surf);
+
+  const summary = {
+    present:    allRows.filter(r=>r.status==="present").length,
+    absent:     allRows.filter(r=>r.status==="absent").length,
+    half_day:   allRows.filter(r=>r.status==="half_day").length,
+    on_leave:   allRows.filter(r=>r.status==="on_leave").length,
+    not_marked: allRows.filter(r=>r.status==="not_marked").length,
+  };
 
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>All Attendance</div>
       <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-        {["all","present","absent","half_day"].map(s=>(
-          <button key={s} onClick={()=>setFilterStatus(s)} style={{
-            padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-            border:"1px solid "+(filterStatus===s?(s==="present"?T.grn:s==="absent"?T.red:s==="half_day"?T.amber:T.navy):T.bdrS),
-            background:filterStatus===s?(s==="present"?T.grnL:s==="absent"?T.redL:s==="half_day"?T.amberL:T.navy):"transparent",
-            color:filterStatus===s?(s==="all"?"#fff":s==="present"?T.grn:s==="absent"?T.red:T.amberD):T.txt2
-          }}>{s==="half_day"?"Half Day":s==="all"?"All":s.charAt(0).toUpperCase()+s.slice(1)}</button>
+
+      {/* Summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:14}}>
+        {Object.entries(summary).map(([s,v])=>(
+          <div key={s} onClick={()=>setFilterStatus(filterStatus===s?"all":s)} style={{cursor:"pointer",
+            background:filterStatus===s?statusBg(s):T.surf,border:"1px solid "+(filterStatus===s?statusColor(s):T.bdr),
+            borderRadius:8,padding:"8px 10px",textAlign:"center",transition:"all .15s"}}>
+            <div style={{fontSize:18,fontWeight:800,color:statusColor(s)}}>{v}</div>
+            <div style={{fontSize:10,color:T.txt2,textTransform:"uppercase",fontWeight:600}}>{statusLabel(s)}</div>
+          </div>
         ))}
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff..."
-          style={{padding:"5px 12px",border:"1px solid "+T.bdrS,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:120}}/>
-        <button onClick={()=>setShowInactive(p=>!p)} style={{
-          padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-          border:"1px solid "+(showInactive?T.red:T.bdrS),background:showInactive?T.redL:"transparent",color:showInactive?T.red:T.txt2
-        }}>{showInactive?"Hide Inactive":"+ Inactive"}</button>
       </div>
-      <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-        <StatCard label="Present" value={att.filter(a=>a.status==="present").length} color={T.grn}/>
-        <StatCard label="Absent"  value={att.filter(a=>a.status==="absent").length}  color={T.red}/>
-        <StatCard label="Half Day" value={att.filter(a=>a.status==="half_day").length} color={T.amber}/>
+
+      {/* Filters */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff or executive..."
+          style={{padding:"6px 12px",border:"1px solid "+T.bdrS,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:160}}/>
+        <button onClick={()=>setShowUnmarked(p=>!p)} style={{
+          padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+          border:"1px solid "+(showUnmarked?T.navy:T.bdrS),background:showUnmarked?T.navy:"transparent",color:showUnmarked?"#fff":T.txt2
+        }}>{showUnmarked?"Hide Not Marked":"Show Not Marked"}</button>
       </div>
+
       <Table cols={[
-        {key:"date",   label:"Date",   render:r=>fmtDate(r.date)},
-        {key:"staff",  label:"Staff",  render:r=>{const u=state.users.find(u=>u.id===r.staffId);return <b style={{color:u?.active===false?T.txt3:T.txt}}>{u?.name||r.staffId}</b>;}},
-        {key:"exec",   label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)?.name||"—"},
-        {key:"status", label:"Status", render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
-        {key:"reason", label:"Reason", render:r=>r.reason||"—"},
-      ]} rows={att} emptyMsg="No records"/>
+        {key:"date",   label:"Date",      render:r=>fmtDate(r.date)},
+        {key:"staff",  label:"Staff",     render:r=><span style={{fontWeight:700}}>{r.staffName}</span>},
+        {key:"exec",   label:"Executive", render:r=>r.supervisorName},
+        {key:"role",   label:"Role",      render:r=>ROLE_LABELS[r.role]||r.role},
+        {key:"status", label:"Status",    render:r=>(
+          <Badge color={statusColor(r.status)}>
+            {statusLabel(r.status)}
+            {r.leaveStatus && r.leaveStatus!=="approved" && (
+              <span style={{fontSize:10,marginLeft:4,opacity:.8}}>({r.leaveStatus})</span>
+            )}
+          </Badge>
+        )},
+        {key:"reason", label:"Notes",     render:r=>r.reason||"—"},
+      ]} rows={filtered} emptyMsg="No records for selected period"/>
     </div>
   );
 }
