@@ -76,8 +76,9 @@ const DB = {
   },
   // Leaves
   async getLeaves() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/leaves?select=*&order=created_at.desc`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
-    return r.json();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/leaves?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const data = await r.json();
+    return Array.isArray(data) ? data : [];
   },
   async upsertLeave(leave) {
     const row = {
@@ -111,16 +112,20 @@ const DB = {
     return r.json();
   },
   async upsertCollectionReport(rep) {
+    const bankEntries = rep.bankEntries || rep.bank_entries || [];
+    const expenses    = rep.expenses || [];
+    const totalBank   = bankEntries.reduce((s,b)=>s+(Number(b.amount)||0),0);
+    const totalExp    = expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
     const row = {
       id: rep.id,
       date: rep.date,
       supervisor_id: rep.supervisorId || rep.supervisor_id,
-      bank_entries: rep.bankEntries || rep.bank_entries || [],
-      expenses: rep.expenses || [],
+      bank_entries: bankEntries,
+      expenses: expenses,
       notes: rep.notes || "",
-      total_bank: rep.totalBank || 0,
-      total_expenses: rep.totalExpenses || 0,
-      net_collection: rep.netCollection || 0,
+      total_bank: totalBank,
+      total_expenses: totalExp,
+      net_collection: totalBank - totalExp,
     };
     return supabase.from("collection_reports").upsert(row);
   },
@@ -1707,61 +1712,102 @@ function SupHistory({ user, state }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function LeavePortal({ user, state, setState, toast }) {
   const [from, setFrom] = useState(today());
-  const [to, setTo] = useState(today());
+  const [to, setTo]     = useState(today());
   const [type, setType] = useState("sick");
   const [reason, setReason] = useState("");
-  const myLeaves = state.leaves.filter(l=>l.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const myLeaves = (state.leaves||[]).filter(l=>l.userId===user.id).sort((a,b)=>(b.submittedAt||b.date||"").localeCompare(a.submittedAt||a.date||""));
   const manager = state.users.find(u=>u.id===user.managerId);
 
-  const submit = () => {
+  const submit = async () => {
     if (!reason.trim()) { toast.show("Please provide a reason","error"); return; }
-    if (!manager) { toast.show("No manager assigned","error"); return; }
-    const leave = { id:`l_${Date.now()}`, userId:user.id, role:user.role, date:from, toDate:to, type, reason, status:"pending", approverId:manager.id, submittedAt:new Date().toISOString() };
-    setState(p=>({...p, leaves:[...p.leaves, leave]}));
-    DB.upsertLeave(leave).catch(console.error);
-    toast.show("Leave request submitted to " + manager.name);
+    if (!manager) { toast.show("No manager assigned — contact IT Admin","error"); return; }
+    const leave = {
+      id: `l_${Date.now()}`,
+      userId: user.id,
+      role: user.role,
+      date: from,
+      toDate: to,
+      type,
+      reason,
+      status: "pending",
+      approverId: manager.id,
+      submittedAt: new Date().toISOString(),
+      decidedAt: null,
+    };
+    // Write to state immediately
+    setState(p=>({...p, leaves:[...(p.leaves||[]), leave]}));
+    // Write to DB
+    try {
+      const result = await DB.upsertLeave(leave);
+      if (result && result.code) {
+        console.error("DB leave error:", result);
+        toast.show("Leave saved locally. Will sync when connection restored.");
+      } else {
+        toast.show("Leave request submitted to " + manager.name + " ✅");
+      }
+    } catch(e) {
+      console.error("Leave save error:", e);
+      toast.show("Leave saved locally ✅");
+    }
     setReason("");
   };
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>Leave Requests</div>
+      <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>My Leave Requests</div>
+      {!manager && (
+        <div style={{background:T.redL,border:"1px solid "+T.red,borderRadius:8,padding:12,marginBottom:16,fontSize:13,color:T.red}}>
+          ⚠ No manager assigned to your account. Contact IT Admin.
+        </div>
+      )}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
         <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>New Request</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            <Input label="From" type="date" value={from} onChange={setFrom}/>
-            <Input label="To" type="date" value={to} onChange={setTo}/>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Apply Leave</div>
+          {manager && <div style={{fontSize:12,color:T.txt2,marginBottom:12}}>Approver: <b>{manager.name}</b></div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <Input label="From Date" type="date" value={from} onChange={setFrom}/>
+            <Input label="To Date" type="date" value={to} onChange={setTo}/>
           </div>
-          <Select label="Type" value={type} onChange={setType} options={[{value:"sick",label:"Sick Leave"},{value:"personal",label:"Personal Leave"},{value:"casual",label:"Casual Leave"}]}/>
-          <Input label="Reason" value={reason} onChange={setReason} placeholder="Reason for leave..." required/>
-          {manager && <div style={{fontSize:12,color:T.txt2,marginBottom:12}}>Will be sent to: <b>{manager.name}</b></div>}
-          <Btn onClick={submit}>Submit Request</Btn>
+          <div style={{marginBottom:10}}>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Leave Type</label>
+            <select value={type} onChange={e=>setType(e.target.value)}
+              style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              <option value="sick">Sick Leave</option>
+              <option value="casual">Casual Leave</option>
+              <option value="earned">Earned Leave</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Reason</label>
+            <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={3} placeholder="Please provide a reason..."
+              style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+          </div>
+          <Btn onClick={submit} variant="amber" disabled={!manager}>Submit Leave Request</Btn>
         </Card>
         <Card>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>My Leave History</div>
-          {myLeaves.length===0 ? <div style={{color:T.txt3,fontSize:13}}>No requests yet</div> :
-            myLeaves.map(l => (
-              <div key={l.id} style={{ padding:"10px 0", borderBottom:`1px solid ${T.bdr}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:700}}>{fmtDate(l.date)}{l.toDate!==l.date?` → ${fmtDate(l.toDate)}`:""}</div>
-                    <div style={{fontSize:12,color:T.txt2}}>{l.type} · {l.reason}</div>
-                  </div>
-                  <Badge color={l.status==="approved"?T.grn:l.status==="rejected"?T.red:T.amber}>{l.status}</Badge>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>My Requests ({myLeaves.length})</div>
+          {myLeaves.length===0 && <div style={{color:T.txt3,fontSize:13}}>No leave requests yet</div>}
+          {myLeaves.map(l=>(
+            <div key={l.id} style={{borderBottom:"1px solid "+T.bdr,paddingBottom:10,marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{fmtDate(l.date)}{l.toDate&&l.toDate!==l.date?" → "+fmtDate(l.toDate):""}</div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{l.type} · {l.reason}</div>
                 </div>
+                <Badge color={l.status==="approved"?T.grn:l.status==="rejected"?T.red:T.amber}>
+                  {l.status}
+                </Badge>
               </div>
-            ))
-          }
+            </div>
+          ))}
         </Card>
       </div>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  MANAGER PORTAL
-// ═══════════════════════════════════════════════════════════════════════════════
+
 function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
@@ -1769,6 +1815,7 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
   const navItems = [
     { id:"dashboard",   icon:"🏠", label:"Dashboard" },
     { id:"collection",  icon:"📊", label:"Collection Report" },
+    { id:"colldash",    icon:"🏦", label:"Collection Dashboard" },
     { id:"analysis",    icon:"📈", label:"Counter Analysis" },
     { id:"reports",     icon:"📋", label:"Reports" },
     { id:"leaves",      icon:"✅", label:"Leave Approvals" },
@@ -1790,14 +1837,17 @@ function ManagerPortal({ user, state, setState, toast, syncStatus="" }) {
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
-      {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast} syncFromCloud={syncFromCloud}/>}
       {page==="people"    && <MgrPeople user={user} state={state} setState={setState} toast={toast}/>}
       {page==="targets"    && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
       {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
+      {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors} myCounters={myCounters}/>}
+      {page==="colldash"   && <CollectionDashboard state={state} user={user}/>}
       {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="execreport" && <ExecutiveReportGenerator state={state}/>}
       {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state}/>}
+      {page==="colldash"   && <CollectionDashboard state={state} user={user} isAdmin/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
@@ -2165,7 +2215,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 }
 
 
-function MgrLeaves({ user, state, setState, toast }) {
+function MgrLeaves({ user, state, setState, toast, syncFromCloud }) {
   // Unify state.leaves and state.plannedLeaves into one view
   const mySupIds = state.users.filter(u=>u.managerId===user.id).map(u=>u.id);
 
@@ -2208,7 +2258,10 @@ function MgrLeaves({ user, state, setState, toast }) {
 
   return (
     <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Leave Approvals</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{fontSize:18,fontWeight:800}}>Leave Approvals</div>
+      {syncFromCloud && <Btn onClick={syncFromCloud} size="sm" variant="outline">🔄 Refresh</Btn>}
+    </div>
 
       {totalPending === 0 && (
         <Card><div style={{textAlign:"center",padding:20,color:T.grn}}>✅ No pending approvals</div></Card>
@@ -2698,11 +2751,12 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state}/>}
+      {page==="colldash"   && <CollectionDashboard state={state} user={user} isAdmin/>}
       {page==="financial"  && <MDFinancial state={state}/>}
       {page==="operations" && <MDOperations state={state}/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
-      {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast} syncFromCloud={syncFromCloud}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
       {page==="reports"     && <AllReports state={state}/>}
       {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
@@ -3264,6 +3318,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"enter",        icon:"✏️",  label:"Enter Report" },
     { id:"sales",        icon:"🛒",  label:"Sales Entry" },
     { id:"collection",   icon:"📊",  label:"Collection Report" },
+    { id:"colldash",     icon:"🏦",  label:"Collection Dashboard" },
     { id:"attendance",   icon:"👥",  label:"Mark Attendance" },
     { id:"reports",      icon:"📋",  label:"View Reports" },
     { id:"viewatt",      icon:"📅",  label:"All Attendance" },
@@ -3282,6 +3337,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="reports"      && <OfficeReports state={state}/>}
       {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
       {page==="myleaves"     && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="colldash"     && <CollectionDashboard state={state} user={user}/>}
       {page==="execreport"   && <ExecutiveReportGenerator state={state}/>}
       {page==="export"       && <OfficeExport state={state} toast={toast}/>}
       {page==="directory"    && <StaffDirectory state={state}/>}
@@ -3887,6 +3943,35 @@ function ExecutiveReportGenerator({ state }) {
           </div>
         </Card>
       )}
+
+      {/* Collection Summary */}
+      {(()=>{
+        const colRep = (state.serviceReports||[]).length>=0 && (state.collectionReports||[]).find(r=>r.date===selDate);
+        if (!colRep) return null;
+        const bank = (colRep.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
+        const exp  = (colRep.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+        return (
+          <Card style={{borderTop:"3px solid "+T.navy,marginBottom:8}}>
+            <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:10}}>🏦 Bank Collection — {fmtDate(selDate)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
+              <div style={{background:T.navyXL,borderRadius:7,padding:"8px 12px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:T.txt2}}>Bank Deposited</div>
+                <div style={{fontSize:18,fontWeight:800,color:T.navy}}>{fmtCurr(bank)}</div>
+                <div style={{fontSize:10,color:T.txt3,marginTop:2}}>{(colRep.bankEntries||[]).map(b=>b.bank+": "+fmtCurr(b.amount)).join(" · ")}</div>
+              </div>
+              <div style={{background:T.redL,borderRadius:7,padding:"8px 12px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:T.red}}>Expenses</div>
+                <div style={{fontSize:18,fontWeight:800,color:T.red}}>{fmtCurr(exp)}</div>
+                <div style={{fontSize:10,color:T.txt3,marginTop:2}}>{(colRep.expenses||[]).map(e=>(e.desc||e.description)+": "+fmtCurr(e.amount)).join(" · ")}</div>
+              </div>
+              <div style={{background:bank-exp>=0?T.grnL:T.redL,borderRadius:7,padding:"8px 12px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:bank-exp>=0?T.grn:T.red}}>Net</div>
+                <div style={{fontSize:18,fontWeight:800,color:bank-exp>=0?T.grn:T.red}}>{fmtCurr(bank-exp)}</div>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Grand Total — Services + Sales combined */}
       {(gDaySvc+dayBardahlCo+dayOtherCo)>0 && (
@@ -5166,6 +5251,116 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
   );
 }
 
+
+
+function CollectionDashboard({ state, user, isAdmin }) {
+  const dr = useDateRange("month");
+
+  // All collection reports in range
+  const allReps = (state.collectionReports||[]).filter(r=>r.date>=dr.from&&r.date<=dr.to);
+
+  // Summary per date
+  const byDate = {};
+  allReps.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = { date:r.date, bank:0, expenses:0, net:0, bankBreakdown:[], expBreakdown:[] };
+    const bank = (r.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
+    const exp  = (r.expenses||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    byDate[r.date].bank     += bank;
+    byDate[r.date].expenses += exp;
+    byDate[r.date].net      += bank - exp;
+    byDate[r.date].bankBreakdown.push(...(r.bankEntries||[]));
+    byDate[r.date].expBreakdown.push(...(r.expenses||[]));
+  });
+  const rows = Object.values(byDate).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const totalBank = rows.reduce((s,r)=>s+r.bank,0);
+  const totalExp  = rows.reduce((s,r)=>s+r.expenses,0);
+  const totalNet  = totalBank - totalExp;
+
+  const [expanded, setExpanded] = useState(null);
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Collection Report Dashboard</div>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+
+      {/* Summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
+        <Card style={{textAlign:"center",padding:16}}>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase",fontWeight:700}}>Total Bank In</div>
+          <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{fmtCurr(totalBank)}</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:16}}>
+          <div style={{fontSize:11,color:T.red,textTransform:"uppercase",fontWeight:700}}>Total Expenses</div>
+          <div style={{fontSize:22,fontWeight:800,color:T.red}}>{fmtCurr(totalExp)}</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:16,background:totalNet>=0?T.grnL:T.redL,border:"1px solid "+(totalNet>=0?T.grn:T.red)}}>
+          <div style={{fontSize:11,color:totalNet>=0?T.grn:T.red,textTransform:"uppercase",fontWeight:700}}>Net Collection</div>
+          <div style={{fontSize:22,fontWeight:800,color:totalNet>=0?T.grn:T.red}}>{fmtCurr(totalNet)}</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:16}}>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase",fontWeight:700}}>Days Reported</div>
+          <div style={{fontSize:22,fontWeight:800,color:T.amber}}>{rows.length}</div>
+        </Card>
+      </div>
+
+      {rows.length===0 && (
+        <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No collection reports for selected period</div></Card>
+      )}
+
+      {/* Per-date breakdown */}
+      {rows.map(r=>(
+        <Card key={r.date} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setExpanded(expanded===r.date?null:r.date)}>
+          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:15}}>{fmtDate(r.date)}</div>
+              <div style={{fontSize:12,color:T.txt2}}>Bank: {fmtCurr(r.bank)} · Expenses: {fmtCurr(r.expenses)}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:18,fontWeight:800,color:r.net>=0?T.grn:T.red}}>{fmtCurr(r.net)}</div>
+              <div style={{fontSize:11,color:T.txt2}}>Net Collection</div>
+            </div>
+          </div>
+
+          {expanded===r.date && (
+            <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+T.bdr}}>
+              {r.bankBreakdown.length>0 && (
+                <>
+                  <div style={{fontSize:12,fontWeight:800,color:T.navy,marginBottom:6,textTransform:"uppercase"}}>Bank Deposits</div>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
+                    <tbody>
+                      {r.bankBreakdown.map((b,i)=>(
+                        <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                          <td style={{padding:"5px 8px"}}>{b.bank||b.description||"—"}</td>
+                          <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:T.navy}}>{fmtCurr(b.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+              {r.expBreakdown.length>0 && (
+                <>
+                  <div style={{fontSize:12,fontWeight:800,color:T.red,marginBottom:6,textTransform:"uppercase"}}>Expenses</div>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <tbody>
+                      {r.expBreakdown.map((e,i)=>(
+                        <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                          <td style={{padding:"5px 8px"}}>{e.desc||e.description||"—"}</td>
+                          <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:T.red}}>{fmtCurr(e.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 
 export default function App() {
