@@ -3648,14 +3648,13 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
   const [dirty, setDirty] = useState(false);
   const initialLoad = useRef(false);
 
-  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
+  const executives = state.users.filter(u=>(u.role==="supervisor"||u.role==="manager"||u.role==="md")&&u.active!==false);
 
+  const selExecUser = state.users.find(u=>u.id===selExec);
+  const isSupRole = selExecUser?.role==="supervisor";
   const allToMark = selExec ? [
-    state.users.find(u=>u.id===selExec),
-    ...state.users.filter(u=>u.role==="field_staff"&&u.active&&
-      state.attendance.some(a=>a.supervisorId===selExec&&a.staffId===u.id) ||
-      state.users.find(u2=>u2.id===selExec)?.managerId===u.managerId
-    )
+    selExecUser,
+    ...(isSupRole ? state.users.filter(u=>u.role==="field_staff"&&u.active!==false&&u.managerId===selExec) : [])
   ].filter(Boolean) : [];
 
   // Actually get staff under this executive
