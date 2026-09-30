@@ -112,6 +112,23 @@ const DB = {
     const d = await r.json();
     return Array.isArray(d) ? d : [];
     },
+  // Collection Reports
+  async upsertCollectionReport(rep) {
+    const bankEntries = rep.bankEntries || [];
+    const expenses    = rep.expenses || [];
+    const totalBank   = bankEntries.reduce((s,b)=>s+(Number(b.amount)||0),0);
+    const totalExp    = expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const row = {
+      id: rep.id,
+      date: rep.date,
+      supervisor_id: rep.supervisorId || rep.supervisor_id || "",
+      notes: JSON.stringify({ bankEntries, expenses, totalBank, totalExp }),
+      total_bank: totalBank,
+      total_expenses: totalExp,
+      net_collection: totalBank - totalExp,
+    };
+    return supabase.from("collection_reports").upsert(row);
+  },
   // Salaries
   async getSalaries(month) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/salaries?select=*${month?`&month=eq.${month}`:""}`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -171,15 +188,9 @@ const DB = {
     return supabase.from("app_work_types").upsert(rows);
   },
   async getPlannedLeaves() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/planned_leaves?select=*&order=created_at.desc`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/planned_leaves?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
     const data = await r.json();
-    if (!Array.isArray(data)) return [];
-    return data.map(l => ({
-      id: l.id, userId: l.user_id, staffName: l.staff_name,
-      supervisorId: l.supervisor_id, fromDate: l.from_date,
-      toDate: l.to_date, reason: l.reason, status: l.status,
-      appliedOn: l.applied_on, decidedOn: l.decided_on
-    }));
+    return Array.isArray(data) ? data : [];
   },
   async upsertPlannedLeave(leave) {
     const row = {
