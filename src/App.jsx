@@ -118,15 +118,21 @@ const DB = {
     const expenses    = rep.expenses || [];
     const totalBank   = bankEntries.reduce((s,b)=>s+(Number(b.amount)||0),0);
     const totalExp    = expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+    // Always store data as JSON in notes — works regardless of extra column existence
+    // Try adding computed columns too; if schema doesn't have them yet, they're ignored
     const row = {
       id: rep.id,
       date: rep.date,
       supervisor_id: rep.supervisorId || rep.supervisor_id || "",
       notes: JSON.stringify({ bankEntries, expenses, totalBank, totalExp }),
-      total_bank: totalBank,
-      total_expenses: totalExp,
-      net_collection: totalBank - totalExp,
     };
+    // Attempt to add numeric columns (fail silently if missing)
+    try {
+      const fullRow = { ...row, total_bank: totalBank, total_expenses: totalExp, net_collection: totalBank - totalExp };
+      const res = await supabase.from("collection_reports").upsert(fullRow);
+      if (!res || !res.code) return res;
+    } catch(e) {}
+    // Fallback: just the base columns
     return supabase.from("collection_reports").upsert(row);
   },
   // Salaries
@@ -170,10 +176,17 @@ const DB = {
     const rows = counters.map(c => ({
       id: c.id, name: c.name,
       supervisor_id: c.supervisorId||null,
+      supervisor_ids: JSON.stringify(c.supervisorIds||[c.supervisorId].filter(Boolean)),
       dealership: c.dealership||"",
       city: c.city||""
     }));
-    return supabase.from("app_counters").upsert(rows);
+    // Try with supervisor_ids column, fallback without it
+    const result = await supabase.from("app_counters").upsert(rows);
+    if (result && result.code) {
+      const fallback = rows.map(({supervisor_ids,...r})=>r);
+      return supabase.from("app_counters").upsert(fallback);
+    }
+    return result;
   },
   async getWorkTypes() {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -310,11 +323,17 @@ function useSupabaseSync(localState, setLocalState) {
 
       // Map counters from DB
       const mappedCounters = Array.isArray(dbCounters) && dbCounters.length > 0
-        ? dbCounters.map(c => ({
-            id: c.id, name: c.name,
-            supervisorId: c.supervisor_id||c.supervisorId||null,
-            dealership: c.dealership||"", city: c.city||""
-          }))
+        ? dbCounters.map(c => {
+            let supervisorIds = [];
+            try { supervisorIds = c.supervisor_ids ? JSON.parse(c.supervisor_ids) : []; } catch(e) {}
+            if (!supervisorIds.length && c.supervisor_id) supervisorIds = [c.supervisor_id];
+            return {
+              id: c.id, name: c.name,
+              supervisorId: c.supervisor_id||c.supervisorId||supervisorIds[0]||null,
+              supervisorIds,
+              dealership: c.dealership||"", city: c.city||""
+            };
+          })
         : null;
 
       // Map work types from DB
@@ -1081,7 +1100,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="history"     && <SupHistory user={user} state={state}/>}
       {page==="feedback"    && <SupFeedback user={user} state={state}/>}
       {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="analysis"    && <CounterAnalysis user={user} state={state} myCounterIds={state.counters.filter(c=>c.supervisorId===user.id).map(c=>c.id)}/>}
+      {page==="analysis"    && <CounterAnalysis user={user} state={state} myCounterIds={state.counters.filter(c=>c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)).map(c=>c.id)}/>}
       {page==="staffleaves" && <PlannedLeavePortal user={user} state={state} setState={setState} toast={toast} mode="executive"/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
@@ -4230,73 +4249,139 @@ function UserMgmt({ user, state, setState, toast }) {
 // ─── IT Admin: Counter Management ─────────────────────────────────────────────
 function CounterMgmt({ user, state, setState, toast }) {
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({});
-  const open = c => { setEditing(c||{}); setForm(c&&c.id?{...c}:{name:"",supervisorId:"",dealership:"",city:""}); };
+  const [form, setForm]       = useState({});
+  const [selExecs, setSelExecs] = useState([]); // array of supervisorIds
+
+  const open = c => {
+    setEditing(c||{});
+    setForm(c&&c.id ? {...c} : {name:"",dealership:"",city:""});
+    // Support both old (supervisorId) and new (supervisorIds) format
+    const ids = c?.supervisorIds || (c?.supervisorId ? [c.supervisorId] : []);
+    setSelExecs(ids);
+  };
+
+  const toggleExec = (id) => {
+    setSelExecs(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id]);
+  };
+
   const save = () => {
     if (!form.name) { toast.show("Name required","error"); return; }
+    const counterData = {
+      ...form,
+      supervisorId: selExecs[0] || "",       // primary exec (backward compat)
+      supervisorIds: selExecs,               // all execs
+    };
     let newCounters;
     if (editing?.id) {
-      newCounters = state.counters.map(c=>c.id===editing.id?{...c,...form}:c);
+      newCounters = state.counters.map(c=>c.id===editing.id?{...c,...counterData}:c);
     } else {
-      newCounters = [...state.counters,{id:"c_"+Date.now(),...form}];
+      newCounters = [...state.counters, {id:"c_"+Date.now(), ...counterData}];
     }
     DB.upsertCounters(newCounters).catch(console.error);
     setState(p=>({...p,counters:newCounters,_configVersion:(p._configVersion||0)+1}));
-    toast.show("Counter saved ✅"); setEditing(null);
+    toast.show("Counter saved ✅");
+    setEditing(null);
   };
+
+  const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
+
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-        <div style={{fontSize:18,fontWeight:800}}>Counters</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:16,fontWeight:800}}>Counter Management</div>
         <Btn onClick={()=>open(null)} variant="amber">+ Add Counter</Btn>
       </div>
+
       {editing!==null && (
         <Card style={{marginBottom:20,borderTop:"3px solid "+T.amber}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>{editing?.id?"Edit Counter":"New Counter"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:14}}>
             {[["name","Counter Name"],["dealership","Dealership"],["city","City"]].map(([k,l])=>(
-              <div key={k}><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
-              <input value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
-                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+              <div key={k}>
+                <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
+                <input value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
+                  style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+              </div>
             ))}
-            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Assigned Executive</label>
-            <select value={form.supervisorId||""} onChange={e=>setForm(p=>({...p,supervisorId:e.target.value}))}
-              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value="">None</option>
-              {state.users.filter(u=>u.role==="supervisor").map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select></div>
           </div>
-          <div style={{display:"flex",gap:10}}>
-            <Btn onClick={save} variant="amber">Save</Btn>
+
+          {/* Multi-executive selection */}
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:8,textTransform:"uppercase"}}>
+              Assigned Executives ({selExecs.length} selected)
+            </label>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:6,background:T.navyXL,borderRadius:8,padding:12}}>
+              {executives.map(u=>{
+                const checked = selExecs.includes(u.id);
+                return (
+                  <label key={u.id} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",
+                    padding:"6px 10px",borderRadius:6,background:checked?T.amberL:"transparent",
+                    border:"1px solid "+(checked?T.amber:T.bdr)}}>
+                    <input type="checkbox" checked={checked} onChange={()=>toggleExec(u.id)}
+                      style={{cursor:"pointer",accentColor:T.amber,width:14,height:14}}/>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:checked?700:400}}>{u.name}</div>
+                      <div style={{fontSize:10,color:T.txt2}}>{u.empId}</div>
+                    </div>
+                  </label>
+                );
+              })}
+              {executives.length===0 && <div style={{color:T.txt3,fontSize:12}}>No executives found</div>}
+            </div>
+            {selExecs.length>1 && (
+              <div style={{fontSize:11,color:T.amber,marginTop:6}}>
+                Primary executive (first selected): {state.users.find(u=>u.id===selExecs[0])?.name}
+              </div>
+            )}
+          </div>
+
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={save} variant="amber">Save Counter</Btn>
             <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
           </div>
         </Card>
       )}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
-        {state.counters.map(c=>{
-          const sup=state.users.find(u=>u.id===c.supervisorId);
-          return (
-            <Card key={c.id}>
-              <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>{c.name}</div>
-              {c.dealership&&<div style={{fontSize:12,color:T.txt2,marginBottom:4}}>{c.dealership}{c.city?" · "+c.city:""}</div>}
-              <div style={{fontSize:13,marginBottom:10}}>👤 {sup?.name||"Unassigned"}</div>
-              <div style={{display:"flex",gap:6}}>
-                <Btn onClick={()=>open(c)} size="sm" variant="outline">Edit</Btn>
-                <Btn onClick={()=>{ if(confirm("Delete counter "+c.name+"? This cannot be undone.")){
-                  const newCounters=state.counters.filter(x=>x.id!==c.id);
-                  supabase.from("app_counters").delete().eq("id",c.id).catch(console.error);
-                  setState(p=>({...p,counters:newCounters,_configVersion:(p._configVersion||0)+1}));
-                  toast.show(c.name+" deleted ✅");
-                }}} size="sm" variant="danger">Delete</Btn>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+
+      {/* Counter list */}
+      {[["Service Counters",state.counters.filter(c=>c.name!=="OFFICE")],["Office",state.counters.filter(c=>c.name==="OFFICE")]].map(([label,ctrs])=>
+        ctrs.length>0 && (
+          <div key={label} style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:800,color:T.txt2,textTransform:"uppercase",marginBottom:8}}>{label}</div>
+            {ctrs.map(c=>{
+              const supIds = c.supervisorIds || (c.supervisorId?[c.supervisorId]:[]);
+              const sups   = supIds.map(id=>state.users.find(u=>u.id===id)).filter(Boolean);
+              return (
+                <Card key={c.id} style={{marginBottom:8,padding:"10px 14px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14}}>{c.name}</div>
+                      <div style={{fontSize:12,color:T.txt2}}>{c.dealership||"—"} · {c.city||"—"}</div>
+                      <div style={{marginTop:4,display:"flex",flexWrap:"wrap",gap:4}}>
+                        {sups.length>0 ? sups.map(s=>(
+                          <span key={s.id} style={{fontSize:11,background:T.navyXL,color:T.navy,padding:"2px 8px",borderRadius:20,fontWeight:600}}>{s.name}</span>
+                        )) : <span style={{fontSize:11,color:T.txt3}}>No executive assigned</span>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <Btn onClick={()=>open(c)} size="sm" variant="outline">Edit</Btn>
+                      <Btn onClick={()=>{if(confirm("Delete "+c.name+"?")){
+                        const nw=state.counters.filter(x=>x.id!==c.id);
+                        supabase.from("app_counters").delete().eq("id",c.id).catch(console.error);
+                        setState(p=>({...p,counters:nw,_configVersion:(p._configVersion||0)+1}));
+                        toast.show(c.name+" deleted");
+                      }}} size="sm" variant="danger">Delete</Btn>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )
+      )}
     </div>
   );
 }
 
-// ─── IT Admin: Work Type Management ───────────────────────────────────────────
 function WorkTypeMgmt({ user, state, setState, toast }) {
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState("");
