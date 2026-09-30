@@ -3716,8 +3716,8 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive · Counter</label>
             <select value={selExec} onChange={e=>{setSelExec(e.target.value);loadDate(displayDate,e.target.value);}}
               style={{width:"100%",padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value="">Select executive...</option>
-              {executives.map(u=><option key={u.id} value={u.id}>{u.name} — {u.counter||state.counters.find(c=>c.supervisorId===u.id)?.name||""}</option>)}
+              <option value="">Select Executive / Manager / MD</option>
+              {executives.map(u=><option key={u.id} value={u.id}>{u.name} ({ROLE_LABELS[u.role]||u.role})</option>)}
             </select>
           </div>
           <Input label="Date" type="date" value={displayDate} onChange={d=>loadDate(d,selExec)}/>
@@ -3760,7 +3760,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
             </div>
           </>
         )}
-        {selExec && staffList.length===0 && <div style={{color:T.txt3,padding:16,textAlign:"center"}}>No staff found for this executive. Check counter assignments.</div>}
+        {selExec && staffList.length===0 && <div style={{color:T.txt3,padding:16,textAlign:"center"}}>No staff found for this person.</div>}
       </Card>
     </div>
   );
