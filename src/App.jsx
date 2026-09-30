@@ -2685,16 +2685,19 @@ function MDAttendance({ state }) {
 
   // All active staff
   const allStaff = state.users.filter(u=>
-    u.active!==false && u.role!=="md" && u.role!=="it_admin"
+    u.active!==false && u.role!=="it_admin"
   );
 
   // Build attendance rows: one per staff per day in range
   // Get all dates in range
   const dates = [];
-  const cur = new Date(dr.from);
-  const end = new Date(dr.to);
+  const cur = new Date(dr.from+"T00:00:00");
+  const end = new Date(dr.to+"T00:00:00");
   while (cur <= end && dates.length < 60) {
-    dates.push(cur.toISOString().split("T")[0]);
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth()+1).padStart(2,"0");
+    const d = String(cur.getDate()).padStart(2,"0");
+    dates.push(y+"-"+m+"-"+d);
     cur.setDate(cur.getDate()+1);
   }
 
