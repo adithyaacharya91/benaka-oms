@@ -337,7 +337,7 @@ function useSupabaseSync(localState, setLocalState) {
           decidedBy: l.decided_by||l.decidedBy,
         })) : p.plannedLeaves,
         serviceReports:    reports.map(mapReport),
-        attendance:        Array.isArray(attendance) ? attendance.map(mapAtt) : p.attendance,
+        attendance:        Array.isArray(attendance) && attendance.length > 0 ? attendance.map(mapAtt) : p.attendance,
         leaves: Array.isArray(leaves) && leaves.length > 0 ? leaves.map(l=>({
           id: l.id,
           userId: l.user_id||l.userId,
@@ -5067,6 +5067,7 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
       status:recordsRef.current[s.id]||"present", reason:reasonsRef.current[s.id]||"",
       markedAt:new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}) }));
     setState(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.supervisorId===user.id&&a.date===displayDate)),...atts]}));
+    DB.upsertAttendance(atts).catch(e=>console.error("OwnAtt save:",e));
     setDirty(false); toast.show("Attendance saved ✅");
   };
   return (
