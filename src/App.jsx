@@ -1342,14 +1342,19 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
             {allToMark.map(s => {
               const curStatus = recordsRef.current[s.id];
               return (
-                <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:10,
-                  background:s.id===user.id?T.navyXL:"transparent", padding:"4px 8px", borderRadius:6 }}>
-                  <div style={{fontSize:14,fontWeight:700}}>
-                    {s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}
+                <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:8,
+                  background:curStatus==="present"?T.grnL:curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf,
+                  padding:"8px 10px", borderRadius:8,
+                  borderLeft:`3px solid ${curStatus==="present"?T.grn:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
+                  transition:"all 0.2s" }}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
+                    {!curStatus && <div style={{fontSize:10,color:T.txt3,marginTop:1}}>Not marked yet</div>}
+                    {curStatus && <div style={{fontSize:10,color:curStatus==="present"?T.grn:curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:700}}>✓ {curStatus==="half_day"?"Half Day":curStatus==="absent"?"Absent":"Present"}</div>}
                   </div>
                   <div style={{ display:"flex", gap:4 }}>
                     {["present","absent","half_day"].map(status => {
-                      const active = curStatus===status || (!curStatus && status==="present");
+                      const active = curStatus===status;
                       return (
                         <button key={status} onClick={()=>setStatus(s.id, status)} style={{
                           padding:"5px 10px", borderRadius:6,
@@ -1740,8 +1745,16 @@ function LeavePortal({ user, state, setState, toast }) {
   const submit = async () => {
     if (!reason.trim()) { toast.show("Please provide a reason","error"); return; }
     if (!manager) { toast.show("No manager assigned — contact IT Admin","error"); return; }
+    // Prevent overlapping leave requests
+    const overlap = myLeaves.find(l=>{
+      if (l.status==="rejected") return false;
+      const lFrom = l.date||l.fromDate||"";
+      const lTo   = l.toDate||lFrom;
+      return from<=lTo && to>=lFrom;
+    });
+    if (overlap) { toast.show("You already have a leave ("+overlap.status+") for these dates","error"); return; }
     const leave = {
-      id: `l_${Date.now()}`,
+      id: `l_${user.id}_${from}_${Date.now()}`,
       userId: user.id,
       role: user.role,
       date: from,
@@ -1784,9 +1797,12 @@ function LeavePortal({ user, state, setState, toast }) {
           <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Apply Leave</div>
           {manager && <div style={{fontSize:12,color:T.txt2,marginBottom:12}}>Approver: <b>{manager.name}</b></div>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <Input label="From Date" type="date" value={from} onChange={setFrom}/>
-            <Input label="To Date" type="date" value={to} onChange={setTo}/>
+            <Input label="From Date" type="date" value={from} onChange={v=>{setFrom(v);if(v>to)setTo(v);}}/>
+            <Input label="To Date"   type="date" value={to}   onChange={v=>{setTo(v);if(v<from)setFrom(v);}}/>
           </div>
+          {from!==to&&<div style={{fontSize:12,color:T.navy,fontWeight:600,marginBottom:8}}>
+            Duration: {Math.max(1,Math.round((new Date(to)-new Date(from))/86400000)+1)} days
+          </div>}
           <div style={{marginBottom:10}}>
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Leave Type</label>
             <select value={type} onChange={e=>setType(e.target.value)}
@@ -1811,7 +1827,10 @@ function LeavePortal({ user, state, setState, toast }) {
             <div key={l.id} style={{borderBottom:"1px solid "+T.bdr,paddingBottom:10,marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{fmtDate(l.date)}{l.toDate&&l.toDate!==l.date?" → "+fmtDate(l.toDate):""}</div>
+                  <div style={{fontWeight:600,fontSize:13}}>
+                {fmtDate(l.date||l.fromDate||"")}
+                {(()=>{const t=l.toDate||(l.date);const f=l.date||l.fromDate||"";const d=f&&t?Math.max(1,Math.round((new Date(t)-new Date(f))/86400000)+1):1;return t&&t!==f?<span> → {fmtDate(t)} <span style={{fontSize:11,background:T.navyXL,color:T.navy,padding:"1px 6px",borderRadius:10,marginLeft:4}}>{d}d</span></span>:<span style={{fontSize:11,background:T.navyXL,color:T.navy,padding:"1px 6px",borderRadius:10,marginLeft:4}}>{d}d</span>;})()}
+              </div>
                   <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{l.type} · {l.reason}</div>
                 </div>
                 <Badge color={l.status==="approved"?T.grn:l.status==="rejected"?T.red:T.amber}>
@@ -1840,6 +1859,9 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
     { id:"leaves",      icon:"✅", label:"Leave Approvals" },
     { id:"people",      icon:"👥", label:"People & Counters" },
     { id:"salary",      icon:"💰", label:"Salary & P&L" },
+    { id:"attendance",  icon:"🗓️", label:"All Attendance" },
+    { id:"financial",   icon:"💹", label:"Financial Trends" },
+    { id:"operations",  icon:"🏪", label:"Operations" },
     { id:"targets",     icon:"🎯", label:"Set Targets" },
     { id:"feedback",    icon:"💬", label:"Feedback" },
     { id:"myleaves",    icon:"🌿", label:"My Leave" },
@@ -1868,6 +1890,9 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="analysis"   && <CounterAnalysis user={user} state={state}/>}
       {page==="colldash"   && <CollectionDashboard state={state} user={user} isAdmin/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
+      {page==="attendance"  && <MDAttendance state={state}/>}
+      {page==="financial"   && <MDFinancial  state={state}/>}
+      {page==="operations"  && <MDOperations state={state}/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
     </Shell>
   );
@@ -2296,7 +2321,11 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
                 <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                   <div>
                     <div style={{fontWeight:700}}>{l.staffName||applicant?.name||"—"}</div>
-                    <div style={{fontSize:12,color:T.txt2}}>{fmtDate(l.fromDate)} → {fmtDate(l.toDate)}</div>
+                    <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                      <b style={{color:T.navy}}>{fmtDate(l.fromDate||l.from_date||"")}</b>
+                      {(l.toDate||l.to_date)!==(l.fromDate||l.from_date)&&<span> → <b style={{color:T.navy}}>{fmtDate(l.toDate||l.to_date||"")}</b></span>}
+                      {(()=>{const f=l.fromDate||l.from_date||"",t=l.toDate||l.to_date||f;const d=f&&t?Math.max(1,Math.round((new Date(t)-new Date(f))/86400000)+1):1;return <span style={{background:T.navyXL,color:T.navy,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700,marginLeft:6}}>{d} day{d!==1?"s":""}</span>;})()}
+                    </div>
                     <div style={{fontSize:13,marginTop:4}}>{l.reason}</div>
                     <div style={{fontSize:11,color:T.txt3}}>Applied: {fmtDate(l.appliedOn)}</div>
                   </div>
@@ -2316,17 +2345,26 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
           <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.amber}}>Legacy Requests ({pendingOld.length})</div>
           {pendingOld.map(l=>{
             const applicant = state.users.find(u=>u.id===l.userId);
+            const fromD = l.date||l.fromDate||"";
+            const toD   = l.toDate||fromD;
+            const days  = fromD&&toD?Math.max(1,Math.round((new Date(toD)-new Date(fromD))/86400000)+1):1;
             return (
               <Card key={l.id} style={{marginBottom:10,borderLeft:"3px solid "+T.bdrS}}>
                 <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-                  <div>
+                  <div style={{flex:1}}>
                     <div style={{fontWeight:700}}>{applicant?.name||l.userId}</div>
-                    <div style={{fontSize:12,color:T.txt2}}>{l.fromDate} → {l.toDate}</div>
-                    <div style={{fontSize:13}}>{l.reason}</div>
+                    <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                      <b style={{color:T.navy}}>{fmtDate(fromD)}</b>
+                      {toD!==fromD&&<span> → <b style={{color:T.navy}}>{fmtDate(toD)}</b></span>}
+                      <span style={{background:T.navyXL,color:T.navy,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700,marginLeft:6}}>{days} day{days!==1?"s":""}</span>
+                      {l.type&&<span style={{background:T.amberL,color:T.amberD,padding:"1px 8px",borderRadius:20,fontSize:11,marginLeft:4}}>{l.type}</span>}
+                    </div>
+                    <div style={{fontSize:13,marginTop:4}}>{l.reason}</div>
+                    <div style={{fontSize:11,color:T.txt3}}>Applied: {fmtDate(l.submittedAt?.split?.("T")[0]||"")}</div>
                   </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <Btn onClick={()=>decideOld(l.id,"approved")} variant="success" size="sm">Approve</Btn>
-                    <Btn onClick={()=>decideOld(l.id,"rejected")} variant="danger" size="sm">Reject</Btn>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <Btn onClick={()=>decideOld(l.id,"approved")} variant="success" size="sm">✅ Approve</Btn>
+                    <Btn onClick={()=>decideOld(l.id,"rejected")} variant="danger"  size="sm">❌ Reject</Btn>
                   </div>
                 </div>
               </Card>
@@ -2697,53 +2735,67 @@ function MgrFeedback({ user, state, myCounters }) {
 
 
 function MDAttendance({ state }) {
+  const [view, setView]         = useState("daily");   // daily | monthly
   const [filterStatus, setFilterStatus] = useState("all");
-  const [search, setSearch]             = useState("");
+  const [search, setSearch]     = useState("");
   const [showUnmarked, setShowUnmarked] = useState(true);
   const dr = useDateRange("today");
 
-  // All active staff
-  const allStaff = state.users.filter(u=>
-    u.active!==false && u.role!=="it_admin"
-  );
+  // ── MONTHLY view ────────────────────────────────────────────────
+  const selMonth = dr.from.slice(0,7);  // "2026-09"
+  const monthStart = selMonth+"-01";
+  const monthEndDate = new Date(selMonth.split("-")[0], selMonth.split("-")[1], 0);
+  const totalWorkingDays = monthEndDate.getDate();
 
-  // Build attendance rows: one per staff per day in range
-  // Get all dates in range
+  const activeStaff = state.users.filter(u=>u.active!==false && u.role!=="it_admin");
+
+  const monthlyRows = activeStaff.map(staff => {
+    const recs = (state.attendance||[]).filter(a=>
+      a.staffId===staff.id && a.date>=monthStart && a.date<=monthStart.slice(0,7)+"-31"
+    );
+    const present  = recs.filter(a=>a.status==="present").length;
+    const absent   = recs.filter(a=>a.status==="absent").length;
+    const halfDay  = recs.filter(a=>a.status==="half_day").length;
+    const onLeave  = [...(state.leaves||[]),...(state.plannedLeaves||[])].filter(l=>{
+      const uid  = l.userId||l.user_id;
+      const from = l.fromDate||l.from_date||l.date||"";
+      const to   = l.toDate||l.to_date||from;
+      return uid===staff.id && l.status==="approved" && from<=monthStart.slice(0,7)+"-31" && to>=monthStart;
+    }).length;
+    const marked   = recs.length;
+    const exec     = state.users.find(u=>u.id===staff.managerId);
+    return { staff, exec, present, absent, halfDay, onLeave, marked, totalWorkingDays,
+             pct: totalWorkingDays>0 ? Math.round((present+halfDay*0.5)/totalWorkingDays*100) : 0 };
+  }).filter(r=>
+    !search || r.staff.name.toLowerCase().includes(search.toLowerCase()) ||
+    r.exec?.name.toLowerCase().includes(search.toLowerCase())
+  ).sort((a,b)=>b.pct-a.pct);
+
+  // ── DAILY view ──────────────────────────────────────────────────
   const dates = [];
   const cur = new Date(dr.from+"T00:00:00");
   const end = new Date(dr.to+"T00:00:00");
   while (cur <= end && dates.length < 60) {
-    const y = cur.getFullYear();
-    const m = String(cur.getMonth()+1).padStart(2,"0");
-    const d = String(cur.getDate()).padStart(2,"0");
+    const y=cur.getFullYear(),m=String(cur.getMonth()+1).padStart(2,"0"),d=String(cur.getDate()).padStart(2,"0");
     dates.push(y+"-"+m+"-"+d);
     cur.setDate(cur.getDate()+1);
   }
-
-  // Build unified rows: attendance record OR synthetic "not marked" row
   const allRows = [];
   dates.forEach(date => {
-    allStaff.forEach(staff => {
+    activeStaff.forEach(staff => {
       const attRec = (state.attendance||[]).find(a=>a.staffId===staff.id&&a.date===date);
-      // Check for approved leave
-      const leave = [...(state.leaves||[]),...(state.plannedLeaves||[])].find(l=>{
-        const uid = l.userId||l.user_id;
-        const from = l.fromDate||l.from_date||l.date;
-        const to   = l.toDate||l.to_date||from;
+      const leave  = [...(state.leaves||[]),...(state.plannedLeaves||[])].find(l=>{
+        const uid=l.userId||l.user_id; const from=l.fromDate||l.from_date||l.date||"";
+        const to=l.toDate||l.to_date||from;
         return uid===staff.id && date>=from && date<=to;
       });
       const supervisor = state.users.find(u=>u.id===staff.managerId)||state.users.find(u=>u.id===attRec?.supervisorId);
       allRows.push({
-        date,
-        staffId: staff.id,
-        staffName: staff.name,
-        role: staff.role,
-        supervisorName: supervisor?.name||"—",
-        status: attRec?.status || (leave?.status==="approved"?"on_leave":"not_marked"),
-        reason: attRec?.reason || (leave ? `Leave (${leave.status}): ${leave.reason||""}` : ""),
-        leaveStatus: leave?.status||null,
-        leaveType: leave?.type||null,
-        marked: !!attRec,
+        date, staffId:staff.id, staffName:staff.name, role:staff.role,
+        supervisorName:supervisor?.name||"—",
+        status:attRec?.status||(leave?.status==="approved"?"on_leave":"not_marked"),
+        reason:attRec?.reason||(leave?`Leave (${leave.status}): ${leave.reason||""}`:""),
+        leaveStatus:leave?.status||null, marked:!!attRec,
       });
     });
   });
@@ -2754,10 +2806,9 @@ function MDAttendance({ state }) {
     .filter(r=>!search||r.staffName.toLowerCase().includes(search.toLowerCase())||r.supervisorName.toLowerCase().includes(search.toLowerCase()))
     .sort((a,b)=>b.date.localeCompare(a.date)||a.staffName.localeCompare(b.staffName));
 
-  const statuses = ["all","present","absent","half_day","on_leave","not_marked"];
-  const statusLabel = s => ({all:"All",present:"Present",absent:"Absent",half_day:"Half Day",on_leave:"On Leave",not_marked:"Not Marked"}[s]||s);
-  const statusColor = s => ({present:T.grn,absent:T.red,half_day:T.amber,on_leave:"#7C3AED",not_marked:T.txt3}[s]||T.txt2);
-  const statusBg    = s => ({present:T.grnL,absent:T.redL,half_day:T.amberL,on_leave:"#EDE9FE",not_marked:T.surf}[s]||T.surf);
+  const statusColor = s=>({present:T.grn,absent:T.red,half_day:T.amber,on_leave:"#7C3AED",not_marked:T.txt3}[s]||T.txt2);
+  const statusBg    = s=>({present:T.grnL,absent:T.redL,half_day:T.amberL,on_leave:"#EDE9FE",not_marked:T.surf}[s]||T.surf);
+  const statusLabel = s=>({all:"All",present:"Present",absent:"Absent",half_day:"Half Day",on_leave:"On Leave",not_marked:"Not Marked"}[s]||s);
 
   const summary = {
     present:    allRows.filter(r=>r.status==="present").length,
@@ -2769,46 +2820,111 @@ function MDAttendance({ state }) {
 
   return (
     <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>All Attendance</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Attendance</div>
+      <Tabs tabs={[{id:"daily",label:"Daily View"},{id:"monthly",label:"Monthly Report"}]} active={view} onChange={setView}/>
 
-      {/* Summary cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:14}}>
-        {Object.entries(summary).map(([s,v])=>(
-          <div key={s} onClick={()=>setFilterStatus(filterStatus===s?"all":s)} style={{cursor:"pointer",
-            background:filterStatus===s?statusBg(s):T.surf,border:"1px solid "+(filterStatus===s?statusColor(s):T.bdr),
-            borderRadius:8,padding:"8px 10px",textAlign:"center",transition:"all .15s"}}>
-            <div style={{fontSize:18,fontWeight:800,color:statusColor(s)}}>{v}</div>
-            <div style={{fontSize:10,color:T.txt2,textTransform:"uppercase",fontWeight:600}}>{statusLabel(s)}</div>
+      {/* ── MONTHLY REPORT ── */}
+      {view==="monthly" && (
+        <div style={{marginTop:16}}>
+          <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+            <div>
+              <label style={{fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase",display:"block",marginBottom:4}}>Month</label>
+              <input type="month" value={selMonth} onChange={e=>dr.setCustomFrom(e.target.value+"-01")}
+                style={{padding:"7px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+            </div>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff..."
+              style={{padding:"7px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:160,marginTop:20}}/>
           </div>
-        ))}
-      </div>
 
-      {/* Filters */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff or executive..."
-          style={{padding:"6px 12px",border:"1px solid "+T.bdrS,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:160}}/>
-        <button onClick={()=>setShowUnmarked(p=>!p)} style={{
-          padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-          border:"1px solid "+(showUnmarked?T.navy:T.bdrS),background:showUnmarked?T.navy:"transparent",color:showUnmarked?"#fff":T.txt2
-        }}>{showUnmarked?"Hide Not Marked":"Show Not Marked"}</button>
-      </div>
+          {/* Summary */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:16}}>
+            {[
+              {label:"Avg Attendance",val:monthlyRows.length?Math.round(monthlyRows.reduce((s,r)=>s+r.pct,0)/monthlyRows.length)+"%":"—",color:T.navy},
+              {label:"Full Attendance",val:monthlyRows.filter(r=>r.pct>=100).length,color:T.grn},
+              {label:"< 75% Present",val:monthlyRows.filter(r=>r.pct<75&&r.pct>0).length,color:T.amber},
+              {label:"No Records",val:monthlyRows.filter(r=>r.marked===0).length,color:T.red},
+            ].map(c=>(
+              <Card key={c.label} style={{textAlign:"center",padding:"10px 8px"}}>
+                <div style={{fontSize:20,fontWeight:800,color:c.color}}>{c.val}</div>
+                <div style={{fontSize:10,color:T.txt2,textTransform:"uppercase",fontWeight:600}}>{c.label}</div>
+              </Card>
+            ))}
+          </div>
 
-      <Table cols={[
-        {key:"date",   label:"Date",      render:r=>fmtDate(r.date)},
-        {key:"staff",  label:"Staff",     render:r=><span style={{fontWeight:700}}>{r.staffName}</span>},
-        {key:"exec",   label:"Executive", render:r=>r.supervisorName},
-        {key:"role",   label:"Role",      render:r=>ROLE_LABELS[r.role]||r.role},
-        {key:"status", label:"Status",    render:r=>(
-          <Badge color={statusColor(r.status)}>
-            {statusLabel(r.status)}
-            {r.leaveStatus && r.leaveStatus!=="approved" && (
-              <span style={{fontSize:10,marginLeft:4,opacity:.8}}>({r.leaveStatus})</span>
-            )}
-          </Badge>
-        )},
-        {key:"reason", label:"Notes",     render:r=>r.reason||"—"},
-      ]} rows={filtered} emptyMsg="No records for selected period"/>
+          {/* Per-staff monthly table */}
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:T.navy,color:"#fff"}}>
+                  <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700}}>Staff</th>
+                  <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700}}>Role / Exec</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#4ade80"}}>Present</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fca5a5"}}>Absent</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fcd34d"}}>Half Day</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#c4b5fd"}}>On Leave</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700}}>Marked</th>
+                  <th style={{padding:"8px 12px",textAlign:"center",fontWeight:700,color:T.amber}}>Attendance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyRows.map((r,i)=>(
+                  <tr key={r.staff.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                    <td style={{padding:"8px 12px",fontWeight:600}}>{r.staff.name}</td>
+                    <td style={{padding:"8px 12px",color:T.txt2,fontSize:12}}>{ROLE_LABELS[r.staff.role]||r.staff.role}{r.exec?" · "+r.exec.name:""}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center",color:T.grn,fontWeight:700}}>{r.present}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center",color:T.red,fontWeight:700}}>{r.absent}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center",color:T.amber,fontWeight:700}}>{r.halfDay}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center",color:"#7C3AED",fontWeight:700}}>{r.onLeave}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center",color:T.txt2}}>{r.marked}/{totalWorkingDays}</td>
+                    <td style={{padding:"8px 12px",textAlign:"center"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
+                        <div style={{flex:1,height:6,background:T.surf,borderRadius:3,minWidth:50}}>
+                          <div style={{height:6,borderRadius:3,width:r.pct+"%",
+                            background:r.pct>=80?T.grn:r.pct>=60?T.amber:T.red}}/>
+                        </div>
+                        <span style={{fontWeight:700,color:r.pct>=80?T.grn:r.pct>=60?T.amber:T.red,minWidth:36}}>{r.pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── DAILY VIEW ── */}
+      {view==="daily" && (
+        <div style={{marginTop:16}}>
+          <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:14}}>
+            {Object.entries(summary).map(([s,v])=>(
+              <div key={s} onClick={()=>setFilterStatus(filterStatus===s?"all":s)} style={{cursor:"pointer",
+                background:filterStatus===s?statusBg(s):T.surf,border:"1px solid "+(filterStatus===s?statusColor(s):T.bdr),
+                borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:800,color:statusColor(s)}}>{v}</div>
+                <div style={{fontSize:10,color:T.txt2,textTransform:"uppercase",fontWeight:600}}>{statusLabel(s)}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff or executive..."
+              style={{padding:"6px 12px",border:"1px solid "+T.bdrS,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:160}}/>
+            <button onClick={()=>setShowUnmarked(p=>!p)} style={{
+              padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+              border:"1px solid "+(showUnmarked?T.navy:T.bdrS),background:showUnmarked?T.navy:"transparent",color:showUnmarked?"#fff":T.txt2
+            }}>{showUnmarked?"Hide Not Marked":"Show Not Marked"}</button>
+          </div>
+          <Table cols={[
+            {key:"date",   label:"Date",      render:r=>fmtDate(r.date)},
+            {key:"staff",  label:"Staff",     render:r=><span style={{fontWeight:700}}>{r.staffName}</span>},
+            {key:"exec",   label:"Executive", render:r=>r.supervisorName},
+            {key:"role",   label:"Role",      render:r=>ROLE_LABELS[r.role]||r.role},
+            {key:"status", label:"Status",    render:r=><Badge color={statusColor(r.status)}>{statusLabel(r.status)}{r.leaveStatus&&r.leaveStatus!=="approved"&&<span style={{fontSize:10,marginLeft:4,opacity:.8}}>({r.leaveStatus})</span>}</Badge>},
+            {key:"reason", label:"Notes",     render:r=>r.reason||"—"},
+          ]} rows={filtered} emptyMsg="No records for selected period"/>
+        </div>
+      )}
     </div>
   );
 }
@@ -4280,7 +4396,7 @@ function CounterMgmt({ user, state, setState, toast }) {
     DB.upsertCounters(newCounters).catch(console.error);
     setState(p=>({...p,counters:newCounters,_configVersion:(p._configVersion||0)+1}));
     toast.show("Counter saved ✅");
-    setEditing(null);
+    setEditing(null); setSelExecs([]);
   };
 
   const executives = state.users.filter(u=>u.role==="supervisor"&&u.active!==false);
@@ -4398,7 +4514,7 @@ function WorkTypeMgmt({ user, state, setState, toast }) {
     }
     DB.upsertWorkTypes(newWts).catch(console.error);
     setState(p=>({...p,workTypes:newWts,_configVersion:(p._configVersion||0)+1}));
-    toast.show("Work type saved ✅"); setEditing(null); setName(""); setRate("");
+    toast.show("Work type saved ✅"); setEditing(null); setName(""); setRate(""); setEditCat("service"); setName(""); setRate("");
   };
   const svc  = state.workTypes.filter(w=>w.category!=="sales");
   const sales = state.workTypes.filter(w=>w.category==="sales");
