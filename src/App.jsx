@@ -6450,6 +6450,28 @@ function StockRequest({ user, state, setState, toast }) {
   const [urgency, setUrgency] = useState("normal");
   const [submitting, setSubmitting] = useState(false);
   const myRequests = (state.stockRequests||[]).filter(r=>r.requestedBy===user.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const [editingReq, setEditingReq] = useState(null);  // reqId being edited
+  const [editRows, setEditRows]     = useState([]);
+
+  const startEdit = (req) => {
+    setEditingReq(req.id);
+    setEditRows(req.items.map(it=>({...it})));
+  };
+  const saveEdit = async (req) => {
+    const valid = editRows.filter(r=>r.productName&&Number(r.qty)>0);
+    if (!valid.length) { toast.show("At least one item required","error"); return; }
+    const updated = {...req, items:valid};
+    setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+    await DB.upsertStockRequest(updated).catch(console.error);
+    toast.show("Request updated ✅");
+    setEditingReq(null);
+  };
+  const cancelRequest = async (req) => {
+    const updated = {...req, status:"cancelled"};
+    setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+    await DB.upsertStockRequest(updated).catch(console.error);
+    toast.show("Request cancelled");
+  };
 
   const addRow = () => setRows(p=>[...p,{ productId:"", productName:"", qty:"", notes:"" }]);
   const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
@@ -6539,22 +6561,74 @@ function StockRequest({ user, state, setState, toast }) {
       {myRequests.length>0 && (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Requests ({myRequests.length})</div>
-          {myRequests.slice(0,10).map(req=>(
+          {myRequests.slice(0,15).map(req=>(
             <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-                <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:editingReq===req.id?10:0}}>
+                <div style={{flex:1}}>
                   <div style={{fontWeight:700,fontSize:13}}>{fmtDate(req.date)} · {req.items.length} item(s)</div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                    {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
-                  </div>
-                  {req.status!=="pending"&&req.items.some(it=>it.approvedQty!==null)&&(
-                    <div style={{fontSize:11,color:T.txt3,marginTop:2}}>
-                      Approved: {req.items.map(it=>`${it.productName}×${it.approvedQty??0}`).join(", ")}
-                    </div>
+                  {editingReq!==req.id && (
+                    <>
+                      <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                        {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                      </div>
+                      {req.status!=="pending"&&req.items.some(it=>it.approvedQty!=null)&&(
+                        <div style={{fontSize:11,color:T.grn,marginTop:2,fontWeight:600}}>
+                          ✅ Released: {req.items.filter(it=>it.approvedQty>0).map(it=>`${it.productName}×${it.approvedQty}`).join(", ")}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-                <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                  {req.status==="pending" && editingReq!==req.id && (
+                    <>
+                      <Btn onClick={()=>startEdit(req)} size="sm" variant="outline">✏️ Edit</Btn>
+                      <Btn onClick={()=>cancelRequest(req)} size="sm" variant="danger">✕ Cancel</Btn>
+                    </>
+                  )}
+                  {req.status==="pending" && editingReq===req.id && (
+                    <>
+                      <Btn onClick={()=>saveEdit(req)} size="sm" variant="amber">💾 Save</Btn>
+                      <Btn onClick={()=>setEditingReq(null)} size="sm" variant="ghost">Cancel</Btn>
+                    </>
+                  )}
+                </div>
               </div>
+              {editingReq===req.id && (
+                <div style={{borderTop:"1px solid "+T.bdr,paddingTop:10}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:8}}>
+                    <thead><tr style={{background:T.navyXL}}>
+                      {["Product","Qty","Notes",""].map(h=><th key={h} style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2}}>{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {editRows.map((row,i)=>(
+                        <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                          <td style={{padding:"5px 6px"}}>
+                            <input list="req-edit-products" value={row.productName}
+                              onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,productName:e.target.value}:r))}
+                              style={{width:"100%",padding:"5px 7px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                          </td>
+                          <td style={{padding:"5px 6px",width:80}}>
+                            <input type="number" value={row.qty} min="1"
+                              onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,qty:e.target.value}:r))}
+                              style={{width:"100%",padding:"5px 7px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                          </td>
+                          <td style={{padding:"5px 6px"}}>
+                            <input value={row.notes||""} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,notes:e.target.value}:r))}
+                              style={{width:"100%",padding:"5px 7px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                          </td>
+                          <td style={{padding:"5px 6px",textAlign:"center",width:30}}>
+                            <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <datalist id="req-edit-products">{(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}</datalist>
+                  <Btn onClick={()=>setEditRows(p=>[...p,{productId:"",productName:"",qty:"",notes:""}])} size="sm" variant="outline">+ Add Row</Btn>
+                </div>
+              )}
             </Card>
           ))}
         </div>
@@ -6643,7 +6717,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     </tr></thead>
                     <tbody>
                       {req.items.map((it,i)=>{
-                        const inv = state.inventory.find(x=>x.productId===it.productId||x.productName===it.productName);
+                        const inv = (state.inventory||[]).find(x=>x.productId===it.productId||x.productName===it.productName);
                         const available = inv?.currentStock||0;
                         const approveQty = editQtys[req.id]?.[i]??it.qty;
                         const isLow = available < it.qty;
@@ -6680,17 +6754,92 @@ function StockRequestsApproval({ user, state, setState, toast }) {
       {history.length>0 && (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
-          {history.slice(0,20).map(req=>(
-            <Card key={req.id} style={{marginBottom:8,opacity:.85,borderLeft:`3px solid ${statusColor(req.status)}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-                <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{req.counterName} · {req.requestedByName}</div>
-                  <div style={{fontSize:12,color:T.txt2}}>{fmtDate(req.date)} · {req.items.map(it=>`${it.productName}×${it.approvedQty??it.qty}`).join(", ")}</div>
+          {history.slice(0,30).map(req=>{
+            const isEditing = expanded===("hist_"+req.id);
+            return (
+              <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6,marginBottom:isEditing?8:0}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{req.counterName} · <span style={{color:T.txt2,fontWeight:400}}>{req.requestedByName}</span></div>
+                    <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                      {fmtDate(req.date)} · {req.items.map(it=>`${it.productName}×${it.approvedQty??it.qty}`).join(", ")}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                    {(req.status==="approved"||req.status==="partial") && (
+                      <Btn onClick={()=>setExpanded(isEditing?null:"hist_"+req.id)} size="sm" variant="outline">
+                        {isEditing?"▲":"✏️ Adjust"}
+                      </Btn>
+                    )}
+                    {req.status==="rejected" && (
+                      <Btn onClick={()=>{
+                        const reopened = {...req, status:"pending", approvedBy:null, approvedAt:null,
+                          items:req.items.map(it=>({...it,approvedQty:null}))};
+                        setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?reopened:r)}));
+                        DB.upsertStockRequest(reopened).catch(console.error);
+                        toast.show("Request reopened for review");
+                      }} size="sm" variant="outline">↩ Reopen</Btn>
+                    )}
+                  </div>
                 </div>
-                <Badge color={statusColor(req.status)}>{req.status}</Badge>
-              </div>
-            </Card>
-          ))}
+                {isEditing && (
+                  <div style={{borderTop:"1px solid "+T.bdr,paddingTop:10}}>
+                    <div style={{fontSize:12,color:T.txt2,marginBottom:8}}>Adjust released quantities (affects inventory balance)</div>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:10}}>
+                      <thead><tr style={{background:T.navyXL}}>
+                        {["Product","Requested","Released","Adjust To","Available"].map(h=>(
+                          <th key={h} style={{padding:"6px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {req.items.map((it,i)=>{
+                          const inv = (state.inventory||[]).find(x=>x.productId===it.productId||x.productName===it.productName);
+                          const curApproved = editQtys["hist_"+req.id]?.[i] ?? it.approvedQty ?? it.qty;
+                          return (
+                            <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                              <td style={{padding:"6px 8px",fontWeight:600}}>{it.productName}</td>
+                              <td style={{padding:"6px 8px",textAlign:"center"}}>{it.qty}</td>
+                              <td style={{padding:"6px 8px",textAlign:"center",color:T.grn,fontWeight:700}}>{it.approvedQty??0}</td>
+                              <td style={{padding:"6px 8px",width:80}}>
+                                <input type="number" value={curApproved} min="0"
+                                  onChange={e=>setEditQtys(p=>({...p,["hist_"+req.id]:{...p["hist_"+req.id],[i]:e.target.value}}))}
+                                  style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                              </td>
+                              <td style={{padding:"6px 8px",textAlign:"center",color:T.grn}}>{inv?.currentStock||0}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={async()=>{
+                        const adjItems = req.items.map((it,i)=>({
+                          ...it, approvedQty:Number(editQtys["hist_"+req.id]?.[i]??it.approvedQty??it.qty)
+                        }));
+                        // Recalculate inventory: reverse old release, apply new
+                        const newInventory = (state.inventory||[]).map(inv=>{
+                          const oldIt = req.items.find(x=>x.productId===inv.productId||x.productName===inv.productName);
+                          const newIt = adjItems.find(x=>x.productId===inv.productId||x.productName===inv.productName);
+                          if (!oldIt||!newIt) return inv;
+                          const diff = Number(newIt.approvedQty||0) - Number(oldIt.approvedQty||0);
+                          return {...inv, currentStock:Math.max(0,(Number(inv.currentStock)||0)-diff),
+                            lastUpdated:today(), updatedBy:user.id};
+                        });
+                        const adjReq = {...req,items:adjItems,approvedBy:user.id,approvedAt:new Date().toISOString()};
+                        setState(p=>({...p,inventory:newInventory,stockRequests:p.stockRequests.map(r=>r.id===req.id?adjReq:r)}));
+                        await DB.upsertInventory(newInventory).catch(console.error);
+                        await DB.upsertStockRequest(adjReq).catch(console.error);
+                        toast.show("Stock adjustment saved ✅");
+                        setExpanded(null);
+                      }} variant="amber" size="sm">💾 Save Adjustment</Btn>
+                      <Btn onClick={()=>setExpanded(null)} variant="ghost" size="sm">Cancel</Btn>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
