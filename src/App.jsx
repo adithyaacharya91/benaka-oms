@@ -3158,6 +3158,34 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const lastMonthRev = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)).reduce((s,r)=>s+r.totalAmount,0);
   const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev) * 100 / lastMonthRev) : 0;
 
+  // Grand totals from counterStats
+  const svcCounters  = counterStats.filter(c=>c.name!=="OFFICE");
+  const offCounter   = counterStats.find(c=>c.name==="OFFICE");
+
+  // Today totals
+  const gDaySvc      = svcCounters.reduce((s,c)=>s+c.todayAmt,0);
+  const dayBardahlCo = offCounter?.bardahl||0;
+  const dayOtherCo   = offCounter?.otherSal||0;
+  const gDaySales    = dayBardahlCo + dayOtherCo;
+  const gDayTotal    = gDaySvc + gDaySales;
+
+  // Yesterday totals (for day-over-day growth)
+  const yest = new Date(today_); yest.setDate(yest.getDate()-1);
+  const yesterdayStr = yest.toISOString().split("T")[0];
+  const yesterdayTotal = state.serviceReports
+    .filter(r=>r.date===yesterdayStr)
+    .reduce((s,r)=>s+r.totalAmount,0);
+  const dayGrowth = yesterdayTotal > 0
+    ? Math.round((gDayTotal - yesterdayTotal) * 100 / yesterdayTotal)
+    : gDayTotal > 0 ? 100 : 0;
+
+  // Month totals
+  const gMoSvc       = svcCounters.reduce((s,c)=>s+c.svcTotal,0);
+  const moBardahlCo  = offCounter?.bardahl||0;
+  const moOtherCo    = offCounter?.otherSal||0;
+  const gMoSales     = moBardahlCo + moOtherCo;
+  const gMoTotal     = gMoSvc + gMoSales;
+
   // Daily revenue for bar chart (last 14 days)
   const last14 = Array.from({length:14},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().split("T")[0]; });
   const dailyRevs = last14.map(d => ({ date:d, rev:state.serviceReports.filter(r=>r.date===d).reduce((s,r)=>s+r.totalAmount,0) }));
@@ -3188,15 +3216,21 @@ function MDDashboard({ user, state, syncFromCloud }) {
             <button onClick={refresh} style={{ background:"rgba(255,255,255,.15)", border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"7px 14px", color:"#fff", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>🔄 Refresh</button>
           </div>
         </div>
-        {/* Key metrics */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginTop:20 }}>
+        {/* Key metrics — 4×3 grid matching dashboard spec */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:20 }}>
           {[
-            { l:"Today's Revenue", v:fmtCurr(todayRevenue), i:"📅" },
-            { l:"Period Revenue", v:fmtCurr(totalRevenue), i:"💰" },
-            { l:"Month Growth", v:`${growth>=0?"+":""}${growth}%`, i:"📈", c:growth>=0?"#86EFAC":"#FCA5A5" },
-            { l:"Reports Today", v:`${todayReports.length}/${state.counters.length}`, i:"📋" },
-            { l:"Pending Leaves", v:pendingLeaves.length, i:"✅", c:pendingLeaves.length>0?"#FCA5A5":"#86EFAC" },
-            { l:"Absent Today", v:absentToday.length, i:"👥" },
+            { l:"Today Service",  v:fmtCurr(gDaySvc),   i:"🔧", c:"#bfdbfe" },
+            { l:"Today Sales",    v:fmtCurr(gDaySales),  i:"🛢", c:"#bbf7d0" },
+            { l:"Today Total",    v:fmtCurr(gDayTotal),  i:"💰", c:"#fde68a" },
+            { l:"Day Growth",     v:(dayGrowth>=0?"+":"")+dayGrowth+"%", i:dayGrowth>=0?"📈":"📉", c:dayGrowth>=0?"#86EFAC":"#FCA5A5" },
+            { l:"Month Service",  v:fmtCurr(gMoSvc),    i:"📅", c:"#bfdbfe" },
+            { l:"Month Sales",    v:fmtCurr(gMoSales),   i:"📊", c:"#bbf7d0" },
+            { l:"Month Total",    v:fmtCurr(gMoTotal),   i:"🏆", c:"#fde68a" },
+            { l:"Monthly Growth", v:(growth>=0?"+":"")+growth+"%", i:growth>=0?"📈":"📉", c:growth>=0?"#86EFAC":"#FCA5A5" },
+            { l:"Present Today",  v:presentToday.length+halfToday.length, i:"✅", c:"#86EFAC" },
+            { l:"Absent Today",   v:absentToday.length,  i:"❌", c:"#FCA5A5" },
+            { l:"Not Marked",     v:notMarkedToday,       i:"❓", c:"rgba(255,255,255,.5)" },
+            { l:"Total Staff",    v:activeStaff.length,   i:"👥", c:"#e9d5ff" },
           ].map(s=>(
             <div key={s.l} style={{ background:"rgba(255,255,255,.12)", borderRadius:10, padding:"12px 14px" }}>
               <div style={{ fontSize:10, opacity:.7, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em" }}>{s.l}</div>
@@ -4124,13 +4158,22 @@ function ExecutiveReportGenerator({ state }) {
       </div>
 
       {/* Grand summary bar */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
-        <StatCard label="Today Service" value={fmtCurr(gDaySvc)} color={T.navy} icon="🔧"/>
-        <StatCard label="Today Bardahl" value={fmtCurr(dayBardahlCo)} color="#15803D" icon="🛢"/>
-        <StatCard label="Today Other Sales" value={fmtCurr(dayOtherCo)} color="#0369A1" icon="🛒"/>
-        <StatCard label="Today Grand Total" value={fmtCurr(gDayTotal)} color={T.amber} icon="💰"/>
-        <StatCard label="Month Service" value={fmtCurr(gMoSvc)} color={T.navy} icon="📅"/>
-        <StatCard label="Month Total" value={fmtCurr(gMoTotal)} color={T.amber} icon="📊"/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+        {/* Row 1 — Today */}
+        <StatCard label="Today Service"   value={fmtCurr(gDaySvc)}   color={T.navy}    icon="🔧"/>
+        <StatCard label="Today Sales"     value={fmtCurr(gDaySales)}  color="#15803D"   icon="🛢"/>
+        <StatCard label="Today Total"     value={fmtCurr(gDayTotal)}  color={T.amber}   icon="💰"/>
+        <StatCard label="Day Growth"      value={(dayGrowth>=0?"+":"")+dayGrowth+"%"} color={dayGrowth>=0?T.grn:T.red} icon={dayGrowth>=0?"📈":"📉"}/>
+        {/* Row 2 — Monthly */}
+        <StatCard label="Month Service"   value={fmtCurr(gMoSvc)}    color={T.navy}    icon="📅"/>
+        <StatCard label="Month Sales"     value={fmtCurr(gMoSales)}   color="#15803D"   icon="📊"/>
+        <StatCard label="Month Total"     value={fmtCurr(gMoTotal)}   color={T.amber}   icon="🏆"/>
+        <StatCard label="Monthly Growth"  value={(growth>=0?"+":"")+growth+"%"} color={growth>=0?T.grn:T.red} icon={growth>=0?"📈":"📉"}/>
+        {/* Row 3 — Attendance */}
+        <StatCard label="Present Today"   value={presentToday.length+halfToday.length} color={T.grn} icon="✅"/>
+        <StatCard label="Absent Today"    value={absentToday.length}  color={T.red}     icon="❌"/>
+        <StatCard label="Not Marked"      value={notMarkedToday}      color={T.txt2}    icon="❓"/>
+        <StatCard label="Total Staff"     value={activeStaff.length}  color="#7C3AED"   icon="👥"/>
       </div>
 
       {summaries.length===0 && (
