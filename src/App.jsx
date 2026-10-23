@@ -3163,6 +3163,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const offCounter   = counterStats.find(c=>c.name==="OFFICE");
 
   // Today totals
+  const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
+  const getEntriesMD  = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
   const today_         = today();
   const todayOffId   = state.counters.find(c=>c.name==="OFFICE")?.id;
   const todaySvcReps = state.serviceReports.filter(r=>r.date===today_&&r.counterId!==todayOffId&&r.counterName!=="OFFICE");
@@ -3188,8 +3190,6 @@ function MDDashboard({ user, state, syncFromCloud }) {
     : gDayTotal > 0 ? 100 : 0;
 
   // Month totals — computed directly from state, NOT from counterStats (which uses range filter)
-  const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
-  const getEntriesMD  = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
   const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!(state.counters.find(c=>c.name==="OFFICE")?.id===r.counterId||r.counterName==="OFFICE"));
   const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&(state.counters.find(c=>c.name==="OFFICE")?.id===r.counterId||r.counterName==="OFFICE"));
   const gMoSvc        = moReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
