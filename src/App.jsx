@@ -4075,6 +4075,7 @@ function ExecutiveReportGenerator({ state }) {
   const presentToday   = state.attendance.filter(a=>a.date===selDate&&a.status==="present");
   const halfToday      = state.attendance.filter(a=>a.date===selDate&&a.status==="half_day");
   const notMarkedToday = activeStaff.filter(u=>!state.attendance.some(a=>a.staffId===u.id&&a.date===selDate)).length;
+  const absentToday    = state.attendance.filter(a=>a.date===selDate&&a.status==="absent");
   // Day growth vs previous day
   const _prevDay = new Date(selDate+"T00:00:00"); _prevDay.setDate(_prevDay.getDate()-1);
   const _prevStr = `${_prevDay.getFullYear()}-${String(_prevDay.getMonth()+1).padStart(2,"0")}-${String(_prevDay.getDate()).padStart(2,"0")}`;
