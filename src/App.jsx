@@ -6350,42 +6350,48 @@ function StaffNotesViewer({ user, state, setState, toast }) {
 
 // ─── Stock Check-in (Office/Manager enters stock received from godown) ────────
 function StockCheckin({ user, state, setState, toast }) {
-  const products = state.workTypes || [];
-  const [rows, setRows]   = useState([{ productId:"", productName:"", qty:"", unit:"pcs", notes:"" }]);
-  const [date, setDate]   = useState(today());
-  const [submitting, setSubmitting] = useState(false);
+  const [rows, setRows]     = useState([{ productName:"", qty:"", unit:"pcs", notes:"" }]);
+  const [date, setDate]     = useState(today());
+  const [saving, setSaving] = useState(false);
 
-  const addRow = () => setRows(p=>[...p,{ productId:"", productName:"", qty:"", unit:"pcs", notes:"" }]);
+  const addRow = () => setRows(p=>[...p,{productName:"",qty:"",unit:"pcs",notes:""}]);
   const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
   const upRow  = (i,k,v) => setRows(p=>p.map((r,j)=>j===i?{...r,[k]:v}:r));
 
   const submit = async () => {
-    const valid = rows.filter(r=>r.productName&&Number(r.qty)>0);
+    const valid = rows.filter(r=>r.productName.trim() && Number(r.qty)>0);
     if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
-    setSubmitting(true);
-    const newInventory = [...(state.inventory||[])];
-    const newTxs = [];
+    setSaving(true);
+
+    // Build new inventory by copying each item immutably
+    const inv = [...(state.inventory||[])];
+    const txs = [];
+
     valid.forEach(row => {
-      const pid = row.productId || row.productName.toLowerCase().replace(/\s+/g,"_");
-      const existing = newInventory.find(i=>i.productId===pid||i.productName===row.productName);
-      if (existing) {
-        existing.currentStock = (Number(existing.currentStock)||0) + Number(row.qty);
-        existing.lastUpdated = date; existing.updatedBy = user.id;
+      const name = row.productName.trim();
+      const qty  = Number(row.qty);
+      const idx  = inv.findIndex(i=>i.productName===name);
+      if (idx >= 0) {
+        // Replace the item with a new object (immutable)
+        inv[idx] = { ...inv[idx], currentStock: Number(inv[idx].currentStock||0) + qty,
+          lastUpdated:date, updatedBy:user.id };
       } else {
-        newInventory.push({ id:`inv_${pid}`, productId:pid, productName:row.productName,
-          unit:row.unit||"pcs", currentStock:Number(row.qty), minStock:0,
-          lastUpdated:date, updatedBy:user.id });
+        inv.push({ id:`inv_${name.toLowerCase().replace(/[^a-z0-9]/g,"_")}_${Date.now()}`,
+          productName:name, unit:row.unit||"pcs",
+          currentStock:qty, minStock:0, lastUpdated:date, updatedBy:user.id });
       }
-      newTxs.push({ id:`tx_${Date.now()}_${pid}`, date, type:"checkin",
-        productId:pid, productName:row.productName, qty:Number(row.qty),
+      txs.push({ id:`tx_ci_${name}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        date, type:"checkin", productName:name, qty,
         counterId:"GODOWN", counterName:"Godown", notes:row.notes||"", doneBy:user.id });
     });
-    setState(p=>({...p, inventory:newInventory, stockTransactions:[...(p.stockTransactions||[]),...newTxs]}));
-    await DB.upsertInventory(newInventory).catch(console.error);
-    for (const tx of newTxs) await DB.upsertStockTransaction(tx).catch(console.error);
-    toast.show(`✅ Stock checked in: ${valid.length} product(s)`);
-    setRows([{ productId:"", productName:"", qty:"", unit:"pcs", notes:"" }]);
-    setSubmitting(false);
+
+    setState(p=>({...p, inventory:inv,
+      stockTransactions:[...(p.stockTransactions||[]),...txs]}));
+    await DB.upsertInventory(inv).catch(console.error);
+    for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
+    toast.show(`✅ Checked in ${valid.length} product(s)`);
+    setRows([{productName:"",qty:"",unit:"pcs",notes:""}]);
+    setSaving(false);
   };
 
   return (
@@ -6394,110 +6400,143 @@ function StockCheckin({ user, state, setState, toast }) {
       <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter stock received from the godown</div>
       <Card style={{marginBottom:20}}>
         <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:14}}/>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
-            <thead>
-              <tr style={{background:T.navyXL}}>
-                {["Product","Qty","Unit","Notes",""].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:11,color:T.txt2,textTransform:"uppercase"}}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row,i)=>(
-                <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                  <td style={{padding:"6px 6px"}}>
-                    <input list="inv-products" value={row.productName} onChange={e=>{
-                      const wt = state.workTypes.find(w=>w.name===e.target.value);
-                      upRow(i,"productName",e.target.value);
-                      if(wt) upRow(i,"productId",wt.id);
-                    }} placeholder="Product name..." style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"6px 6px",width:90}}>
-                    <input type="number" value={row.qty} onChange={e=>upRow(i,"qty",e.target.value)} min="0"
-                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"6px 6px",width:90}}>
-                    <select value={row.unit} onChange={e=>upRow(i,"unit",e.target.value)}
-                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-                      {["pcs","ltr","kg","ml","gm","box","roll","pair"].map(u=><option key={u}>{u}</option>)}
-                    </select>
-                  </td>
-                  <td style={{padding:"6px 6px"}}>
-                    <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)} placeholder="Optional..."
-                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"6px 6px",width:40,textAlign:"center"}}>
-                    <button onClick={()=>rmRow(i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.red}}>×</button>
-                  </td>
-                </tr>
+
+        {/* Current stock summary */}
+        {state.inventory?.length>0 && (
+          <div style={{background:T.navyXL,borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12}}>
+            <b>Current Stock:</b>{" "}
+            {(state.inventory||[]).map(i=>`${i.productName}: ${i.currentStock} ${i.unit}`).join(" · ")}
+          </div>
+        )}
+
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12,minWidth:500}}>
+          <thead>
+            <tr style={{background:T.navyXL}}>
+              {["Product","Qty","Unit","Notes",""].map(h=>(
+                <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
               ))}
-            </tbody>
-          </table>
-        </div>
-        <datalist id="inv-products">{(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}</datalist>
-        <div style={{display:"flex",gap:8,marginTop:12}}>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row,i)=>(
+              <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                <td style={{padding:"5px 6px"}}>
+                  <input list="ci-products" value={row.productName}
+                    onChange={e=>upRow(i,"productName",e.target.value)}
+                    placeholder="Product name..."
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:80}}>
+                  <input type="number" value={row.qty} min="0"
+                    onChange={e=>upRow(i,"qty",e.target.value)}
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:80}}>
+                  <select value={row.unit} onChange={e=>upRow(i,"unit",e.target.value)}
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}>
+                    {["pcs","ltr","kg","ml","gm","box","roll","pair"].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                </td>
+                <td style={{padding:"5px 6px"}}>
+                  <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
+                    placeholder="Optional..."
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:36,textAlign:"center"}}>
+                  <button onClick={()=>rmRow(i)}
+                    style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.red,lineHeight:1}}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <datalist id="ci-products">
+          {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
+          {(state.inventory||[]).map(i=><option key={i.id} value={i.productName}/>)}
+        </datalist>
+        <div style={{display:"flex",gap:8}}>
           <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
-          <Btn onClick={submit} variant="amber" disabled={submitting}>{submitting?"Saving...":"💾 Check In Stock"}</Btn>
+          <Btn onClick={submit} variant="amber" disabled={saving}>
+            {saving?"Saving...":"💾 Check In Stock"}
+          </Btn>
         </div>
       </Card>
+
+      {/* Recent check-ins */}
+      {(state.stockTransactions||[]).filter(t=>t.type==="checkin").slice(0,5).length>0 && (
+        <div>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.txt2}}>Recent Check-ins</div>
+          {(state.stockTransactions||[]).filter(t=>t.type==="checkin")
+            .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(tx=>(
+            <div key={tx.id} style={{fontSize:12,color:T.txt2,padding:"4px 0",borderBottom:"1px solid "+T.bdr}}>
+              {fmtDate(tx.date)} · <b>{tx.productName}</b> · +{tx.qty} {tx.unit||"pcs"}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Stock Request (Executive requests stock for their counter) ───────────────
 function StockRequest({ user, state, setState, toast }) {
-  const myCounter = state.counters.find(c=>c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id));
-  const [rows, setRows]   = useState([{ productId:"", productName:"", qty:"", notes:"" }]);
+  const myCounter = state.counters.find(c=>
+    c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)||
+    (user.role==="office"&&c.name==="OFFICE")
+  );
+  const [rows, setRows]       = useState([{productName:"",qty:"",notes:""}]);
   const [urgency, setUrgency] = useState("normal");
-  const [submitting, setSubmitting] = useState(false);
-  const myRequests = (state.stockRequests||[]).filter(r=>r.requestedBy===user.id).sort((a,b)=>b.date.localeCompare(a.date));
-  const [editingReq, setEditingReq] = useState(null);  // reqId being edited
+  const [saving, setSaving]   = useState(false);
+  const [editingReq, setEditingReq] = useState(null);
   const [editRows, setEditRows]     = useState([]);
 
-  const startEdit = (req) => {
-    setEditingReq(req.id);
-    setEditRows(req.items.map(it=>({...it})));
+  const addRow = () => setRows(p=>[...p,{productName:"",qty:"",notes:""}]);
+  const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
+  const upRow  = (i,k,v) => setRows(p=>p.map((r,j)=>j===i?{...r,[k]:v}:r));
+
+  const myRequests = (state.stockRequests||[])
+    .filter(r=>r.requestedBy===user.id)
+    .sort((a,b)=>b.date.localeCompare(a.date));
+
+  const submit = async () => {
+    const valid = rows.filter(r=>r.productName.trim()&&Number(r.qty)>0);
+    if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
+    if (!myCounter) { toast.show("No counter assigned to you","error"); return; }
+    setSaving(true);
+    const req = {
+      id:`req_${user.id}_${Date.now()}`,
+      date:today(), counterId:myCounter.id, counterName:myCounter.name,
+      requestedBy:user.id, requestedByName:user.name,
+      items: valid.map(r=>({
+        productName:r.productName.trim(), qty:Number(r.qty),
+        approvedQty:null, notes:r.notes||"", urgency
+      })),
+      status:"pending", notes:"", approvedBy:null, approvedAt:null,
+    };
+    setState(p=>({...p, stockRequests:[...(p.stockRequests||[]),req]}));
+    await DB.upsertStockRequest(req).catch(console.error);
+    toast.show(`📦 Request submitted — ${valid.length} item(s)`);
+    setRows([{productName:"",qty:"",notes:""}]);
+    setSaving(false);
   };
+
   const saveEdit = async (req) => {
-    const valid = editRows.filter(r=>r.productName&&Number(r.qty)>0);
+    const valid = editRows.filter(r=>r.productName.trim()&&Number(r.qty)>0);
     if (!valid.length) { toast.show("At least one item required","error"); return; }
-    const updated = {...req, items:valid};
-    setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+    const updated = {...req, items:valid.map(r=>({...r,qty:Number(r.qty),approvedQty:null}))};
+    setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
     await DB.upsertStockRequest(updated).catch(console.error);
     toast.show("Request updated ✅");
     setEditingReq(null);
   };
-  const cancelRequest = async (req) => {
+
+  const cancelReq = async (req) => {
     const updated = {...req, status:"cancelled"};
-    setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+    setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
     await DB.upsertStockRequest(updated).catch(console.error);
     toast.show("Request cancelled");
   };
 
-  const addRow = () => setRows(p=>[...p,{ productId:"", productName:"", qty:"", notes:"" }]);
-  const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
-  const upRow  = (i,k,v) => setRows(p=>p.map((r,j)=>j===i?{...r,[k]:v}:r));
-
-  const submit = async () => {
-    const valid = rows.filter(r=>r.productName&&Number(r.qty)>0);
-    if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
-    if (!myCounter) { toast.show("No counter assigned to you","error"); return; }
-    setSubmitting(true);
-    const req = {
-      id: `req_${user.id}_${Date.now()}`,
-      date: today(), counterId: myCounter.id, counterName: myCounter.name,
-      requestedBy: user.id, requestedByName: user.name,
-      items: valid.map(r=>({ productId:r.productId||r.productName, productName:r.productName,
-        qty:Number(r.qty), approvedQty:null, notes:r.notes||"", urgency })),
-      status:"pending", notes:"", approvedBy:null, approvedAt:null,
-    };
-    setState(p=>({...p, stockRequests:[...(p.stockRequests||[]), req]}));
-    await DB.upsertStockRequest(req).catch(console.error);
-    toast.show(`📦 Stock request submitted (${valid.length} items)`);
-    setRows([{ productId:"", productName:"", qty:"", notes:"" }]);
-    setSubmitting(false);
-  };
-
-  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[s]||T.txt2);
+  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red,cancelled:T.txt2}[s]||T.txt2);
 
   return (
     <div>
@@ -6509,9 +6548,8 @@ function StockRequest({ user, state, setState, toast }) {
       {myCounter && (
         <Card style={{marginBottom:20}}>
           <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{fontSize:13,fontWeight:700,color:T.navy}}>{myCounter.name}</div>
-            <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
-              <span style={{fontSize:11,color:T.txt2}}>Urgency:</span>
+            <span style={{fontSize:13,fontWeight:700,color:T.navy}}>📍 {myCounter.name}</span>
+            <div style={{marginLeft:"auto",display:"flex",gap:6}}>
               {["normal","urgent"].map(u=>(
                 <button key={u} onClick={()=>setUrgency(u)} style={{
                   padding:"4px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
@@ -6524,109 +6562,120 @@ function StockRequest({ user, state, setState, toast }) {
           </div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
             <thead><tr style={{background:T.navyXL}}>
-              {["Product","Qty Needed","Notes",""].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>)}
+              {["Product","Qty Needed","Notes",""].map(h=>(
+                <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+              ))}
             </tr></thead>
             <tbody>
               {rows.map((row,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                  <td style={{padding:"6px 6px"}}>
-                    <input list="req-products" value={row.productName} onChange={e=>{
-                      const wt=state.workTypes.find(w=>w.name===e.target.value);
-                      upRow(i,"productName",e.target.value);
-                      if(wt) upRow(i,"productId",wt.id);
-                    }} placeholder="Product..." style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"6px 6px",width:100}}>
-                    <input type="number" value={row.qty} onChange={e=>upRow(i,"qty",e.target.value)} min="1"
+                  <td style={{padding:"5px 6px"}}>
+                    <input list="req-products" value={row.productName}
+                      onChange={e=>upRow(i,"productName",e.target.value)}
+                      placeholder="Product..."
                       style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                   </td>
-                  <td style={{padding:"6px 6px"}}>
-                    <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)} placeholder="Reason..."
+                  <td style={{padding:"5px 6px",width:90}}>
+                    <input type="number" value={row.qty} min="1"
+                      onChange={e=>upRow(i,"qty",e.target.value)}
                       style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                   </td>
-                  <td style={{padding:"6px 6px",width:40,textAlign:"center"}}>
-                    <button onClick={()=>rmRow(i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.red}}>×</button>
+                  <td style={{padding:"5px 6px"}}>
+                    <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
+                      placeholder="Reason..."
+                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"5px 6px",width:36,textAlign:"center"}}>
+                    <button onClick={()=>rmRow(i)}
+                      style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.red}}>×</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <datalist id="req-products">{(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}</datalist>
+          <datalist id="req-products">
+            {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
+            {(state.inventory||[]).map(i=><option key={i.id} value={i.productName}/>)}
+          </datalist>
           <div style={{display:"flex",gap:8}}>
             <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
-            <Btn onClick={submit} variant="amber" disabled={submitting}>{submitting?"Submitting...":"📤 Submit Request"}</Btn>
+            <Btn onClick={submit} variant="amber" disabled={saving}>
+              {saving?"Submitting...":"📤 Submit Request"}
+            </Btn>
           </div>
         </Card>
       )}
+
       {myRequests.length>0 && (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Requests ({myRequests.length})</div>
-          {myRequests.slice(0,15).map(req=>(
+          {myRequests.map(req=>(
             <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:editingReq===req.id?10:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:700,fontSize:13}}>{fmtDate(req.date)} · {req.items.length} item(s)</div>
                   {editingReq!==req.id && (
                     <>
                       <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                        {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                        {req.items.map(it=>`${it.productName} × ${it.qty}`).join(" | ")}
                       </div>
-                      {req.status!=="pending"&&req.items.some(it=>it.approvedQty!=null)&&(
+                      {(req.status==="approved"||req.status==="partial") && (
                         <div style={{fontSize:11,color:T.grn,marginTop:2,fontWeight:600}}>
-                          ✅ Released: {req.items.filter(it=>it.approvedQty>0).map(it=>`${it.productName}×${it.approvedQty}`).join(", ")}
+                          ✅ Released: {req.items.filter(it=>Number(it.approvedQty)>0)
+                            .map(it=>`${it.productName} × ${it.approvedQty}`).join(" | ")}
                         </div>
                       )}
                     </>
                   )}
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                   <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                  {req.status==="pending" && editingReq!==req.id && (
-                    <>
-                      <Btn onClick={()=>startEdit(req)} size="sm" variant="outline">✏️ Edit</Btn>
-                      <Btn onClick={()=>cancelRequest(req)} size="sm" variant="danger">✕ Cancel</Btn>
-                    </>
-                  )}
-                  {req.status==="pending" && editingReq===req.id && (
-                    <>
-                      <Btn onClick={()=>saveEdit(req)} size="sm" variant="amber">💾 Save</Btn>
-                      <Btn onClick={()=>setEditingReq(null)} size="sm" variant="ghost">Cancel</Btn>
-                    </>
-                  )}
+                  {req.status==="pending" && editingReq!==req.id && <>
+                    <Btn onClick={()=>{setEditingReq(req.id);setEditRows(req.items.map(it=>({...it})));}} size="sm" variant="outline">✏️ Edit</Btn>
+                    <Btn onClick={()=>cancelReq(req)} size="sm" variant="danger">✕</Btn>
+                  </>}
+                  {req.status==="pending" && editingReq===req.id && <>
+                    <Btn onClick={()=>saveEdit(req)} size="sm" variant="amber">💾 Save</Btn>
+                    <Btn onClick={()=>setEditingReq(null)} size="sm" variant="ghost">Cancel</Btn>
+                  </>}
                 </div>
               </div>
               {editingReq===req.id && (
-                <div style={{borderTop:"1px solid "+T.bdr,paddingTop:10}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:8}}>
+                <div style={{marginTop:10,borderTop:"1px solid "+T.bdr,paddingTop:10}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                     <thead><tr style={{background:T.navyXL}}>
-                      {["Product","Qty","Notes",""].map(h=><th key={h} style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2}}>{h}</th>)}
+                      {["Product","Qty","Notes",""].map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:T.txt2}}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {editRows.map((row,i)=>(
                         <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                          <td style={{padding:"5px 6px"}}>
+                          <td style={{padding:"4px 5px"}}>
                             <input list="req-edit-products" value={row.productName}
                               onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,productName:e.target.value}:r))}
-                              style={{width:"100%",padding:"5px 7px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                              style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                           </td>
-                          <td style={{padding:"5px 6px",width:80}}>
+                          <td style={{padding:"4px 5px",width:70}}>
                             <input type="number" value={row.qty} min="1"
                               onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,qty:e.target.value}:r))}
-                              style={{width:"100%",padding:"5px 7px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                              style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                           </td>
-                          <td style={{padding:"5px 6px"}}>
+                          <td style={{padding:"4px 5px"}}>
                             <input value={row.notes||""} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,notes:e.target.value}:r))}
-                              style={{width:"100%",padding:"5px 7px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                              style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                           </td>
-                          <td style={{padding:"5px 6px",textAlign:"center",width:30}}>
-                            <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
+                          <td style={{padding:"4px 5px",width:30,textAlign:"center"}}>
+                            <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))}
+                              style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <datalist id="req-edit-products">{(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}</datalist>
-                  <Btn onClick={()=>setEditRows(p=>[...p,{productId:"",productName:"",qty:"",notes:""}])} size="sm" variant="outline">+ Add Row</Btn>
+                  <datalist id="req-edit-products">
+                    {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
+                    {(state.inventory||[]).map(i=><option key={i.id} value={i.productName}/>)}
+                  </datalist>
+                  <Btn onClick={()=>setEditRows(p=>[...p,{productName:"",qty:"",notes:""}])} size="sm" variant="outline" style={{marginTop:6}}>+ Row</Btn>
                 </div>
               )}
             </Card>
@@ -6637,12 +6686,14 @@ function StockRequest({ user, state, setState, toast }) {
   );
 }
 
-// ─── Stock Requests Approval (Office/Manager approves requests) ───────────────
 function StockRequestsApproval({ user, state, setState, toast }) {
   const pending = (state.stockRequests||[]).filter(r=>r.status==="pending").sort((a,b)=>b.date.localeCompare(a.date));
   const history = (state.stockRequests||[]).filter(r=>r.status!=="pending").sort((a,b)=>b.date.localeCompare(a.date));
-  const [editQtys, setEditQtys] = useState({}); // reqId → {itemIdx → approvedQty}
-  const [expanded, setExpanded] = useState(null);
+  const [editQtys, setEditQtys]   = useState({});
+  const [expanded, setExpanded]   = useState(null);
+
+  // Match inventory item by productName only (reliable)
+  const findInv = (name) => (state.inventory||[]).find(x=>x.productName===name);
 
   const initEdit = (req) => {
     const qtys = {};
@@ -6652,216 +6703,194 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   };
 
   const approve = async (req, status) => {
-    // Use edited qtys if set, otherwise use requested qty (capped at available stock)
+    if (status==="rejected") {
+      const updated = {...req, status:"rejected", approvedBy:user.id, approvedAt:new Date().toISOString()};
+      setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+      await DB.upsertStockRequest(updated).catch(console.error);
+      toast.show("❌ Request rejected");
+      setExpanded(null);
+      return;
+    }
+
+    // Compute approved quantities: capped at available stock
     const approvedItems = req.items.map((it,i)=>{
-      const inv = (state.inventory||[]).find(x=>
-        (it.productId&&it.productId===x.productId) || x.productName===it.productName
-      );
+      const inv       = findInv(it.productName);
       const available = Number(inv?.currentStock||0);
       const requested = Number(it.qty)||0;
       const edited    = editQtys[req.id]?.[i];
-      // If user edited, use their value (capped at available); else use requested (capped at available)
-      const approvedQty = status==="rejected" ? 0
-        : edited !== undefined
-          ? Math.min(Math.max(0,Number(edited)), available)
-          : Math.min(requested, available);
-      return { ...it, approvedQty };
+      const want      = edited!==undefined ? Number(edited) : requested;
+      const approvedQty = Math.min(Math.max(0, want), available);
+      return {...it, approvedQty};
     });
-    const updatedReq = { ...req, items:approvedItems, status, approvedBy:user.id, approvedAt:new Date().toISOString() };
 
-    // Update inventory for approved items
-    if (status==="approved"||status==="partial") {
-      const newInventory = (state.inventory||[]).map(inv=>{
-        const relItem = approvedItems.find(it=>
-          (it.productId&&it.productId===inv.productId) || it.productName===inv.productName
-        );
-        if (!relItem||!relItem.approvedQty) return inv;
-        const newStock = Math.max(0, Number(inv.currentStock||0) - Number(relItem.approvedQty));
-        return {...inv, currentStock:newStock, lastUpdated:today(), updatedBy:user.id};
-      });
-      // Create release transactions
-      const txs = approvedItems.filter(it=>it.approvedQty>0).map(it=>({
-        id:`tx_rel_${req.id}_${it.productId}_${Date.now()}`,
-        date:today(), type:"release", productId:it.productId, productName:it.productName,
-        qty:it.approvedQty, counterId:req.counterId, counterName:req.counterName,
-        requestId:req.id, notes:`Approved by ${user.name}`, doneBy:user.id,
+    const anyReleased = approvedItems.some(it=>it.approvedQty>0);
+    const allFulfilled = approvedItems.every(it=>it.approvedQty>=Number(it.qty));
+    const finalStatus = anyReleased ? (allFulfilled?"approved":"partial") : "rejected";
+
+    const updatedReq = {...req, items:approvedItems, status:finalStatus,
+      approvedBy:user.id, approvedAt:new Date().toISOString()};
+
+    // Deduct from inventory — build completely new array with new objects
+    const newInventory = (state.inventory||[]).map(inv=>{
+      const released = approvedItems.find(it=>it.productName===inv.productName);
+      if (!released || !released.approvedQty) return inv;
+      return {
+        ...inv,
+        currentStock: Math.max(0, Number(inv.currentStock||0) - Number(released.approvedQty)),
+        lastUpdated: today(),
+        updatedBy: user.id,
+      };
+    });
+
+    // Create release transactions
+    const txs = approvedItems
+      .filter(it=>it.approvedQty>0)
+      .map(it=>({
+        id:`tx_rel_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
+        date:today(), type:"release", productName:it.productName, qty:it.approvedQty,
+        counterId:req.counterId, counterName:req.counterName,
+        requestId:req.id, notes:`Released by ${user.name}`, doneBy:user.id,
       }));
-      setState(p=>({...p, inventory:newInventory,
-        stockRequests:p.stockRequests.map(r=>r.id===req.id?updatedReq:r),
-        stockTransactions:[...(p.stockTransactions||[]),...txs]
-      }));
-      await DB.upsertInventory(newInventory).catch(console.error);
-      for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
-    } else {
-      setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updatedReq:r)}));
-    }
+
+    setState(p=>({
+      ...p,
+      inventory: newInventory,
+      stockRequests: p.stockRequests.map(r=>r.id===req.id?updatedReq:r),
+      stockTransactions: [...(p.stockTransactions||[]), ...txs],
+    }));
+
+    await DB.upsertInventory(newInventory).catch(console.error);
+    for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
     await DB.upsertStockRequest(updatedReq).catch(console.error);
-    toast.show(status==="approved"?"✅ Request approved & stock released":status==="partial"?"⚡ Partial stock released":"❌ Request rejected");
+
+    toast.show(finalStatus==="approved"
+      ? `✅ Approved — released ${approvedItems.reduce((s,i)=>s+i.approvedQty,0)} units across ${approvedItems.filter(i=>i.approvedQty>0).length} product(s)`
+      : finalStatus==="partial"
+      ? `⚡ Partial — some items had insufficient stock`
+      : `❌ No stock available to release`
+    );
     setExpanded(null);
   };
 
-  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[s]||T.txt2);
+  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red,cancelled:T.txt2}[s]||T.txt2);
 
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Stock Requests</div>
+
+      {pending.length===0&&history.length===0&&(
+        <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No stock requests yet</div></Card>
+      )}
+
       {pending.length>0 && (
         <div style={{marginBottom:24}}>
-          <div style={{fontSize:14,fontWeight:800,color:T.red,marginBottom:10}}>⏳ Pending ({pending.length})</div>
+          <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:10}}>⏳ Pending ({pending.length})</div>
           {pending.map(req=>(
             <Card key={req.id} style={{marginBottom:12,borderLeft:"4px solid "+T.amber}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                 <div>
                   <div style={{fontWeight:800,fontSize:14}}>{req.counterName}</div>
                   <div style={{fontSize:12,color:T.txt2}}>{req.requestedByName} · {fmtDate(req.date)}</div>
+                  {expanded!==req.id&&<div style={{fontSize:12,color:T.txt2,marginTop:4}}>
+                    {req.items.map(it=>`${it.productName} × ${it.qty}`).join(" | ")}
+                  </div>}
                 </div>
-                <div style={{display:"flex",gap:6}}>
-                  <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
-                    {expanded===req.id?"▲ Collapse":"▼ Review"}
-                  </Btn>
-                </div>
+                <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
+                  {expanded===req.id?"▲ Collapse":"▼ Review"}
+                </Btn>
               </div>
+
               {expanded===req.id && (
-                <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12}}>
+                <div style={{marginTop:12,borderTop:"1px solid "+T.bdr,paddingTop:12}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
                     <thead><tr style={{background:T.navyXL}}>
-                      {["Product","Requested","Approve Qty","Available","Notes"].map(h=>(
+                      {["Product","Requested","Available","Release Qty","Status"].map(h=>(
                         <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
                       ))}
                     </tr></thead>
                     <tbody>
                       {req.items.map((it,i)=>{
-                        const inv = (state.inventory||[]).find(x=>x.productId===it.productId||x.productName===it.productName);
-                        const available = inv?.currentStock||0;
-                        const approveQty = editQtys[req.id]?.[i]??it.qty;
-                        const isLow = available < it.qty;
+                        const inv       = findInv(it.productName);
+                        const available = Number(inv?.currentStock||0);
+                        const releaseQty = Number(editQtys[req.id]?.[i]??it.qty);
+                        const canFulfil  = available >= it.qty;
                         return (
-                          <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                          <tr key={i} style={{borderBottom:"1px solid "+T.bdr,
+                            background:available===0?"#fff5f5":!canFulfil?"#fffbf0":"#f0fff4"}}>
                             <td style={{padding:"7px 10px",fontWeight:600}}>{it.productName}</td>
                             <td style={{padding:"7px 10px",textAlign:"center"}}>{it.qty}</td>
+                            <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700,
+                              color:available===0?T.red:!canFulfil?T.amber:T.grn}}>{available}</td>
                             <td style={{padding:"7px 10px",width:90}}>
-                              <input type="number" value={approveQty} min="0" max={available}
+                              <input type="number" value={releaseQty}
+                                min="0" max={available}
                                 onChange={e=>setEditQtys(p=>({...p,[req.id]:{...p[req.id],[i]:e.target.value}}))}
-                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+
+                                  (releaseQty>available?"#ef4444":T.bdrS),
+                                  borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                             </td>
-                            <td style={{padding:"7px 10px",textAlign:"center",color:isLow?T.red:T.grn,fontWeight:700}}>{available}</td>
-                            <td style={{padding:"7px 10px",fontSize:12,color:T.txt2}}>{it.notes}</td>
+                            <td style={{padding:"7px 10px",fontSize:11}}>
+                              {available===0?<span style={{color:T.red}}>Out of stock</span>
+                                :!canFulfil?<span style={{color:T.amber}}>Partial only ({available} avail)</span>
+                                :<span style={{color:T.grn}}>Can fulfil</span>}
+                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                   <div style={{display:"flex",gap:8}}>
-                    <Btn onClick={()=>approve(req,"approved")} variant="success" size="sm">✅ Approve All</Btn>
-                    <Btn onClick={()=>approve(req,"partial")}  variant="amber"   size="sm">⚡ Partial Release</Btn>
+                    <Btn onClick={()=>approve(req,"approved")} variant="success" size="sm">✅ Release Stock</Btn>
                     <Btn onClick={()=>approve(req,"rejected")} variant="danger"  size="sm">❌ Reject</Btn>
                   </div>
                 </div>
-              )}
-              {expanded!==req.id && (
-                <div style={{fontSize:12,color:T.txt2}}>{req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}</div>
               )}
             </Card>
           ))}
         </div>
       )}
+
       {history.length>0 && (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
-          {history.slice(0,30).map(req=>{
-            const isEditing = expanded===("hist_"+req.id);
-            return (
-              <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6,marginBottom:isEditing?8:0}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:13}}>{req.counterName} · <span style={{color:T.txt2,fontWeight:400}}>{req.requestedByName}</span></div>
-                    <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                      {fmtDate(req.date)} · {req.items.map(it=>`${it.productName}×${it.approvedQty??it.qty}`).join(", ")}
+          {history.slice(0,30).map(req=>(
+            <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>
+                    {req.counterName} · <span style={{color:T.txt2,fontWeight:400}}>{req.requestedByName}</span>
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {fmtDate(req.date)} · Requested: {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                  </div>
+                  {(req.status==="approved"||req.status==="partial")&&(
+                    <div style={{fontSize:11,color:T.grn,marginTop:2}}>
+                      Released: {req.items.filter(it=>Number(it.approvedQty)>0).map(it=>`${it.productName}×${it.approvedQty}`).join(", ")}
                     </div>
-                  </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                    {(req.status==="approved"||req.status==="partial") && (
-                      <Btn onClick={()=>setExpanded(isEditing?null:"hist_"+req.id)} size="sm" variant="outline">
-                        {isEditing?"▲":"✏️ Adjust"}
-                      </Btn>
-                    )}
-                    {req.status==="rejected" && (
-                      <Btn onClick={()=>{
-                        const reopened = {...req, status:"pending", approvedBy:null, approvedAt:null,
-                          items:req.items.map(it=>({...it,approvedQty:null}))};
-                        setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?reopened:r)}));
-                        DB.upsertStockRequest(reopened).catch(console.error);
-                        toast.show("Request reopened for review");
-                      }} size="sm" variant="outline">↩ Reopen</Btn>
-                    )}
-                  </div>
+                  )}
                 </div>
-                {isEditing && (
-                  <div style={{borderTop:"1px solid "+T.bdr,paddingTop:10}}>
-                    <div style={{fontSize:12,color:T.txt2,marginBottom:8}}>Adjust released quantities (affects inventory balance)</div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:10}}>
-                      <thead><tr style={{background:T.navyXL}}>
-                        {["Product","Requested","Released","Adjust To","Available"].map(h=>(
-                          <th key={h} style={{padding:"6px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-                        ))}
-                      </tr></thead>
-                      <tbody>
-                        {req.items.map((it,i)=>{
-                          const inv = (state.inventory||[]).find(x=>x.productId===it.productId||x.productName===it.productName);
-                          const curApproved = editQtys["hist_"+req.id]?.[i] ?? it.approvedQty ?? it.qty;
-                          return (
-                            <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                              <td style={{padding:"6px 8px",fontWeight:600}}>{it.productName}</td>
-                              <td style={{padding:"6px 8px",textAlign:"center"}}>{it.qty}</td>
-                              <td style={{padding:"6px 8px",textAlign:"center",color:T.grn,fontWeight:700}}>{it.approvedQty??0}</td>
-                              <td style={{padding:"6px 8px",width:80}}>
-                                <input type="number" value={curApproved} min="0"
-                                  onChange={e=>setEditQtys(p=>({...p,["hist_"+req.id]:{...p["hist_"+req.id],[i]:e.target.value}}))}
-                                  style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                              </td>
-                              <td style={{padding:"6px 8px",textAlign:"center",color:T.grn}}>{inv?.currentStock||0}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    <div style={{display:"flex",gap:8}}>
-                      <Btn onClick={async()=>{
-                        const adjItems = req.items.map((it,i)=>({
-                          ...it, approvedQty:Number(editQtys["hist_"+req.id]?.[i]??it.approvedQty??it.qty)
-                        }));
-                        // Recalculate inventory: reverse old release, apply new
-                        const newInventory = (state.inventory||[]).map(inv=>{
-                          const oldIt = req.items.find(x=>x.productId===inv.productId||x.productName===inv.productName);
-                          const newIt = adjItems.find(x=>x.productId===inv.productId||x.productName===inv.productName);
-                          if (!oldIt||!newIt) return inv;
-                          // diff > 0 means more released now → deduct more; diff < 0 means less released → add back
-                          const diff = Number(newIt.approvedQty||0) - Number(oldIt.approvedQty||0);
-                          return {...inv, currentStock:Math.max(0, Number(inv.currentStock||0) - diff),
-                            lastUpdated:today(), updatedBy:user.id};
-                        });
-                        const adjReq = {...req,items:adjItems,approvedBy:user.id,approvedAt:new Date().toISOString()};
-                        setState(p=>({...p,inventory:newInventory,stockRequests:p.stockRequests.map(r=>r.id===req.id?adjReq:r)}));
-                        await DB.upsertInventory(newInventory).catch(console.error);
-                        await DB.upsertStockRequest(adjReq).catch(console.error);
-                        toast.show("Stock adjustment saved ✅");
-                        setExpanded(null);
-                      }} variant="amber" size="sm">💾 Save Adjustment</Btn>
-                      <Btn onClick={()=>setExpanded(null)} variant="ghost" size="sm">Cancel</Btn>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                  {req.status==="rejected"&&(
+                    <Btn onClick={()=>{
+                      const r2={...req,status:"pending",approvedBy:null,approvedAt:null,
+                        items:req.items.map(it=>({...it,approvedQty:null}))};
+                      setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?r2:r)}));
+                      DB.upsertStockRequest(r2).catch(console.error);
+                      toast.show("Request reopened");
+                    }} size="sm" variant="outline">↩ Reopen</Btn>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Inventory Dashboard (MD/Manager oversight) ───────────────────────────────
+
 function InventoryDashboard({ user, state, setState, toast }) {
   const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
   const [search, setSearch] = useState("");
