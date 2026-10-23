@@ -106,6 +106,9 @@ const DB = {
   async insertFeedback(fb) {
     return supabase.from("feedback").insert(fb);
   },
+  async upsertFeedback(fb) {
+    return supabase.from("feedback").upsert(fb);
+  },
   // Collection Reports
   async getCollectionReports(filter={}) {
     let url = `${SUPABASE_URL}/rest/v1/collection_reports?select=*`;
@@ -1089,6 +1092,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"staffleaves",  icon:"🗓️", label:"Staff Leaves" },
     { id:"feedback",     icon:"⭐", label:"Customer Feedback" },
     { id:"myleaves",     icon:"🌿", label:"My Leave" },
+    { id:"counternotes",  icon:"📝", label:"Daily Note" },
     { id:"history",      icon:"📁", label:"Report History" },
     { id:"directory",    icon:"👤", label:"Staff Directory" },
   ];
@@ -1105,6 +1109,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
+      {page==="counternotes" && <DailyNotePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="history"     && <SupHistory user={user} state={state}/>}
       {page==="feedback"    && <SupFeedback user={user} state={state}/>}
       {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -1871,6 +1876,7 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
     { id:"financial",   icon:"💹", label:"Financial Trends" },
     { id:"operations",  icon:"🏪", label:"Operations" },
     { id:"targets",     icon:"🎯", label:"Set Targets" },
+    { id:"staffnotes",  icon:"📝", label:"Staff Notes" },
     { id:"feedback",    icon:"💬", label:"Feedback" },
     { id:"myleaves",    icon:"🌿", label:"My Leave" },
     { id:"directory",   icon:"👤", label:"Staff Directory" },
@@ -1890,6 +1896,7 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="people"    && <MgrPeople user={user} state={state} setState={setState} toast={toast}/>}
       {page==="targets"    && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
       {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
+      {page==="staffnotes" && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="colldash"   && <CollectionDashboard state={state} user={user}/>}
       {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
@@ -3012,6 +3019,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
     { id:"salary",      icon:"💳", label:"Salary & P&L" },
     { id:"attendance",  icon:"🗓️", label:"All Attendance" },
     { id:"leaves",      icon:"✅", label:"Leave Approvals" },
+    { id:"staffnotes",  icon:"📝", label:"Staff Notes" },
     { id:"feedback",    icon:"💬", label:"All Feedback" },
     { id:"people",      icon:"👥", label:"Full Org" },
     { id:"directory",   icon:"👤", label:"Staff Directory" },
@@ -3032,6 +3040,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="reports"     && <AllReports state={state}/>}
       {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
+      {page==="staffnotes"  && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
     </Shell>
   );
@@ -3643,6 +3652,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"reports",      icon:"📋",  label:"View Reports" },
     { id:"viewatt",      icon:"📅",  label:"All Attendance" },
     { id:"myleaves",     icon:"🌿",  label:"My Leave" },
+    { id:"counternotes",  icon:"📝",  label:"Daily Note" },
     { id:"execreport",   icon:"📄",  label:"Executive Report" },
     { id:"export",       icon:"📥",  label:"Export Data" },
     { id:"directory",    icon:"👤",  label:"Staff Directory" },
@@ -3657,6 +3667,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="reports"      && <OfficeReports state={state}/>}
       {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
       {page==="myleaves"     && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="counternotes" && <DailyNotePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="colldash"     && <CollectionDashboard state={state} user={user}/>}
       {page==="execreport"   && <ExecutiveReportGenerator state={state}/>}
       {page==="export"       && <OfficeExport state={state} toast={toast}/>}
@@ -5954,6 +5965,256 @@ function DebugReports({ state }) {
           </tbody>
         </table>
       </Card>
+    </div>
+  );
+}
+
+
+// ─── Daily Counter Note / Staff Comment ──────────────────────────────────────
+
+function DailyNotePortal({ user, state, setState, toast }) {
+  const [message, setMessage] = useState("");
+  const [category, setCategory] = useState("general");
+  const [date, setDate]         = useState(today());
+
+  // Determine counters for this user
+  const myCounters = state.counters.filter(c=>
+    c.supervisorId===user.id || (c.supervisorIds||[]).includes(user.id) ||
+    (user.role==="office" && c.name==="OFFICE")
+  );
+  const [selCounter, setSelCounter] = useState("");
+
+  const myNotes = (state.feedback||[])
+    .filter(f=>f.type==="internal"&&f.userId===user.id)
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  const submit = async () => {
+    if (!message.trim()) { toast.show("Please enter your note","error"); return; }
+    const counter = selCounter
+      ? state.counters.find(c=>c.id===selCounter)
+      : myCounters[0];
+    const note = {
+      id: `note_${user.id}_${date}_${Date.now()}`,
+      type: "internal",
+      userId: user.id,
+      userName: user.name,
+      role: user.role,
+      counterId: counter?.id||"",
+      counterName: counter?.name||"",
+      date,
+      category,
+      message: message.trim(),
+      submittedAt: new Date().toISOString(),
+      status: "unread",
+    };
+    setState(p=>({...p, feedback:[...(p.feedback||[]), note]}));
+    DB.upsertFeedback(note).catch(console.error);
+    toast.show("Note submitted to manager ✅");
+    setMessage("");
+  };
+
+  const cats = [
+    {id:"general",  label:"General",      icon:"💬"},
+    {id:"demand",   label:"Demand/Need",   icon:"📦"},
+    {id:"issue",    label:"Issue/Problem", icon:"⚠️"},
+    {id:"suggestion",label:"Suggestion",  icon:"💡"},
+    {id:"achievement",label:"Achievement",icon:"🏆"},
+  ];
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Daily Counter Note</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Send a note to your manager about counter demands, issues or updates</div>
+
+      <Card style={{maxWidth:560,marginBottom:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <Input label="Date" type="date" value={date} onChange={setDate}/>
+          {myCounters.length > 1 && (
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Counter</label>
+              <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
+                style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+                {myCounters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Category selector */}
+        <div style={{marginBottom:12}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:8,textTransform:"uppercase"}}>Category</label>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {cats.map(c=>(
+              <button key={c.id} onClick={()=>setCategory(c.id)} style={{
+                padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                border:"1px solid "+(category===c.id?T.navy:T.bdrS),
+                background:category===c.id?T.navy:"transparent",
+                color:category===c.id?"#fff":T.txt2,transition:"all .15s"
+              }}>{c.icon} {c.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Message</label>
+          <textarea value={message} onChange={e=>setMessage(e.target.value)} rows={4}
+            placeholder="Describe your demand, issue, or update for the day..."
+            style={{width:"100%",padding:"9px 12px",border:"1px solid "+(message?T.navy:T.bdrS),
+              borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+          <div style={{fontSize:11,color:T.txt2,marginTop:4,textAlign:"right"}}>{message.length} chars</div>
+        </div>
+        <Btn onClick={submit} variant="amber" disabled={!message.trim()}>📤 Submit Note</Btn>
+      </Card>
+
+      {/* My note history */}
+      {myNotes.length > 0 && (
+        <div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Notes ({myNotes.length})</div>
+          {myNotes.slice(0,10).map(n=>(
+            <Card key={n.id} style={{marginBottom:8,borderLeft:`3px solid ${
+              n.category==="issue"?"#ef4444":n.category==="demand"?"#f59e0b":
+              n.category==="achievement"?"#10b981":n.category==="suggestion"?"#6366f1":T.navy}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:11,background:T.navyXL,color:T.navy,padding:"2px 8px",borderRadius:20,fontWeight:700}}>
+                      {cats.find(c=>c.id===n.category)?.icon} {cats.find(c=>c.id===n.category)?.label||n.category}
+                    </span>
+                    {n.counterName&&<span style={{fontSize:11,color:T.txt2}}>📍 {n.counterName}</span>}
+                  </div>
+                  <div style={{fontSize:13}}>{n.message}</div>
+                </div>
+                <div style={{textAlign:"right",fontSize:11,color:T.txt2,whiteSpace:"nowrap"}}>
+                  <div>{fmtDate(n.date)}</div>
+                  <Badge color={n.status==="read"?T.grn:T.amber} style={{marginTop:4}}>{n.status==="read"?"Read":"Unread"}</Badge>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Manager/MD: View Staff Notes ────────────────────────────────────────────
+
+function StaffNotesViewer({ user, state, setState, toast }) {
+  const [filterCat, setFilterCat]     = useState("all");
+  const [filterStatus, setFilterStatus] = useState("unread");
+  const [search, setSearch]           = useState("");
+  const dr = useDateRange("week");
+
+  const cats = [
+    {id:"all",label:"All"},
+    {id:"general",label:"💬 General"},
+    {id:"demand",label:"📦 Demand"},
+    {id:"issue",label:"⚠️ Issue"},
+    {id:"suggestion",label:"💡 Suggestion"},
+    {id:"achievement",label:"🏆 Achievement"},
+  ];
+
+  const isMyStaff = (userId) => {
+    const u = state.users.find(x=>x.id===userId);
+    if (!u) return false;
+    if (u.managerId===user.id) return true;
+    // Also show notes from staff whose supervisor reports to this manager
+    const sup = state.users.find(x=>x.id===u.managerId);
+    if (sup?.managerId===user.id) return true;
+    // MD sees all
+    if (user.role==="md") return true;
+    return false;
+  };
+
+  const notes = (state.feedback||[])
+    .filter(n=>n.type==="internal")
+    .filter(n=>isMyStaff(n.userId))
+    .filter(n=>n.date>=dr.from&&n.date<=dr.to)
+    .filter(n=>filterCat==="all"||n.category===filterCat)
+    .filter(n=>filterStatus==="all"||n.status===filterStatus)
+    .filter(n=>!search||n.userName?.toLowerCase().includes(search.toLowerCase())||n.message?.toLowerCase().includes(search.toLowerCase())||n.counterName?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  const unreadCount = notes.filter(n=>n.status==="unread").length;
+
+  const markRead = (id) => {
+    const updated = (state.feedback||[]).map(f=>f.id===id?{...f,status:"read",readAt:new Date().toISOString()}:f);
+    setState(p=>({...p,feedback:updated}));
+    const note = updated.find(f=>f.id===id);
+    if (note) DB.upsertFeedback(note).catch(console.error);
+  };
+
+  const markAllRead = () => {
+    const updated = (state.feedback||[]).map(f=>
+      notes.find(n=>n.id===f.id) ? {...f,status:"read",readAt:new Date().toISOString()} : f
+    );
+    setState(p=>({...p,feedback:updated}));
+    notes.forEach(n=>DB.upsertFeedback({...n,status:"read"}).catch(console.error));
+    toast.show("All notes marked as read ✅");
+  };
+
+  const catColors = {demand:"#f59e0b",issue:"#ef4444",suggestion:"#6366f1",achievement:"#10b981",general:T.navy};
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:18,fontWeight:800}}>Staff Notes</div>
+          {unreadCount>0&&<div style={{fontSize:12,color:T.red,fontWeight:600}}>{unreadCount} unread</div>}
+        </div>
+        {unreadCount>0&&<Btn onClick={markAllRead} size="sm" variant="outline">Mark All Read</Btn>}
+      </div>
+
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center",marginTop:8}}>
+        {["all","unread","read"].map(s=>(
+          <button key={s} onClick={()=>setFilterStatus(s)} style={{
+            padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(filterStatus===s?T.navy:T.bdrS),background:filterStatus===s?T.navy:"transparent",color:filterStatus===s?"#fff":T.txt2
+          }}>{s==="all"?"All":s==="unread"?"Unread":"Read"}</button>
+        ))}
+        <div style={{width:1,height:20,background:T.bdr}}/>
+        {cats.map(c=>(
+          <button key={c.id} onClick={()=>setFilterCat(c.id)} style={{
+            padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(filterCat===c.id?"#6366f1":T.bdrS),background:filterCat===c.id?"#6366f1":"transparent",color:filterCat===c.id?"#fff":T.txt2
+          }}>{c.label}</button>
+        ))}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff, counter, message..."
+          style={{padding:"5px 12px",border:"1px solid "+T.bdrS,borderRadius:20,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:160}}/>
+      </div>
+
+      {notes.length===0&&<Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No notes for selected period</div></Card>}
+
+      {notes.map(n=>(
+        <Card key={n.id} style={{marginBottom:8,borderLeft:`3px solid ${catColors[n.category]||T.navy}`,
+          background:n.status==="unread"?"#FFFDF7":"#fff",opacity:n.status==="read"?.85:1}}>
+          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
+                <span style={{fontWeight:700,fontSize:13}}>{n.userName}</span>
+                <Badge color={ROLE_COLORS[n.role]||T.navy}>{ROLE_LABELS[n.role]||n.role}</Badge>
+                {n.counterName&&<span style={{fontSize:11,color:T.txt2}}>📍 {n.counterName}</span>}
+                <span style={{fontSize:11,background:catColors[n.category]+"22",color:catColors[n.category]||T.navy,padding:"1px 8px",borderRadius:20,fontWeight:700}}>
+                  {cats.find(c=>c.id===n.category)?.label||n.category}
+                </span>
+              </div>
+              <div style={{fontSize:13,lineHeight:1.5}}>{n.message}</div>
+            </div>
+            <div style={{textAlign:"right",minWidth:80}}>
+              <div style={{fontSize:11,color:T.txt2}}>{fmtDate(n.date)}</div>
+              <div style={{fontSize:10,color:T.txt3,marginTop:2}}>{n.submittedAt?.split("T")[1]?.slice(0,5)||""}</div>
+              {n.status==="unread"&&(
+                <button onClick={()=>markRead(n.id)} style={{
+                  marginTop:6,padding:"3px 10px",borderRadius:20,fontSize:11,cursor:"pointer",
+                  border:"1px solid "+T.navy,background:"transparent",color:T.navy,fontFamily:"inherit",fontWeight:600
+                }}>Mark Read</button>
+              )}
+            </div>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }
