@@ -7044,6 +7044,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                           toast.show("Request deleted");
                         }} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15,padding:"2px 6px"}}>🗑</button>
                       </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
