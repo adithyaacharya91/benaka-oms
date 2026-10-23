@@ -159,6 +159,52 @@ const DB = {
     // Fallback: just the base columns
     return supabase.from("collection_reports").upsert(row);
   },
+  // Inventory
+  async getInventory() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const d = await r.json(); return Array.isArray(d) ? d : [];
+  },
+  async upsertInventory(items) {
+    const rows = (Array.isArray(items)?items:[items]).map(i=>({
+      id: i.id, product_id: i.productId||i.id, product_name: i.productName||i.name||"",
+      unit: i.unit||"pcs", current_stock: Number(i.currentStock)||0,
+      min_stock: Number(i.minStock)||0, last_updated: i.lastUpdated||today(),
+      updated_by: i.updatedBy||"",
+    }));
+    const res = await supabase.from("inventory").upsert(rows);
+    if (res&&res.code) console.error("upsertInventory failed:", res.message);
+    return res;
+  },
+  async getStockTransactions() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_transactions?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const d = await r.json(); return Array.isArray(d) ? d : [];
+  },
+  async upsertStockTransaction(tx) {
+    const row = {
+      id: tx.id, date: tx.date, type: tx.type, product_id: tx.productId||"",
+      product_name: tx.productName||"", qty: Number(tx.qty)||0,
+      counter_id: tx.counterId||"", counter_name: tx.counterName||"",
+      request_id: tx.requestId||null, notes: tx.notes||"", done_by: tx.doneBy||"",
+    };
+    return supabase.from("stock_transactions").upsert(row);
+  },
+  async getStockRequests() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_requests?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const d = await r.json(); return Array.isArray(d) ? d : [];
+  },
+  async upsertStockRequest(req) {
+    const row = {
+      id: req.id, date: req.date, counter_id: req.counterId||"",
+      counter_name: req.counterName||"", requested_by: req.requestedBy||"",
+      requested_by_name: req.requestedByName||"",
+      items: JSON.stringify(req.items||[]),
+      status: req.status||"pending", notes: req.notes||"",
+      approved_by: req.approvedBy||null, approved_at: req.approvedAt||null,
+    };
+    const res = await supabase.from("stock_requests").upsert(row);
+    if (res&&res.code) console.error("upsertStockRequest failed:", res.message);
+    return res;
+  },
   // Salaries
   async getSalaries(month) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/salaries?select=*${month?`&month=eq.${month}`:""}`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -283,10 +329,10 @@ function useSupabaseSync(localState, setLocalState) {
   const syncFromCloud = useCallback(async () => {
     setSyncStatus("syncing");
     try {
-      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves] = await Promise.all([
+      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves, dbInventory, dbStockTx, dbStockReqs] = await Promise.all([
         DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(),
         DB.getSalaries(), DB.getCollectionReports(), DB.getConfig(),
-        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves()
+        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves(), DB.getInventory(), DB.getStockTransactions(), DB.getStockRequests()
       ]);
 
       // Check if tables exist — Supabase returns {code:"42P01"} if table missing
@@ -381,6 +427,26 @@ function useSupabaseSync(localState, setLocalState) {
         passwords: pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
         counters:  mappedCounters  || p.counters,
         workTypes: mappedWorkTypes || p.workTypes,
+        inventory: Array.isArray(dbInventory) && dbInventory.length>0 ? dbInventory.map(i=>({
+          id: i.id, productId: i.product_id||i.id, productName: i.product_name||"",
+          unit: i.unit||"pcs", currentStock: Number(i.current_stock)||0,
+          minStock: Number(i.min_stock)||0, lastUpdated: i.last_updated||"", updatedBy: i.updated_by||"",
+        })) : p.inventory,
+        stockTransactions: Array.isArray(dbStockTx) && dbStockTx.length>0 ? dbStockTx.map(t=>({
+          id: t.id, date: t.date, type: t.type, productId: t.product_id||"",
+          productName: t.product_name||"", qty: Number(t.qty)||0,
+          counterId: t.counter_id||"", counterName: t.counter_name||"",
+          requestId: t.request_id||null, notes: t.notes||"", doneBy: t.done_by||"",
+        })) : p.stockTransactions,
+        stockRequests: Array.isArray(dbStockReqs) && dbStockReqs.length>0 ? dbStockReqs.map(r=>{
+          let items=[]; try{items=JSON.parse(r.items||"[]");}catch(e){}
+          return {
+            id: r.id, date: r.date, counterId: r.counter_id||"", counterName: r.counter_name||"",
+            requestedBy: r.requested_by||"", requestedByName: r.requested_by_name||"",
+            items, status: r.status||"pending", notes: r.notes||"",
+            approvedBy: r.approved_by||null, approvedAt: r.approved_at||null,
+          };
+        }) : p.stockRequests,
         plannedLeaves: Array.isArray(plannedLeaves) && plannedLeaves.length > 0 ? plannedLeaves.map(l=>({
           id: l.id,
           userId: l.user_id||l.userId,
@@ -587,6 +653,9 @@ const INITIAL_STATE = {
   collectionReports: [],
   // Planned leaves (staff → executive approval flow)
   plannedLeaves: [],
+  inventory: [],
+  stockTransactions: [],
+  stockRequests: [],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1128,6 +1197,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"feedback",     icon:"⭐", label:"Customer Feedback" },
     { id:"myleaves",     icon:"🌿", label:"My Leave" },
     { id:"counternotes",  icon:"📝", label:"Daily Note" },
+    { id:"stockrequest",  icon:"📦", label:"Request Stock" },
     { id:"history",      icon:"📁", label:"Report History" },
     { id:"directory",    icon:"👤", label:"Staff Directory" },
   ];
@@ -1145,6 +1215,10 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myleaves" && <LeavePortal user={user} state={state} setState={setState} toast={toast} role="supervisor"/>}
       {page==="counternotes" && <DailyNotePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockrequest"  && <StockRequest user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockcheckin"  && <StockCheckin user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockapproval" && <StockRequestsApproval user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="history"     && <SupHistory user={user} state={state}/>}
       {page==="feedback"    && <SupFeedback user={user} state={state}/>}
       {page==="collection"  && <SupCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -1912,6 +1986,10 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
     { id:"operations",  icon:"🏪", label:"Operations" },
     { id:"targets",     icon:"🎯", label:"Set Targets" },
     { id:"staffnotes",  icon:"📝", label:"Staff Notes" },
+    { id:"inventory",     icon:"📊", label:"Inventory" },
+    { id:"stockcheckin",  icon:"🏭", label:"Godown Check-in" },
+    { id:"stockapproval", icon:"📦", label:"Stock Requests" },
+    { id:"inventory",     icon:"📊", label:"Inventory" },
     { id:"feedback",    icon:"💬", label:"Feedback" },
     { id:"myleaves",    icon:"🌿", label:"My Leave" },
     { id:"directory",   icon:"👤", label:"Staff Directory" },
@@ -1932,6 +2010,9 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="targets"    && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
       {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
       {page==="staffnotes" && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockcheckin"  && <StockCheckin user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockapproval" && <StockRequestsApproval user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection" && <MgrCollectionReport user={user} state={state} setState={setState} toast={toast} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="colldash"   && <CollectionDashboard state={state} user={user}/>}
       {page==="myleaves"   && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
@@ -3076,6 +3157,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
       {page==="staffnotes"  && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
     </Shell>
   );
@@ -3688,6 +3770,9 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"viewatt",      icon:"📅",  label:"All Attendance" },
     { id:"myleaves",     icon:"🌿",  label:"My Leave" },
     { id:"counternotes",  icon:"📝",  label:"Daily Note" },
+    { id:"stockcheckin",  icon:"🏭",  label:"Godown Check-in" },
+    { id:"stockapproval", icon:"📦",  label:"Stock Requests" },
+    { id:"inventory",     icon:"📊",  label:"Inventory" },
     { id:"execreport",   icon:"📄",  label:"Executive Report" },
     { id:"export",       icon:"📥",  label:"Export Data" },
     { id:"directory",    icon:"👤",  label:"Staff Directory" },
@@ -3703,6 +3788,10 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
       {page==="myleaves"     && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="counternotes" && <DailyNotePortal user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockrequest"  && <StockRequest user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockcheckin"  && <StockCheckin user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="stockapproval" && <StockRequestsApproval user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="colldash"     && <CollectionDashboard state={state} user={user}/>}
       {page==="execreport"   && <ExecutiveReportGenerator state={state}/>}
       {page==="export"       && <OfficeExport state={state} toast={toast}/>}
@@ -6250,6 +6339,576 @@ function StaffNotesViewer({ user, state, setState, toast }) {
           </div>
         </Card>
       ))}
+    </div>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// INVENTORY MANAGEMENT
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ─── Stock Check-in (Office/Manager enters stock received from godown) ────────
+function StockCheckin({ user, state, setState, toast }) {
+  const products = state.workTypes || [];
+  const [rows, setRows]   = useState([{ productId:"", productName:"", qty:"", unit:"pcs", notes:"" }]);
+  const [date, setDate]   = useState(today());
+  const [submitting, setSubmitting] = useState(false);
+
+  const addRow = () => setRows(p=>[...p,{ productId:"", productName:"", qty:"", unit:"pcs", notes:"" }]);
+  const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
+  const upRow  = (i,k,v) => setRows(p=>p.map((r,j)=>j===i?{...r,[k]:v}:r));
+
+  const submit = async () => {
+    const valid = rows.filter(r=>r.productName&&Number(r.qty)>0);
+    if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
+    setSubmitting(true);
+    const newInventory = [...(state.inventory||[])];
+    const newTxs = [];
+    valid.forEach(row => {
+      const pid = row.productId || row.productName.toLowerCase().replace(/\s+/g,"_");
+      const existing = newInventory.find(i=>i.productId===pid||i.productName===row.productName);
+      if (existing) {
+        existing.currentStock = (Number(existing.currentStock)||0) + Number(row.qty);
+        existing.lastUpdated = date; existing.updatedBy = user.id;
+      } else {
+        newInventory.push({ id:`inv_${pid}`, productId:pid, productName:row.productName,
+          unit:row.unit||"pcs", currentStock:Number(row.qty), minStock:0,
+          lastUpdated:date, updatedBy:user.id });
+      }
+      newTxs.push({ id:`tx_${Date.now()}_${pid}`, date, type:"checkin",
+        productId:pid, productName:row.productName, qty:Number(row.qty),
+        counterId:"GODOWN", counterName:"Godown", notes:row.notes||"", doneBy:user.id });
+    });
+    setState(p=>({...p, inventory:newInventory, stockTransactions:[...(p.stockTransactions||[]),...newTxs]}));
+    await DB.upsertInventory(newInventory).catch(console.error);
+    for (const tx of newTxs) await DB.upsertStockTransaction(tx).catch(console.error);
+    toast.show(`✅ Stock checked in: ${valid.length} product(s)`);
+    setRows([{ productId:"", productName:"", qty:"", unit:"pcs", notes:"" }]);
+    setSubmitting(false);
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Godown Check-in</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter stock received from the godown</div>
+      <Card style={{marginBottom:20}}>
+        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:14}}/>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+            <thead>
+              <tr style={{background:T.navyXL}}>
+                {["Product","Qty","Unit","Notes",""].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:11,color:T.txt2,textTransform:"uppercase"}}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                  <td style={{padding:"6px 6px"}}>
+                    <input list="inv-products" value={row.productName} onChange={e=>{
+                      const wt = state.workTypes.find(w=>w.name===e.target.value);
+                      upRow(i,"productName",e.target.value);
+                      if(wt) upRow(i,"productId",wt.id);
+                    }} placeholder="Product name..." style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"6px 6px",width:90}}>
+                    <input type="number" value={row.qty} onChange={e=>upRow(i,"qty",e.target.value)} min="0"
+                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"6px 6px",width:90}}>
+                    <select value={row.unit} onChange={e=>upRow(i,"unit",e.target.value)}
+                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}>
+                      {["pcs","ltr","kg","ml","gm","box","roll","pair"].map(u=><option key={u}>{u}</option>)}
+                    </select>
+                  </td>
+                  <td style={{padding:"6px 6px"}}>
+                    <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)} placeholder="Optional..."
+                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"6px 6px",width:40,textAlign:"center"}}>
+                    <button onClick={()=>rmRow(i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.red}}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <datalist id="inv-products">{(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}</datalist>
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
+          <Btn onClick={submit} variant="amber" disabled={submitting}>{submitting?"Saving...":"💾 Check In Stock"}</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Stock Request (Executive requests stock for their counter) ───────────────
+function StockRequest({ user, state, setState, toast }) {
+  const myCounter = state.counters.find(c=>c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id));
+  const [rows, setRows]   = useState([{ productId:"", productName:"", qty:"", notes:"" }]);
+  const [urgency, setUrgency] = useState("normal");
+  const [submitting, setSubmitting] = useState(false);
+  const myRequests = (state.stockRequests||[]).filter(r=>r.requestedBy===user.id).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const addRow = () => setRows(p=>[...p,{ productId:"", productName:"", qty:"", notes:"" }]);
+  const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
+  const upRow  = (i,k,v) => setRows(p=>p.map((r,j)=>j===i?{...r,[k]:v}:r));
+
+  const submit = async () => {
+    const valid = rows.filter(r=>r.productName&&Number(r.qty)>0);
+    if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
+    if (!myCounter) { toast.show("No counter assigned to you","error"); return; }
+    setSubmitting(true);
+    const req = {
+      id: `req_${user.id}_${Date.now()}`,
+      date: today(), counterId: myCounter.id, counterName: myCounter.name,
+      requestedBy: user.id, requestedByName: user.name,
+      items: valid.map(r=>({ productId:r.productId||r.productName, productName:r.productName,
+        qty:Number(r.qty), approvedQty:null, notes:r.notes||"", urgency })),
+      status:"pending", notes:"", approvedBy:null, approvedAt:null,
+    };
+    setState(p=>({...p, stockRequests:[...(p.stockRequests||[]), req]}));
+    await DB.upsertStockRequest(req).catch(console.error);
+    toast.show(`📦 Stock request submitted (${valid.length} items)`);
+    setRows([{ productId:"", productName:"", qty:"", notes:"" }]);
+    setSubmitting(false);
+  };
+
+  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[s]||T.txt2);
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Request Stock</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
+        Request products for <b>{myCounter?.name||"your counter"}</b>
+      </div>
+      {!myCounter && <Card><div style={{color:T.red,padding:12}}>⚠ No counter assigned. Contact IT Admin.</div></Card>}
+      {myCounter && (
+        <Card style={{marginBottom:20}}>
+          <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.navy}}>{myCounter.name}</div>
+            <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+              <span style={{fontSize:11,color:T.txt2}}>Urgency:</span>
+              {["normal","urgent"].map(u=>(
+                <button key={u} onClick={()=>setUrgency(u)} style={{
+                  padding:"4px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                  border:"1px solid "+(urgency===u?(u==="urgent"?T.red:T.navy):T.bdrS),
+                  background:urgency===u?(u==="urgent"?T.redL:T.navyXL):"transparent",
+                  color:urgency===u?(u==="urgent"?T.red:T.navy):T.txt2
+                }}>{u==="urgent"?"🔴 Urgent":"🟢 Normal"}</button>
+              ))}
+            </div>
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
+            <thead><tr style={{background:T.navyXL}}>
+              {["Product","Qty Needed","Notes",""].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {rows.map((row,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                  <td style={{padding:"6px 6px"}}>
+                    <input list="req-products" value={row.productName} onChange={e=>{
+                      const wt=state.workTypes.find(w=>w.name===e.target.value);
+                      upRow(i,"productName",e.target.value);
+                      if(wt) upRow(i,"productId",wt.id);
+                    }} placeholder="Product..." style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"6px 6px",width:100}}>
+                    <input type="number" value={row.qty} onChange={e=>upRow(i,"qty",e.target.value)} min="1"
+                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"6px 6px"}}>
+                    <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)} placeholder="Reason..."
+                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  </td>
+                  <td style={{padding:"6px 6px",width:40,textAlign:"center"}}>
+                    <button onClick={()=>rmRow(i)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.red}}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <datalist id="req-products">{(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}</datalist>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
+            <Btn onClick={submit} variant="amber" disabled={submitting}>{submitting?"Submitting...":"📤 Submit Request"}</Btn>
+          </div>
+        </Card>
+      )}
+      {myRequests.length>0 && (
+        <div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Requests ({myRequests.length})</div>
+          {myRequests.slice(0,10).map(req=>(
+            <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>{fmtDate(req.date)} · {req.items.length} item(s)</div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                  </div>
+                  {req.status!=="pending"&&req.items.some(it=>it.approvedQty!==null)&&(
+                    <div style={{fontSize:11,color:T.txt3,marginTop:2}}>
+                      Approved: {req.items.map(it=>`${it.productName}×${it.approvedQty??0}`).join(", ")}
+                    </div>
+                  )}
+                </div>
+                <Badge color={statusColor(req.status)}>{req.status}</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Stock Requests Approval (Office/Manager approves requests) ───────────────
+function StockRequestsApproval({ user, state, setState, toast }) {
+  const pending = (state.stockRequests||[]).filter(r=>r.status==="pending").sort((a,b)=>b.date.localeCompare(a.date));
+  const history = (state.stockRequests||[]).filter(r=>r.status!=="pending").sort((a,b)=>b.date.localeCompare(a.date));
+  const [editQtys, setEditQtys] = useState({}); // reqId → {itemIdx → approvedQty}
+  const [expanded, setExpanded] = useState(null);
+
+  const initEdit = (req) => {
+    const qtys = {};
+    req.items.forEach((it,i)=>{ qtys[i] = it.qty; });
+    setEditQtys(p=>({...p,[req.id]:qtys}));
+    setExpanded(req.id);
+  };
+
+  const approve = async (req, status) => {
+    const approvedItems = req.items.map((it,i)=>({
+      ...it, approvedQty: Number(editQtys[req.id]?.[i] ?? it.qty)
+    }));
+    const updatedReq = { ...req, items:approvedItems, status, approvedBy:user.id, approvedAt:new Date().toISOString() };
+
+    // Update inventory for approved items
+    if (status==="approved"||status==="partial") {
+      const newInventory = (state.inventory||[]).map(inv=>{
+        const relItem = approvedItems.find(it=>it.productId===inv.productId||it.productName===inv.productName);
+        if (!relItem||!relItem.approvedQty) return inv;
+        return {...inv, currentStock:Math.max(0,(Number(inv.currentStock)||0)-Number(relItem.approvedQty)),
+          lastUpdated:today(), updatedBy:user.id};
+      });
+      // Create release transactions
+      const txs = approvedItems.filter(it=>it.approvedQty>0).map(it=>({
+        id:`tx_rel_${req.id}_${it.productId}_${Date.now()}`,
+        date:today(), type:"release", productId:it.productId, productName:it.productName,
+        qty:it.approvedQty, counterId:req.counterId, counterName:req.counterName,
+        requestId:req.id, notes:`Approved by ${user.name}`, doneBy:user.id,
+      }));
+      setState(p=>({...p, inventory:newInventory,
+        stockRequests:p.stockRequests.map(r=>r.id===req.id?updatedReq:r),
+        stockTransactions:[...(p.stockTransactions||[]),...txs]
+      }));
+      await DB.upsertInventory(newInventory).catch(console.error);
+      for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
+    } else {
+      setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updatedReq:r)}));
+    }
+    await DB.upsertStockRequest(updatedReq).catch(console.error);
+    toast.show(status==="approved"?"✅ Request approved & stock released":status==="partial"?"⚡ Partial stock released":"❌ Request rejected");
+    setExpanded(null);
+  };
+
+  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[s]||T.txt2);
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Stock Requests</div>
+      {pending.length>0 && (
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:14,fontWeight:800,color:T.red,marginBottom:10}}>⏳ Pending ({pending.length})</div>
+          {pending.map(req=>(
+            <Card key={req.id} style={{marginBottom:12,borderLeft:"4px solid "+T.amber}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:8}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:14}}>{req.counterName}</div>
+                  <div style={{fontSize:12,color:T.txt2}}>{req.requestedByName} · {fmtDate(req.date)}</div>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
+                    {expanded===req.id?"▲ Collapse":"▼ Review"}
+                  </Btn>
+                </div>
+              </div>
+              {expanded===req.id && (
+                <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
+                    <thead><tr style={{background:T.navyXL}}>
+                      {["Product","Requested","Approve Qty","Available","Notes"].map(h=>(
+                        <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {req.items.map((it,i)=>{
+                        const inv = state.inventory.find(x=>x.productId===it.productId||x.productName===it.productName);
+                        const available = inv?.currentStock||0;
+                        const approveQty = editQtys[req.id]?.[i]??it.qty;
+                        const isLow = available < it.qty;
+                        return (
+                          <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                            <td style={{padding:"7px 10px",fontWeight:600}}>{it.productName}</td>
+                            <td style={{padding:"7px 10px",textAlign:"center"}}>{it.qty}</td>
+                            <td style={{padding:"7px 10px",width:90}}>
+                              <input type="number" value={approveQty} min="0" max={available}
+                                onChange={e=>setEditQtys(p=>({...p,[req.id]:{...p[req.id],[i]:e.target.value}}))}
+                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                            </td>
+                            <td style={{padding:"7px 10px",textAlign:"center",color:isLow?T.red:T.grn,fontWeight:700}}>{available}</td>
+                            <td style={{padding:"7px 10px",fontSize:12,color:T.txt2}}>{it.notes}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn onClick={()=>approve(req,"approved")} variant="success" size="sm">✅ Approve All</Btn>
+                    <Btn onClick={()=>approve(req,"partial")}  variant="amber"   size="sm">⚡ Partial Release</Btn>
+                    <Btn onClick={()=>approve(req,"rejected")} variant="danger"  size="sm">❌ Reject</Btn>
+                  </div>
+                </div>
+              )}
+              {expanded!==req.id && (
+                <div style={{fontSize:12,color:T.txt2}}>{req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}</div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+      {history.length>0 && (
+        <div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
+          {history.slice(0,20).map(req=>(
+            <Card key={req.id} style={{marginBottom:8,opacity:.85,borderLeft:`3px solid ${statusColor(req.status)}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{req.counterName} · {req.requestedByName}</div>
+                  <div style={{fontSize:12,color:T.txt2}}>{fmtDate(req.date)} · {req.items.map(it=>`${it.productName}×${it.approvedQty??it.qty}`).join(", ")}</div>
+                </div>
+                <Badge color={statusColor(req.status)}>{req.status}</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Inventory Dashboard (MD/Manager oversight) ───────────────────────────────
+function InventoryDashboard({ user, state, setState, toast }) {
+  const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
+  const [search, setSearch] = useState("");
+  const dr = useDateRange("month");
+  const selMonth = dr.from.slice(0,7);
+
+  // Current stock
+  const stockItems = (state.inventory||[]).filter(i=>!search||i.productName.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>a.productName.localeCompare(b.productName));
+
+  // Requests in range
+  const reqsInRange = (state.stockRequests||[]).filter(r=>r.date>=dr.from&&r.date<=dr.to)
+    .sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Transactions in range
+  const txsInRange = (state.stockTransactions||[]).filter(t=>t.date>=dr.from&&t.date<=dr.to)
+    .sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Monthly pending (approved qty vs requested qty)
+  const monthReqs = (state.stockRequests||[]).filter(r=>r.date.startsWith(selMonth));
+  const monthPending = {};
+  monthReqs.forEach(req => {
+    req.items.forEach(it => {
+      if (!monthPending[it.productName]) monthPending[it.productName] = {requested:0,released:0,pending:0};
+      monthPending[it.productName].requested += Number(it.qty)||0;
+      if (req.status==="approved"||req.status==="partial") {
+        monthPending[it.productName].released += Number(it.approvedQty||it.qty)||0;
+      }
+    });
+  });
+  Object.keys(monthPending).forEach(k=>{
+    monthPending[k].pending = monthPending[k].requested - monthPending[k].released;
+  });
+
+  const tabs = [{id:"stock",label:"📦 Stock"},{id:"requests",label:"📋 Requests"},{id:"transactions",label:"📜 Transactions"},{id:"monthly",label:"📅 Monthly"}];
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Inventory Dashboard</div>
+      <Tabs tabs={tabs} active={view} onChange={setView}/>
+      <div style={{marginTop:16}}>
+
+        {/* ── STOCK VIEW ── */}
+        {view==="stock" && (
+          <div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
+              <Card style={{textAlign:"center",padding:12}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{stockItems.length}</div>
+                <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Products</div>
+              </Card>
+              <Card style={{textAlign:"center",padding:12}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.grn}}>{stockItems.reduce((s,i)=>s+i.currentStock,0)}</div>
+                <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Total Units</div>
+              </Card>
+              <Card style={{textAlign:"center",padding:12}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.red}}>{stockItems.filter(i=>i.currentStock<=i.minStock&&i.minStock>0).length}</div>
+                <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Low Stock</div>
+              </Card>
+              <Card style={{textAlign:"center",padding:12}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.amber}}>{(state.stockRequests||[]).filter(r=>r.status==="pending").length}</div>
+                <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Pending Requests</div>
+              </Card>
+            </div>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search product..."
+              style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",marginBottom:12,boxSizing:"border-box"}}/>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:T.navy,color:"#fff"}}>
+                  {["Product","Unit","Current Stock","Min Stock","Status","Last Updated","Updated By"].map(h=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {stockItems.length===0&&<tr><td colSpan={7} style={{padding:20,textAlign:"center",color:T.txt3}}>No inventory records yet. Check in stock first.</td></tr>}
+                  {stockItems.map((item,i)=>{
+                    const isLow = item.currentStock<=item.minStock&&item.minStock>0;
+                    const isOut = item.currentStock<=0;
+                    return (
+                      <tr key={item.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                        <td style={{padding:"8px 12px",fontWeight:600}}>{item.productName}</td>
+                        <td style={{padding:"8px 12px",color:T.txt2}}>{item.unit}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:800,
+                          color:isOut?T.red:isLow?T.amber:T.grn,fontSize:15}}>{item.currentStock}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:T.txt2}}>{item.minStock||"—"}</td>
+                        <td style={{padding:"8px 12px"}}>
+                          <Badge color={isOut?T.red:isLow?T.amber:T.grn}>{isOut?"Out of Stock":isLow?"Low Stock":"In Stock"}</Badge>
+                        </td>
+                        <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{fmtDate(item.lastUpdated)}</td>
+                        <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{state.users.find(u=>u.id===item.updatedBy)?.name||item.updatedBy}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── REQUESTS VIEW ── */}
+        {view==="requests" && (
+          <div>
+            <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+            <div style={{marginTop:12,overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:T.navy,color:"#fff"}}>
+                  {["Date","Counter","Requested By","Items","Status","Approved By"].map(h=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {reqsInRange.length===0&&<tr><td colSpan={6} style={{padding:20,textAlign:"center",color:T.txt3}}>No requests for this period</td></tr>}
+                  {reqsInRange.map((req,i)=>(
+                    <tr key={req.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                      <td style={{padding:"8px 12px",whiteSpace:"nowrap"}}>{fmtDate(req.date)}</td>
+                      <td style={{padding:"8px 12px",fontWeight:600}}>{req.counterName}</td>
+                      <td style={{padding:"8px 12px"}}>{req.requestedByName}</td>
+                      <td style={{padding:"8px 12px",fontSize:12,color:T.txt2}}>
+                        {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                      </td>
+                      <td style={{padding:"8px 12px"}}>
+                        <Badge color={{pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[req.status]||T.txt2}>{req.status}</Badge>
+                      </td>
+                      <td style={{padding:"8px 12px",fontSize:12}}>{req.approvedBy?state.users.find(u=>u.id===req.approvedBy)?.name||req.approvedBy:"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── TRANSACTIONS VIEW ── */}
+        {view==="transactions" && (
+          <div>
+            <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
+            <div style={{marginTop:12,overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:T.navy,color:"#fff"}}>
+                  {["Date","Type","Product","Qty","Counter","Done By","Notes"].map(h=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {txsInRange.length===0&&<tr><td colSpan={7} style={{padding:20,textAlign:"center",color:T.txt3}}>No transactions for this period</td></tr>}
+                  {txsInRange.map((tx,i)=>(
+                    <tr key={tx.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                      <td style={{padding:"8px 12px",whiteSpace:"nowrap"}}>{fmtDate(tx.date)}</td>
+                      <td style={{padding:"8px 12px"}}>
+                        <Badge color={tx.type==="checkin"?T.grn:tx.type==="release"?T.amber:T.navy}>{tx.type}</Badge>
+                      </td>
+                      <td style={{padding:"8px 12px",fontWeight:600}}>{tx.productName}</td>
+                      <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:tx.type==="checkin"?T.grn:T.red}}>
+                        {tx.type==="checkin"?"+":"-"}{tx.qty}
+                      </td>
+                      <td style={{padding:"8px 12px"}}>{tx.counterName}</td>
+                      <td style={{padding:"8px 12px",fontSize:12}}>{state.users.find(u=>u.id===tx.doneBy)?.name||tx.doneBy}</td>
+                      <td style={{padding:"8px 12px",fontSize:12,color:T.txt2}}>{tx.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── MONTHLY PENDING ── */}
+        {view==="monthly" && (
+          <div>
+            <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center"}}>
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase",display:"block",marginBottom:4}}>Month</label>
+                <input type="month" value={selMonth} onChange={e=>dr.setCustomFrom(e.target.value+"-01")}
+                  style={{padding:"7px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+              </div>
+            </div>
+            {Object.keys(monthPending).length===0
+              ? <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No requests this month</div></Card>
+              : (
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead><tr style={{background:T.navy,color:"#fff"}}>
+                    {["Product","Total Requested","Released","Pending","Fulfillment %"].map(h=>(
+                      <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {Object.entries(monthPending).map(([name,d],i)=>{
+                      const pct = d.requested>0?Math.round(d.released/d.requested*100):0;
+                      return (
+                        <tr key={name} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                          <td style={{padding:"8px 12px",fontWeight:600}}>{name}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right"}}>{d.requested}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:T.grn,fontWeight:700}}>{d.released}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:d.pending>0?T.red:T.grn,fontWeight:700}}>{d.pending}</td>
+                          <td style={{padding:"8px 12px"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <div style={{flex:1,height:6,background:T.surf,borderRadius:3}}>
+                                <div style={{height:6,borderRadius:3,width:pct+"%",background:pct>=80?T.grn:pct>=50?T.amber:T.red}}/>
+                              </div>
+                              <span style={{fontWeight:700,color:pct>=80?T.grn:pct>=50?T.amber:T.red,minWidth:36}}>{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
+            }
+          </div>
+        )}
+      </div>
     </div>
   );
 }
