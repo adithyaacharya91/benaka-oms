@@ -100,14 +100,33 @@ const DB = {
   },
   // Feedback
   async getFeedback() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/feedback?select=*&order=created_at.desc`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
-    return r.json();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/feedback?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const d = await r.json();
+    return Array.isArray(d) ? d : [];
   },
   async insertFeedback(fb) {
     return supabase.from("feedback").insert(fb);
   },
   async upsertFeedback(fb) {
-    return supabase.from("feedback").upsert(fb);
+    const row = {
+      id: fb.id,
+      type: fb.type || "customer",
+      category: fb.category || "general",
+      date: fb.date || fb.created_at || "",
+      counter_id:   fb.counterId   || fb.counter_id   || "",
+      counter_name: fb.counterName || fb.counter_name || "",
+      user_id:   fb.userId   || fb.user_id   || null,
+      user_name: fb.userName || fb.user_name || "",
+      role: fb.role || "",
+      message:  fb.message  || fb.comment || "",
+      rating:   fb.rating   || null,
+      status:   fb.status   || "unread",
+      read_at:  fb.readAt   || fb.read_at  || null,
+      submitted_at: fb.submittedAt || fb.submitted_at || new Date().toISOString(),
+    };
+    const res = await supabase.from("feedback").upsert(row);
+    if (res && res.code) console.error("upsertFeedback failed:", res.message, row);
+    return res;
   },
   // Collection Reports
   async getCollectionReports(filter={}) {
@@ -392,7 +411,23 @@ function useSupabaseSync(localState, setLocalState) {
           submittedAt: l.submitted_at||l.submittedAt,
           decidedAt: l.decided_at||l.decidedAt,
         })) : p.leaves,
-        feedback:          Array.isArray(feedback)    ? feedback    : p.feedback,
+        feedback: Array.isArray(feedback) && feedback.length > 0 ? feedback.map(f=>({
+          id: f.id,
+          type: f.type||"customer",
+          category: f.category||"general",
+          date: f.date||"",
+          counterId:   f.counter_id||f.counterId||"",
+          counterName: f.counter_name||f.counterName||"",
+          userId:   f.user_id||f.userId||null,
+          userName: f.user_name||f.userName||"",
+          role: f.role||"",
+          message:  f.message||f.comment||"",
+          rating:   f.rating||null,
+          comment:  f.comment||f.message||"",
+          status:   f.status||"unread",
+          readAt:   f.read_at||f.readAt||null,
+          submittedAt: f.submitted_at||f.submittedAt||"",
+        })) : p.feedback,
         salaries:          Array.isArray(salaries)    ? salaries    : p.salaries,
         collectionReports: Array.isArray(collReports) && collReports.length > 0 ? collReports.map(r=>{
           // Parse from notes JSON blob (primary) or direct columns (fallback)
