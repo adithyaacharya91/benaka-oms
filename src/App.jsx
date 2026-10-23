@@ -3152,11 +3152,6 @@ function MDDashboard({ user, state, syncFromCloud }) {
   // Month-over-month growth
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-  const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
-  const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
-  const thisMonthRev = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.totalAmount,0);
-  const lastMonthRev = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)).reduce((s,r)=>s+r.totalAmount,0);
-  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev) * 100 / lastMonthRev) : 0;
 
   // Grand totals from counterStats
   const svcCounters  = counterStats.filter(c=>c.name!=="OFFICE");
@@ -3197,6 +3192,15 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const moOtherCo     = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const gMoSales      = moBardahlCo + moOtherCo;
   const gMoTotal      = gMoSvc + gMoSales;
+  const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
+  const thisMonthRev = gMoTotal;  // Use same computation as displayed Month Total
+  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&(state.counters.find(c=>c.name==="OFFICE")?.id===r.counterId||r.counterName==="OFFICE"));
+  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==state.counters.find(c=>c.name==="OFFICE")?.id&&r.counterName!=="OFFICE");
+  const lastMonthSvc       = lastMonthSvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const lastMonthSalesAmt  = lastMonthOffReps.flatMap(getEntriesMD).filter(e=>["BARDAHL","OTHER SALES"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const lastMonthRev       = lastMonthSvc + lastMonthSalesAmt;
+  const growth = lastMonthRev > 0 ? Math.round((thisMonthRev-lastMonthRev)*100/lastMonthRev) : (thisMonthRev>0?100:0);
   // Daily revenue for bar chart (last 14 days)
   const last14 = Array.from({length:14},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().split("T")[0]; });
   const dailyRevs = last14.map(d => ({ date:d, rev:state.serviceReports.filter(r=>r.date===d).reduce((s,r)=>s+r.totalAmount,0) }));
@@ -3233,11 +3237,11 @@ function MDDashboard({ user, state, syncFromCloud }) {
             { l:"Today Service",  v:fmtCurr(gDaySvc),   i:"🔧", c:"#bfdbfe" },
             { l:"Today Sales",    v:fmtCurr(gDaySales),  i:"🛢", c:"#bbf7d0" },
             { l:"Today Total",    v:fmtCurr(gDayTotal),  i:"💰", c:"#fde68a" },
-            { l:"Day Growth",     v:(dayGrowth>=0?"+":"")+dayGrowth+"%", i:dayGrowth>=0?"📈":"📉", c:dayGrowth>=0?"#86EFAC":"#FCA5A5" },
+            { l:"Day Growth", v:yesterdayTotal>0?(dayGrowth>=0?"+":"")+dayGrowth+"%":"New Day", i:dayGrowth>0?"📈":dayGrowth<0?"📉":"➡️", c:dayGrowth>0?"#86EFAC":dayGrowth<0?"#FCA5A5":"rgba(255,255,255,.7)" },
             { l:"Month Service",  v:fmtCurr(gMoSvc),    i:"📅", c:"#bfdbfe" },
             { l:"Month Sales",    v:fmtCurr(gMoSales),   i:"📊", c:"#bbf7d0" },
             { l:"Month Total",    v:fmtCurr(gMoTotal),   i:"🏆", c:"#fde68a" },
-            { l:"Monthly Growth", v:(growth>=0?"+":"")+growth+"%", i:growth>=0?"📈":"📉", c:growth>=0?"#86EFAC":"#FCA5A5" },
+            { l:"Monthly Growth", v:lastMonthRev>0?(growth>=0?"+":"")+growth+"%":"New Month", i:growth>0?"📈":growth<0?"📉":"➡️", c:growth>0?"#86EFAC":growth<0?"#FCA5A5":"rgba(255,255,255,.7)" },
             { l:"Present Today",  v:presentToday.length+halfToday.length, i:"✅", c:"#86EFAC" },
             { l:"Absent Today",   v:absentToday.length,  i:"❌", c:"#FCA5A5" },
             { l:"Not Marked",     v:notMarkedToday,       i:"❓", c:"rgba(255,255,255,.5)" },
