@@ -3170,6 +3170,11 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const gDayTotal    = gDaySvc + gDaySales;
 
   // Yesterday totals (for day-over-day growth)
+  const today_         = today();
+  const activeStaff    = state.users.filter(u=>u.active!==false&&u.role!=="md"&&u.role!=="it_admin");
+  const presentToday   = state.attendance.filter(a=>a.date===today_&&a.status==="present");
+  const halfToday      = state.attendance.filter(a=>a.date===today_&&a.status==="half_day");
+  const notMarkedToday = activeStaff.filter(u=>!state.attendance.some(a=>a.staffId===u.id&&a.date===today_)).length;
   const yest = new Date(today_); yest.setDate(yest.getDate()-1);
   const yesterdayStr = yest.toISOString().split("T")[0];
   const yesterdayTotal = state.serviceReports
