@@ -3163,20 +3163,23 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const offCounter   = counterStats.find(c=>c.name==="OFFICE");
 
   // Today totals
-  const gDaySvc      = svcCounters.reduce((s,c)=>s+c.todayAmt,0);
-  const dayBardahlCo = offCounter?.bardahl||0;
-  const dayOtherCo   = offCounter?.otherSal||0;
+  const today_         = today();
+  const todayOffId   = state.counters.find(c=>c.name==="OFFICE")?.id;
+  const todaySvcReps = state.serviceReports.filter(r=>r.date===today_&&r.counterId!==todayOffId&&r.counterName!=="OFFICE");
+  const gDaySvc      = todaySvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const todayOffReps  = state.serviceReports.filter(r=>r.date===today_&&(r.counterId===todayOffId||r.counterName==="OFFICE"));
+  const dayBardahlCo  = todayOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const dayOtherCo   = todayOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const gDaySales    = dayBardahlCo + dayOtherCo;
   const gDayTotal    = gDaySvc + gDaySales;
 
   // Yesterday totals (for day-over-day growth)
-  const today_         = today();
   const activeStaff    = state.users.filter(u=>u.active!==false&&u.role!=="md"&&u.role!=="it_admin");
   const presentToday   = state.attendance.filter(a=>a.date===today_&&a.status==="present");
   const halfToday      = state.attendance.filter(a=>a.date===today_&&a.status==="half_day");
   const notMarkedToday = activeStaff.filter(u=>!state.attendance.some(a=>a.staffId===u.id&&a.date===today_)).length;
   const yest = new Date(today_); yest.setDate(yest.getDate()-1);
-  const yesterdayStr = yest.toISOString().split("T")[0];
+  const yesterdayStr = `${yest.getFullYear()}-${String(yest.getMonth()+1).padStart(2,"0")}-${String(yest.getDate()).padStart(2,"0")}`;
   const yesterdayTotal = state.serviceReports
     .filter(r=>r.date===yesterdayStr)
     .reduce((s,r)=>s+r.totalAmount,0);
@@ -3184,13 +3187,16 @@ function MDDashboard({ user, state, syncFromCloud }) {
     ? Math.round((gDayTotal - yesterdayTotal) * 100 / yesterdayTotal)
     : gDayTotal > 0 ? 100 : 0;
 
-  // Month totals
-  const gMoSvc       = svcCounters.reduce((s,c)=>s+c.svcTotal,0);
-  const moBardahlCo  = offCounter?.bardahl||0;
-  const moOtherCo    = offCounter?.otherSal||0;
-  const gMoSales     = moBardahlCo + moOtherCo;
-  const gMoTotal     = gMoSvc + gMoSales;
-
+  // Month totals — computed directly from state, NOT from counterStats (which uses range filter)
+  const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
+  const getEntriesMD  = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
+  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!(state.counters.find(c=>c.name==="OFFICE")?.id===r.counterId||r.counterName==="OFFICE"));
+  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&(state.counters.find(c=>c.name==="OFFICE")?.id===r.counterId||r.counterName==="OFFICE"));
+  const gMoSvc        = moReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const moBardahlCo   = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const moOtherCo     = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const gMoSales      = moBardahlCo + moOtherCo;
+  const gMoTotal      = gMoSvc + gMoSales;
   // Daily revenue for bar chart (last 14 days)
   const last14 = Array.from({length:14},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().split("T")[0]; });
   const dailyRevs = last14.map(d => ({ date:d, rev:state.serviceReports.filter(r=>r.date===d).reduce((s,r)=>s+r.totalAmount,0) }));
