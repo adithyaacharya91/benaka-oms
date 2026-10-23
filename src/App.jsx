@@ -4069,6 +4069,23 @@ function ExecutiveReportGenerator({ state }) {
   const gMoTotal  = gMoSvc  + moBardahlCo  + moOtherCo;
   const gDaySales = dayBardahlCo + dayOtherCo;
   const gMoSales  = moBardahlCo  + moOtherCo;
+  // Attendance & growth vars for stat cards
+  const today_erg      = selDate;
+  const activeStaff    = state.users.filter(u=>u.active!==false&&u.role!=="md"&&u.role!=="it_admin");
+  const presentToday   = state.attendance.filter(a=>a.date===selDate&&a.status==="present");
+  const halfToday      = state.attendance.filter(a=>a.date===selDate&&a.status==="half_day");
+  const notMarkedToday = activeStaff.filter(u=>!state.attendance.some(a=>a.staffId===u.id&&a.date===selDate)).length;
+  // Day growth vs previous day
+  const _prevDay = new Date(selDate+"T00:00:00"); _prevDay.setDate(_prevDay.getDate()-1);
+  const _prevStr = `${_prevDay.getFullYear()}-${String(_prevDay.getMonth()+1).padStart(2,"0")}-${String(_prevDay.getDate()).padStart(2,"0")}`;
+  const yesterdayTotal = state.serviceReports.filter(r=>r.date===_prevStr).reduce((s,r)=>s+r.totalAmount,0);
+  const dayGrowth = yesterdayTotal>0 ? Math.round((gDayTotal-yesterdayTotal)*100/yesterdayTotal) : (gDayTotal>0?100:0);
+  // Monthly growth
+  const _selMo = selDate.slice(0,7);
+  const _prevMoD = new Date(_selMo+"-01"); _prevMoD.setMonth(_prevMoD.getMonth()-1);
+  const _prevMo = `${_prevMoD.getFullYear()}-${String(_prevMoD.getMonth()+1).padStart(2,"0")}`;
+  const _prevMoRev = state.serviceReports.filter(r=>r.date.startsWith(_prevMo)).reduce((s,r)=>s+r.totalAmount,0);
+  const growth = _prevMoRev>0 ? Math.round((gMoTotal-_prevMoRev)*100/_prevMoRev) : (gMoTotal>0?100:0);
 
   const printReport = () => {
     const todayColRep = (state.collectionReports||[]).find(r=>r.date===selDate);
