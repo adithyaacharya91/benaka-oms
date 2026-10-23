@@ -166,7 +166,9 @@ const DB = {
       wedding_anniversary: u.weddingAnniversary||"",
       active: u.active !== false,
       manager_id: u.managerId||null,
-      counter: u.counter||""
+      counter: u.counter||"",
+      status: u.status||null,
+      resigned_on: u.resignedOn||null,
     }));
     return supabase.from("app_users").upsert(rows);
   },
@@ -321,7 +323,9 @@ function useSupabaseSync(localState, setLocalState) {
             joining: u.joining||"",
             weddingAnniversary: u.wedding_anniversary||u.weddingAnniversary||"",
             active: u.active !== false,
-            managerId: u.manager_id||u.managerId||null, counter: u.counter||""
+            managerId: u.manager_id||u.managerId||null, counter: u.counter||"",
+            status: u.status||undefined,
+            resignedOn: u.resigned_on||u.resignedOn||undefined
           }))
         : null;
 
@@ -4400,11 +4404,15 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
 
 // ─── IT Admin: User Management ─────────────────────────────────────────────────
 function UserMgmt({ user, state, setState, toast }) {
-  const [editing, setEditing] = useState(null);
-  const [form, setForm]       = useState({});
-  const [newPwd, setNewPwd]   = useState("");
+  const [editing, setEditing]       = useState(null);
+  const [form, setForm]             = useState({});
+  const [newPwd, setNewPwd]         = useState("");
+  const [viewFilter, setViewFilter] = useState("active"); // active | inactive | resigned | all
+  const [resignModal, setResignModal] = useState(null);   // user being resigned
+  const [resignDate, setResignDate]   = useState(today());
+
   const openEdit = u => { setEditing(u); setForm({...u}); setNewPwd(""); };
-  const openNew  = ()  => { setEditing({}); setForm({ role:"field_staff", active:true }); setNewPwd(""); };
+  const openNew  = () => { setEditing({}); setForm({ role:"field_staff", active:true }); setNewPwd(""); };
 
   const save = () => {
     if (!form.empId||!form.name) { toast.show("ID and Name required","error"); return; }
@@ -4414,87 +4422,175 @@ function UserMgmt({ user, state, setState, toast }) {
       DB.upsertUsers(updated).catch(console.error);
       DB.upsertPasswords(pwds).catch(console.error);
       setState(p=>({...p,users:updated,passwords:pwds,_configVersion:(p._configVersion||0)+1}));
-      toast.show("User updated — synced ✅");
+      toast.show("User "+form.name+" saved ✅");
     } else {
-      if (state.users.find(u=>u.empId===form.empId)) { toast.show("ID exists","error"); return; }
-      const nu = { id:"u_"+Date.now(), ...form, dob:form.dob||"", joining:form.joining||"", weddingAnniversary:"", active:true };
-      const newUsers = [...state.users, nu];
-      const newPwds  = {...state.passwords,[form.empId]:newPwd||"pass@123"};
-      DB.upsertUsers(newUsers).catch(console.error);
-      DB.upsertPasswords(newPwds).catch(console.error);
-      setState(p=>({...p,users:newUsers,passwords:newPwds,_configVersion:(p._configVersion||0)+1}));
-      toast.show("User created · pwd: "+(newPwd||"pass@123")+" ✅");
+      if (state.users.find(u=>u.empId===form.empId)) { toast.show("Employee ID already exists","error"); return; }
+      const newUser = {...form, id:"u_"+Date.now(), active:true};
+      const updated = [...state.users, newUser];
+      const pwds    = newPwd ? {...state.passwords,[form.empId]:newPwd} : state.passwords;
+      DB.upsertUsers(updated).catch(console.error);
+      DB.upsertPasswords(pwds).catch(console.error);
+      setState(p=>({...p,users:updated,passwords:pwds,_configVersion:(p._configVersion||0)+1}));
+      toast.show("User "+form.name+" added ✅");
     }
     setEditing(null);
   };
 
+  const toggleActive = (r) => {
+    const updated = state.users.map(u=>u.id===r.id?{...u,active:u.active===false,resignedOn:undefined,status:undefined}:u);
+    setState(p=>({...p,users:updated}));
+    DB.upsertUsers(updated).catch(console.error);
+    toast.show((r.active!==false?"Deactivated ":"Activated ")+r.name);
+  };
+
+  const confirmResign = () => {
+    if (!resignDate) { toast.show("Select resignation date","error"); return; }
+    const updated = state.users.map(u=>u.id===resignModal.id
+      ? {...u, active:false, status:"resigned", resignedOn:resignDate}
+      : u
+    );
+    setState(p=>({...p,users:updated,_configVersion:(p._configVersion||0)+1}));
+    DB.upsertUsers(updated).catch(console.error);
+    toast.show(resignModal.name+" marked as resigned ("+fmtDate(resignDate)+")");
+    setResignModal(null);
+  };
+
+  // Filter users by view
+  const filteredUsers = state.users.filter(u => {
+    if (viewFilter==="active")   return u.active!==false && u.status!=="resigned";
+    if (viewFilter==="inactive") return u.active===false  && u.status!=="resigned";
+    if (viewFilter==="resigned") return u.status==="resigned";
+    return true; // all
+  });
+
+  const counts = {
+    active:   state.users.filter(u=>u.active!==false&&u.status!=="resigned").length,
+    inactive: state.users.filter(u=>u.active===false&&u.status!=="resigned").length,
+    resigned: state.users.filter(u=>u.status==="resigned").length,
+  };
+
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:18,fontWeight:800}}>User Management</div>
-        <div style={{display:"flex",gap:8}}>
-          <Btn onClick={()=>{ if(confirm("Reset to default staff list?")){ setState(p=>({...p,users:INITIAL_STATE.users,passwords:INITIAL_STATE.passwords,_configVersion:0})); toast.show("Reset done"); }}} variant="ghost" size="sm">↺ Reset</Btn>
-          <Btn onClick={openNew} variant="amber">+ Add User</Btn>
-        </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:16,fontWeight:800}}>User Management</div>
+        <Btn onClick={openNew} variant="amber">+ Add User</Btn>
       </div>
+
+      {/* Resign confirmation modal */}
+      {resignModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:24,maxWidth:360,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Mark as Resigned</div>
+            <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
+              <b>{resignModal.name}</b> ({resignModal.empId}) will be marked as resigned and hidden from active lists.
+            </div>
+            <Input label="Date of Resignation" type="date" value={resignDate} onChange={setResignDate}/>
+            <div style={{display:"flex",gap:8,marginTop:16}}>
+              <Btn onClick={confirmResign} variant="danger" style={{flex:1}}>Confirm Resignation</Btn>
+              <Btn onClick={()=>setResignModal(null)} variant="ghost" style={{flex:1}}>Cancel</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit/Add form */}
       {editing!==null && (
         <Card style={{marginBottom:20,borderTop:"3px solid "+T.amber}}>
-          <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>{editing?.id?"Edit User":"New User"}</div>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>{editing?.id?"Edit User":"New User"}</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
-            {[["empId","Employee ID"],["name","Full Name"],["phone","Phone"]].map(([k,l])=>(
-              <div key={k}><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
-              <input value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
-                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            {[["empId","Employee ID"],["name","Full Name"],["email","Email"],["phone","Phone"],
+              ["dob","Date of Birth","date"],["joining","Joining Date","date"],
+              ["weddingAnniversary","Anniversary","date"],["counter","Counter/Dept"]
+            ].map(([k,l,t])=>(
+              <div key={k}>
+                <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
+                <input type={t||"text"} value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
+                  style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+              </div>
             ))}
-            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Role</label>
-            <select value={form.role||"field_staff"} onChange={e=>setForm(p=>({...p,role:e.target.value}))}
-              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              {Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-            </select></div>
-            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Reports To</label>
-            <select value={form.managerId||""} onChange={e=>setForm(p=>({...p,managerId:e.target.value}))}
-              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value="">None</option>
-              {state.users.filter(u=>["md","manager","supervisor"].includes(u.role)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select></div>
-            {[["dob","Date of Birth","date"],["joining","Joining Date","date"]].map(([k,l,t])=>(
-              <div key={k}><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{l}</label>
-              <input type={t} value={form[k]||""} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))}
-                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
-            ))}
-            <div><label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>New Password</label>
-            <input value={newPwd} onChange={e=>setNewPwd(e.target.value)} placeholder={editing?.id?"Leave blank to keep":"Required"}
-              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Role</label>
+              <select value={form.role||"field_staff"} onChange={e=>setForm(p=>({...p,role:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+                {Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>Manager</label>
+              <select value={form.managerId||""} onChange={e=>setForm(p=>({...p,managerId:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+                <option value="">None</option>
+                {state.users.filter(u=>["manager","md","supervisor"].includes(u.role)).map(u=>(
+                  <option key={u.id} value={u.id}>{u.name} ({ROLE_LABELS[u.role]})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>New Password</label>
+              <input type="password" value={newPwd} onChange={e=>setNewPwd(e.target.value)} placeholder="Leave blank to keep"
+                style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+            </div>
           </div>
-          <div style={{display:"flex",gap:10}}>
-            <Btn onClick={save} variant="amber">Save</Btn>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={save} variant="amber">Save User</Btn>
             <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
           </div>
         </Card>
       )}
+
+      {/* Filter tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        {[
+          {id:"active",   label:`Active (${counts.active})`,   color:T.grn},
+          {id:"inactive", label:`Inactive (${counts.inactive})`, color:T.amber},
+          {id:"resigned", label:`Resigned (${counts.resigned})`, color:T.red},
+          {id:"all",      label:`All (${state.users.length})`,   color:T.navy},
+        ].map(tab=>(
+          <button key={tab.id} onClick={()=>setViewFilter(tab.id)} style={{
+            padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(viewFilter===tab.id?tab.color:T.bdrS),
+            background:viewFilter===tab.id?tab.color:"transparent",
+            color:viewFilter===tab.id?"#fff":T.txt2,transition:"all .15s"
+          }}>{tab.label}</button>
+        ))}
+      </div>
+
       <Table cols={[
-        {key:"empId",label:"ID",render:r=><span style={{fontFamily:"monospace",fontSize:12}}>{r.empId}</span>},
-        {key:"name",label:"Name",render:r=><b>{r.name}</b>},
-        {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
-        {key:"mgr",label:"Reports To",render:r=>state.users.find(u=>u.id===r.managerId)?.name||"—"},
-        {key:"dob",label:"D.O.B",render:r=>r.dob?r.dob.split("-").reverse().join("/"):"—"},
-        {key:"joining",label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("/"):"—"},
-        {key:"status",label:"Status",render:r=><Badge color={r.active!==false?T.grn:T.red}>{r.active!==false?"Active":"Inactive"}</Badge>},
-        {key:"actions",label:"",render:r=><div style={{display:"flex",gap:4}}>
-          <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>
-          <Btn onClick={()=>{
-              const updated = state.users.map(u=>u.id===r.id?{...u,active:u.active===false}:u);
-              setState(p=>({...p,users:updated}));
-              DB.upsertUsers(updated).catch(console.error);
-              toast.show((r.active!==false?"Deactivated ":"Activated ")+r.name);
-            }} size="sm" variant="ghost">{r.active!==false?"Deactivate":"Activate"}</Btn>
-        </div>},
-      ]} rows={state.users}/>
+        {key:"empId", label:"ID",   render:r=><span style={{fontFamily:"monospace",fontSize:12,color:r.status==="resigned"?T.red:T.txt}}>{r.empId}</span>},
+        {key:"name",  label:"Name", render:r=>(
+          <div>
+            <b style={{color:r.status==="resigned"?T.red:r.active===false?T.txt2:T.txt}}>{r.name}</b>
+            {r.status==="resigned" && <div style={{fontSize:10,color:T.red}}>Resigned {r.resignedOn?fmtDate(r.resignedOn):""}</div>}
+            {r.active===false && r.status!=="resigned" && <div style={{fontSize:10,color:T.amber}}>Inactive</div>}
+          </div>
+        )},
+        {key:"role",  label:"Role", render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
+        {key:"mgr",   label:"Manager", render:r=>state.users.find(u=>u.id===r.managerId)?.name||"—"},
+        {key:"act",   label:"", render:r=>(
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {r.status!=="resigned" && <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>}
+            {r.status!=="resigned" && (
+              <Btn onClick={()=>toggleActive(r)} size="sm" variant="ghost">
+                {r.active!==false?"Deactivate":"Activate"}
+              </Btn>
+            )}
+            {r.status!=="resigned"
+              ? <Btn onClick={()=>{setResignModal(r);setResignDate(today());}} size="sm" variant="danger">Resign</Btn>
+              : <Btn onClick={()=>{
+                  const updated=state.users.map(u=>u.id===r.id?{...u,active:true,status:undefined,resignedOn:undefined}:u);
+                  setState(p=>({...p,users:updated}));
+                  DB.upsertUsers(updated).catch(console.error);
+                  toast.show(r.name+" reinstated ✅");
+                }} size="sm" variant="outline">Reinstate</Btn>
+            }
+          </div>
+        )},
+      ]} rows={filteredUsers} emptyMsg={`No ${viewFilter} users`}/>
     </div>
   );
 }
 
-// ─── IT Admin: Counter Management ─────────────────────────────────────────────
+
 function CounterMgmt({ user, state, setState, toast }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm]       = useState({});
