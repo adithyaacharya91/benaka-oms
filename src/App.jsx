@@ -6652,18 +6652,32 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   };
 
   const approve = async (req, status) => {
-    const approvedItems = req.items.map((it,i)=>({
-      ...it, approvedQty: Number(editQtys[req.id]?.[i] ?? it.qty)
-    }));
+    // Use edited qtys if set, otherwise use requested qty (capped at available stock)
+    const approvedItems = req.items.map((it,i)=>{
+      const inv = (state.inventory||[]).find(x=>
+        (it.productId&&it.productId===x.productId) || x.productName===it.productName
+      );
+      const available = Number(inv?.currentStock||0);
+      const requested = Number(it.qty)||0;
+      const edited    = editQtys[req.id]?.[i];
+      // If user edited, use their value (capped at available); else use requested (capped at available)
+      const approvedQty = status==="rejected" ? 0
+        : edited !== undefined
+          ? Math.min(Math.max(0,Number(edited)), available)
+          : Math.min(requested, available);
+      return { ...it, approvedQty };
+    });
     const updatedReq = { ...req, items:approvedItems, status, approvedBy:user.id, approvedAt:new Date().toISOString() };
 
     // Update inventory for approved items
     if (status==="approved"||status==="partial") {
       const newInventory = (state.inventory||[]).map(inv=>{
-        const relItem = approvedItems.find(it=>it.productId===inv.productId||it.productName===inv.productName);
+        const relItem = approvedItems.find(it=>
+          (it.productId&&it.productId===inv.productId) || it.productName===inv.productName
+        );
         if (!relItem||!relItem.approvedQty) return inv;
-        return {...inv, currentStock:Math.max(0,(Number(inv.currentStock)||0)-Number(relItem.approvedQty)),
-          lastUpdated:today(), updatedBy:user.id};
+        const newStock = Math.max(0, Number(inv.currentStock||0) - Number(relItem.approvedQty));
+        return {...inv, currentStock:newStock, lastUpdated:today(), updatedBy:user.id};
       });
       // Create release transactions
       const txs = approvedItems.filter(it=>it.approvedQty>0).map(it=>({
@@ -6822,8 +6836,9 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                           const oldIt = req.items.find(x=>x.productId===inv.productId||x.productName===inv.productName);
                           const newIt = adjItems.find(x=>x.productId===inv.productId||x.productName===inv.productName);
                           if (!oldIt||!newIt) return inv;
+                          // diff > 0 means more released now → deduct more; diff < 0 means less released → add back
                           const diff = Number(newIt.approvedQty||0) - Number(oldIt.approvedQty||0);
-                          return {...inv, currentStock:Math.max(0,(Number(inv.currentStock)||0)-diff),
+                          return {...inv, currentStock:Math.max(0, Number(inv.currentStock||0) - diff),
                             lastUpdated:today(), updatedBy:user.id};
                         });
                         const adjReq = {...req,items:adjItems,approvedBy:user.id,approvedAt:new Date().toISOString()};
