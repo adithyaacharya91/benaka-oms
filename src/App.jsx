@@ -6632,8 +6632,16 @@ function StockRequest({ user, state, setState, toast }) {
                   <Badge color={statusColor(req.status)}>{req.status}</Badge>
                   {req.status==="pending" && editingReq!==req.id && <>
                     <Btn onClick={()=>{setEditingReq(req.id);setEditRows(req.items.map(it=>({...it})));}} size="sm" variant="outline">✏️ Edit</Btn>
-                    <Btn onClick={()=>cancelReq(req)} size="sm" variant="danger">✕</Btn>
+                    <Btn onClick={()=>cancelReq(req)} size="sm" variant="danger">✕ Cancel</Btn>
                   </>}
+                  {(req.status==="cancelled"||req.status==="rejected") && (
+                    <Btn onClick={()=>{
+                      if(!confirm("Delete this request?")) return;
+                      setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
+                      supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
+                      toast.show("Request deleted");
+                    }} size="sm" variant="danger">🗑 Delete</Btn>
+                  )}
                   {req.status==="pending" && editingReq===req.id && <>
                     <Btn onClick={()=>saveEdit(req)} size="sm" variant="amber">💾 Save</Btn>
                     <Btn onClick={()=>setEditingReq(null)} size="sm" variant="ghost">Cancel</Btn>
@@ -6795,9 +6803,17 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     {req.items.map(it=>`${it.productName} × ${it.qty}`).join(" | ")}
                   </div>}
                 </div>
-                <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
-                  {expanded===req.id?"▲ Collapse":"▼ Review"}
-                </Btn>
+                <div style={{display:"flex",gap:6}}>
+                  <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
+                    {expanded===req.id?"▲ Collapse":"▼ Review"}
+                  </Btn>
+                  <Btn onClick={()=>{
+                    if(!confirm("Delete this pending request?")) return;
+                    setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
+                    supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
+                    toast.show("Request deleted");
+                  }} size="sm" variant="danger">🗑</Btn>
+                </div>
               </div>
 
               {expanded===req.id && (
@@ -6880,6 +6896,12 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                       toast.show("Request reopened");
                     }} size="sm" variant="outline">↩ Reopen</Btn>
                   )}
+                  <Btn onClick={()=>{
+                    if(!confirm("Delete this request record?")) return;
+                    setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
+                    supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
+                    toast.show("Request deleted");
+                  }} size="sm" variant="danger">🗑</Btn>
                 </div>
               </div>
             </Card>
@@ -6959,7 +6981,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                  {["Product","Unit","Current Stock","Min Stock","Status","Last Updated","Updated By"].map(h=>(
+                  {["Product","Unit","Current Stock","Min Stock","Status","Last Updated","Updated By",""].map(h=>(
                     <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr></thead>
@@ -6996,7 +7018,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{marginTop:12,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                  {["Date","Counter","Requested By","Items","Status","Approved By"].map(h=>(
+                  {["Date","Counter","Requested By","Items","Status","Approved By",""].map(h=>(
                     <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
                   ))}
                 </tr></thead>
@@ -7014,7 +7036,14 @@ function InventoryDashboard({ user, state, setState, toast }) {
                         <Badge color={{pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[req.status]||T.txt2}>{req.status}</Badge>
                       </td>
                       <td style={{padding:"8px 12px",fontSize:12}}>{req.approvedBy?state.users.find(u=>u.id===req.approvedBy)?.name||req.approvedBy:"—"}</td>
-                    </tr>
+                      <td style={{padding:"8px 12px",textAlign:"center"}}>
+                        <button onClick={()=>{
+                          if(!confirm("Delete this request record?")) return;
+                          setState(p=>({...p,stockRequests:p.stockRequests.filter(x=>x.id!==req.id)}));
+                          supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
+                          toast.show("Request deleted");
+                        }} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15,padding:"2px 6px"}}>🗑</button>
+                      </td>
                   ))}
                 </tbody>
               </table>
@@ -7029,7 +7058,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{marginTop:12,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                  {["Date","Type","Product","Qty","Counter","Done By","Notes"].map(h=>(
+                  {["Date","Type","Product","Qty","Counter","Done By","Notes",""].map(h=>(
                     <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
                   ))}
                 </tr></thead>
@@ -7048,7 +7077,14 @@ function InventoryDashboard({ user, state, setState, toast }) {
                       <td style={{padding:"8px 12px"}}>{tx.counterName}</td>
                       <td style={{padding:"8px 12px",fontSize:12}}>{state.users.find(u=>u.id===tx.doneBy)?.name||tx.doneBy}</td>
                       <td style={{padding:"8px 12px",fontSize:12,color:T.txt2}}>{tx.notes}</td>
-                    </tr>
+                      <td style={{padding:"8px 12px",textAlign:"center"}}>
+                        <button onClick={()=>{
+                          if(!confirm("Delete this transaction?")) return;
+                          setState(p=>({...p,stockTransactions:p.stockTransactions.filter(x=>x.id!==tx.id)}));
+                          supabase.from("stock_transactions").delete().eq("id",tx.id).catch(console.error);
+                          toast.show("Transaction deleted");
+                        }} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15,padding:"2px 6px"}}>🗑</button>
+                      </td>
                   ))}
                 </tbody>
               </table>
