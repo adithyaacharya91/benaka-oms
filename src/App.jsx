@@ -2798,14 +2798,27 @@ function MDAttendance({ state }) {
   const selMonth = dr.from.slice(0,7);  // "2026-09"
   const monthStart = selMonth+"-01";
   const monthEndDate = new Date(selMonth.split("-")[0], selMonth.split("-")[1], 0);
+  // Count all days in month including Sundays (as user requested)
   const totalWorkingDays = monthEndDate.getDate();
+  // Also count Sundays for reference
+  const _sundaysInMonth = (() => {
+    let count = 0;
+    const d = new Date(monthStart+"T00:00:00");
+    while (d.getMonth() === monthEndDate.getMonth() || (d.getMonth()===0&&monthEndDate.getMonth()===11)) {
+      if (d.getDay()===0) count++;
+      d.setDate(d.getDate()+1);
+      if (d.getDate()===1 && d.getMonth()!==new Date(monthStart+"T00:00:00").getMonth()) break;
+    }
+    return count;
+  })();
 
   const activeStaff = state.users.filter(u=>u.active!==false && u.role!=="it_admin");
 
   const monthlyRows = activeStaff.map(staff => {
-    const recs = (state.attendance||[]).filter(a=>
-      a.staffId===staff.id && a.date>=monthStart && a.date<=monthStart.slice(0,7)+"-31"
-    );
+    const monthLastDay = `${selMonth}-${String(monthEndDate.getDate()).padStart(2,"0")}`;
+      const recs = (state.attendance||[]).filter(a=>
+        a.staffId===staff.id && a.date>=monthStart && a.date<=monthLastDay
+      );
     const present  = recs.filter(a=>a.status==="present").length;
     const absent   = recs.filter(a=>a.status==="absent").length;
     const halfDay  = recs.filter(a=>a.status==="half_day").length;
@@ -2818,7 +2831,8 @@ function MDAttendance({ state }) {
     const marked   = recs.length;
     const exec     = state.users.find(u=>u.id===staff.managerId);
     return { staff, exec, present, absent, halfDay, onLeave, marked, totalWorkingDays,
-             pct: totalWorkingDays>0 ? Math.round((present+halfDay*0.5)/totalWorkingDays*100) : 0 };
+             pct: totalWorkingDays>0 ? Math.round((present+halfDay*0.5)/totalWorkingDays*100) : 0,
+             effective: totalWorkingDays };
   }).filter(r=>
     !search || r.staff.name.toLowerCase().includes(search.toLowerCase()) ||
     r.exec?.name.toLowerCase().includes(search.toLowerCase())
