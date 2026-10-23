@@ -4067,6 +4067,8 @@ function ExecutiveReportGenerator({ state }) {
   const gMoSvc   = summaries.reduce((s,x)=>s+x.moSvc,0);
   const gDayTotal = gDaySvc + dayBardahlCo + dayOtherCo;
   const gMoTotal  = gMoSvc  + moBardahlCo  + moOtherCo;
+  const gDaySales = dayBardahlCo + dayOtherCo;
+  const gMoSales  = moBardahlCo  + moOtherCo;
 
   const printReport = () => {
     const todayColRep = (state.collectionReports||[]).find(r=>r.date===selDate);
