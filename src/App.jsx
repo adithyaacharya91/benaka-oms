@@ -2282,20 +2282,65 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
     l.approverId===user.id || mySupIds.includes(l.supervisorId) || mySupIds.includes(l.userId)
   );
 
+  const autoMarkLeave = (leave, st) => {
+    if (st!=="approved") return;
+    const from = leave.date||leave.fromDate||"";
+    const to   = leave.toDate||from;
+    if (!from) return;
+    // Generate date range
+    const dates = [];
+    const cur = new Date(from+"T00:00:00");
+    const end = new Date(to+"T00:00:00");
+    while (cur<=end && dates.length<60) {
+      dates.push(cur.toISOString().split("T")[0]);
+      cur.setDate(cur.getDate()+1);
+    }
+    const userId = leave.userId||leave.user_id||"";
+    const staffUser = state.users.find(u=>u.id===userId);
+    if (!staffUser) return;
+    // Find their supervisor
+    const supId = staffUser.managerId||"";
+    const newAtts = dates.map(date=>({
+      id:`att_${supId}_${userId}_${date}`,
+      date, supervisorId:supId, staffId:userId,
+      status:"absent", reason:`Approved leave: ${leave.reason||leave.type||""}`,
+      markedAt:"auto"
+    }));
+    setState(p=>({...p, attendance:[
+      ...p.attendance.filter(a=>!(a.staffId===userId&&dates.includes(a.date))),
+      ...newAtts
+    ]}));
+    DB.upsertAttendance(newAtts).catch(console.error);
+  };
+
   const decideOld = (id, status) => {
     const updated = (state.leaves||[]).map(l=>l.id===id?{...l,status,decidedAt:today(),decidedBy:user.id}:l);
     setState(p=>({...p, leaves:updated}));
     const leave = updated.find(l=>l.id===id);
-    if (leave) DB.upsertLeave(leave).catch(console.error);
-    toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
+    if (leave) {
+      DB.upsertLeave(leave).catch(console.error);
+      if (status==="approved") autoMarkLeave(leave, status);
+    }
+    const applicant = state.users.find(u=>u.id===leave?.userId);
+    toast.show(status==="approved"
+      ? `✅ Leave approved for ${applicant?.name||"staff"}${status==="approved"?" — attendance auto-marked":""}`
+      : `❌ Leave rejected for ${applicant?.name||"staff"}`
+    );
   };
 
   const decideNew = (id, status) => {
     const updated = (state.plannedLeaves||[]).map(l=>l.id===id?{...l,status,decidedOn:today(),decidedBy:user.id}:l);
     setState(p=>({...p, plannedLeaves:updated}));
     const leave = updated.find(l=>l.id===id);
-    if (leave) DB.upsertPlannedLeave(leave).catch(console.error);
-    toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
+    if (leave) {
+      DB.upsertPlannedLeave(leave).catch(console.error);
+      if (status==="approved") autoMarkLeave({...leave, date:leave.fromDate, toDate:leave.toDate}, status);
+    }
+    const applicant = state.users.find(u=>u.id===leave?.userId);
+    toast.show(status==="approved"
+      ? `✅ Leave approved for ${applicant?.name||"staff"} — attendance auto-marked absent`
+      : `❌ Leave rejected for ${applicant?.name||"staff"}`
+    );
   };
 
   const totalPending = pendingOld.length + pendingNew.length;
