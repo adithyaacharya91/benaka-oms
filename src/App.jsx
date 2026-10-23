@@ -94,7 +94,9 @@ const DB = {
       submitted_at: leave.submittedAt || leave.submitted_at || new Date().toISOString(),
       decided_at: leave.decidedAt || leave.decided_at || null,
     };
-    return supabase.from("leaves").upsert(row);
+    const res = await supabase.from("leaves").upsert(row);
+    if (res && res.code) console.error("upsertLeave failed:", res);
+    return res;
   },
   // Feedback
   async getFeedback() {
@@ -214,7 +216,9 @@ const DB = {
       applied_on: leave.appliedOn, applied_by: leave.appliedBy||leave.userId,
       decided_on: leave.decidedOn||null, decided_by: leave.decidedBy||null
     };
-    return supabase.from("planned_leaves").upsert(row);
+    const res = await supabase.from("planned_leaves").upsert(row);
+    if (res && res.code) console.error("upsertPlannedLeave failed:", res);
+    return res;
   },
   async seedConfigIfEmpty() {
     // Seed counters if empty
@@ -347,7 +351,7 @@ function useSupabaseSync(localState, setLocalState) {
 
       setLocalState(p => ({
         ...p,
-        users:     mappedUsers    || p.users,
+        users:     (mappedUsers && mappedUsers.length > 0) ? mappedUsers : p.users,
         passwords: pwdObj && Object.keys(pwdObj).length > 0 ? pwdObj : p.passwords,
         counters:  mappedCounters  || p.counters,
         workTypes: mappedWorkTypes || p.workTypes,
@@ -4478,7 +4482,12 @@ function UserMgmt({ user, state, setState, toast }) {
         {key:"status",label:"Status",render:r=><Badge color={r.active!==false?T.grn:T.red}>{r.active!==false?"Active":"Inactive"}</Badge>},
         {key:"actions",label:"",render:r=><div style={{display:"flex",gap:4}}>
           <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>
-          <Btn onClick={()=>{ setState(p=>({...p,users:p.users.map(u=>u.id===r.id?{...u,active:!u.active}:u)})); }} size="sm" variant="ghost">{r.active!==false?"Deactivate":"Activate"}</Btn>
+          <Btn onClick={()=>{
+              const updated = state.users.map(u=>u.id===r.id?{...u,active:u.active===false}:u);
+              setState(p=>({...p,users:updated}));
+              DB.upsertUsers(updated).catch(console.error);
+              toast.show((r.active!==false?"Deactivated ":"Activated ")+r.name);
+            }} size="sm" variant="ghost">{r.active!==false?"Deactivate":"Activate"}</Btn>
         </div>},
       ]} rows={state.users}/>
     </div>
