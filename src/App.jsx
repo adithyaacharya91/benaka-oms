@@ -2094,7 +2094,6 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
             ))}</tbody>
             <tfoot><tr style={{background:T.amberL}}>
               <td style={{padding:"6px 10px",fontWeight:800}}>TOTAL</td>
-                                  </tr>
               <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.svc,0))}</td>
               <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.grn}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.sal,0))}</td>
               <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.total,0))}</td>
@@ -3221,7 +3220,6 @@ function MDCollectionReport({ user, state, setState, toast }) {
             ))}</tbody>
             <tfoot><tr style={{background:T.amberL}}>
               <td style={{padding:"6px 10px",fontWeight:800}}>GRAND TOTAL</td>
-                                  </tr>
               <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.svc,0))}</td>
               <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.grn}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.sal,0))}</td>
               <td style={{padding:"6px 10px",textAlign:"right",fontWeight:800,color:T.amber}}>{fmtCurr(execTotals.reduce((s,e)=>s+e.total,0))}</td>
@@ -3973,7 +3971,6 @@ function OfficeEnterReport({ user, state, setState, toast }) {
                     <button onClick={()=>setReportCounters(p=>p.map((c2,ci2)=>ci2!==ci?c2:{...c2,entries:[...c2.entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}))}
                       style={{ background:"none", border:"none", color:T.navy, cursor:"pointer", fontSize:12, fontWeight:700, padding:"2px 4px", fontFamily:"inherit" }}>+ Add Row</button>
                   </td>
-                </tr>
               </tbody>
               <tfoot><tr style={{ background:T.navyXL }}>
                 <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy }}>SERVICE TOTAL</td>
@@ -4403,7 +4400,6 @@ function ExecutiveReportGenerator({ state }) {
                 <thead><tr style={{background:T.navyXL}}>
                   {["Counter","Vehicles","Day Service","Month Service"].map(h=>(
                     <th key={h} style={{padding:"5px 10px",textAlign:h==="Counter"?"left":"right",fontSize:11,fontWeight:700,color:T.navy}}>{h}</th>
-                </tr>
                   ))}
                 </tr></thead>
                 <tbody>
@@ -6420,7 +6416,6 @@ function StockCheckin({ user, state, setState, toast }) {
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
                                   </tr>
               ))}
-            </tr>
           </thead>
           <tbody>
             {rows.map((row,i)=>(
@@ -6569,9 +6564,8 @@ function StockRequest({ user, state, setState, toast }) {
             <thead><tr style={{background:T.navyXL}}>
               {["Product","Qty Needed","Notes",""].map(h=>(
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-                                  </tr>
               ))}
-            </tr></thead>
+                                  </tr></thead>
             <tbody>
               {rows.map((row,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
@@ -6682,7 +6676,6 @@ function StockRequest({ user, state, setState, toast }) {
                             <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))}
                               style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
                           </td>
-                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -6829,9 +6822,8 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     <thead><tr style={{background:T.navyXL}}>
                       {["Product","Requested","Available","Release Qty","Status"].map(h=>(
                         <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-                    </tr>
                       ))}
-                    </tr></thead>
+                      </tr></thead>
                     <tbody>
                       {req.items.map((it,i)=>{
                         const inv       = findInv(it.productName);
@@ -6858,7 +6850,6 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                                 :!canFulfil?<span style={{color:T.amber}}>Partial only ({available} avail)</span>
                                 :<span style={{color:T.grn}}>Can fulfil</span>}
                             </td>
-                          </tr>
                         );
                       })}
                     </tbody>
@@ -6989,11 +6980,10 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                  {["Product","Unit","Current Stock","Min Stock","Status","Last Updated","Updated By",""].map(h=>(
                     <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
-                </tr>
+                  {["Product","Unit","Current Stock","Min Stock","Status","Last Updated","Updated By",""].map(h=>(
                   ))}
-                </tr></thead>
+                  </tr></thead>
                 <tbody>
                   {stockItems.length===0&&<tr><td colSpan={7} style={{padding:20,textAlign:"center",color:T.txt3}}>No inventory records yet. Check in stock first.</td></tr>}
                   {stockItems.map((item,i)=>{
@@ -7027,11 +7017,10 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{marginTop:12,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                  {["Date","Counter","Requested By","Items","Status","Approved By",""].map(h=>(
                     <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
-                </tr>
+                  {["Date","Counter","Requested By","Items","Status","Approved By",""].map(h=>(
                   ))}
-                </tr></thead>
+                  </tr></thead>
                 <tbody>
                   {reqsInRange.length===0&&<tr><td colSpan={6} style={{padding:20,textAlign:"center",color:T.txt3}}>No requests for this period</td></tr>}
                   {reqsInRange.map((req,i)=>(
