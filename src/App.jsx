@@ -5059,10 +5059,12 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
               <td style={{ padding:"6px 10px", fontWeight:700, textAlign:"right" }}>TOTAL SERVICE</td>
               <td></td><td></td>
               <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800 }}>{fmtCurr(totalSvc)}</td>
+            </tr>
             <tr style={{ background:T.grnL }}>
               <td style={{ padding:"6px 10px", fontWeight:700, color:T.grn, textAlign:"right" }}>TOTAL SALES</td>
               <td></td><td></td>
               <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.grn }}>{fmtCurr(totalSales)}</td>
+            </tr>
             <tr style={{ background:T.amberL }}>
               <td style={{ padding:"6px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>GRAND TOTAL (SERVICE + SALES)</td>
               <td></td><td></td>
