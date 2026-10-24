@@ -3967,10 +3967,10 @@ function OfficeEnterReport({ user, state, setState, toast }) {
               <tbody>
                 <tr>
                   <td colSpan={4} style={{ padding:"4px 8px", border:`1px solid ${T.bdr}` }}>
-                </tr>
                     <button onClick={()=>setReportCounters(p=>p.map((c2,ci2)=>ci2!==ci?c2:{...c2,entries:[...c2.entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}))}
                       style={{ background:"none", border:"none", color:T.navy, cursor:"pointer", fontSize:12, fontWeight:700, padding:"2px 4px", fontFamily:"inherit" }}>+ Add Row</button>
                   </td>
+                </tr>
               </tbody>
               <tfoot><tr style={{ background:T.navyXL }}>
                 <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy }}>SERVICE TOTAL</td>
@@ -6414,9 +6414,8 @@ function StockCheckin({ user, state, setState, toast }) {
             <tr style={{background:T.navyXL}}>
               {["Product","Qty","Unit","Notes",""].map(h=>(
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-                                  </tr>
               ))}
-          </thead>
+            </tr></thead>
           <tbody>
             {rows.map((row,i)=>(
               <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
@@ -6659,7 +6658,6 @@ function StockRequest({ user, state, setState, toast }) {
                         <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
                           <td style={{padding:"4px 5px"}}>
                             <input list="req-edit-products" value={row.productName}
-                        </tr>
                               onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,productName:e.target.value}:r))}
                               style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                           </td>
@@ -6676,6 +6674,7 @@ function StockRequest({ user, state, setState, toast }) {
                             <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))}
                               style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
                           </td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
