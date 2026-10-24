@@ -6969,6 +6969,23 @@ function InventoryDashboard({ user, state, setState, toast }) {
                 <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Pending Requests</div>
               </Card>
             </div>
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              <Btn onClick={()=>{
+                if(!confirm("Clear ALL stock quantities to 0? This cannot be undone.")) return;
+                const updated = (state.inventory||[]).map(x=>({...x,currentStock:0,lastUpdated:today(),updatedBy:user.id}));
+                setState(p=>({...p,inventory:updated}));
+                DB.upsertInventory(updated).catch(console.error);
+                toast.show("All stock cleared to 0");
+              }} variant="danger" size="sm">⬜ Clear All Stock</Btn>
+              <Btn onClick={()=>{
+                if(!confirm("Delete ALL inventory records? This cannot be undone.")) return;
+                setState(p=>({...p,inventory:[],stockTransactions:[],stockRequests:[]}));
+                supabase.from("inventory").delete().neq("id","").catch(console.error);
+                supabase.from("stock_transactions").delete().neq("id","").catch(console.error);
+                supabase.from("stock_requests").delete().neq("id","").catch(console.error);
+                toast.show("All inventory data cleared");
+              }} variant="danger" size="sm">🗑 Clear All Data</Btn>
+            </div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search product..."
               style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",marginBottom:12,boxSizing:"border-box"}}/>
             <div style={{overflowX:"auto"}}>
