@@ -1423,7 +1423,8 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
   const [displayDate, setDisplayDate] = useState(today());
 
   // Store selections in refs so 30s Supabase sync re-renders NEVER wipe them
-  const recordsRef = useRef({});
+  const recordsRef  = useRef({});
+  const changedRef  = useRef(new Set()); // tracks explicitly changed staff this session
   const reasonsRef = useRef({});
   const workingDate = useRef(today());
   const [formTick, setFormTick] = useState(0); // increment to force button re-render
@@ -1442,6 +1443,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
     reasonsRef.current = rs;
     workingDate.current = date;
     setDisplayDate(date);
+    changedRef.current = new Set();
     setFormTick(t => t+1);
     setDirty(false);
   };
@@ -1455,6 +1457,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
 
   const setStatus = (staffId, status) => {
     recordsRef.current = { ...recordsRef.current, [staffId]: status };
+    changedRef.current.add(staffId);
     setFormTick(t => t+1);
     setDirty(true);
   };
@@ -1494,14 +1497,14 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
               const curStatus = recordsRef.current[s.id];
               return (
                 <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:8,
-                  background:curStatus==="present"?"#ECFCCB":curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf,
+                  background:changedRef.current.has(s.id)?(curStatus==="present"?"#ECFCCB":curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf):(curStatus==="present"?"#F7FEDE":curStatus==="absent"?"#FFF8F8":curStatus==="half_day"?"#FFFCF0":T.surf),
                   padding:"8px 10px", borderRadius:8,
                   borderLeft:`4px solid ${curStatus==="present"?T.lime:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
                   transition:"all 0.2s" }}>
                   <div>
                     <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
                     {!curStatus && <div style={{fontSize:10,color:T.txt3,marginTop:1}}>Not marked yet</div>}
-                    {curStatus && <div style={{fontSize:11,color:curStatus==="present"?"#fff":curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:800,
+                    {curStatus && changedRef.current.has(s.id) && <div style={{fontSize:11,color:curStatus==="present"?"#fff":curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:800,
                       background:curStatus==="present"?T.lime:"transparent",
                       padding:curStatus==="present"?"1px 6px":"0",borderRadius:10,display:"inline-block"}}>
                       {curStatus==="present"?"✓ Present":curStatus==="absent"?"✗ Absent":"◑ Half Day"}
@@ -1509,13 +1512,17 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                   </div>
                   <div style={{ display:"flex", gap:4 }}>
                     {["present","absent","half_day"].map(status => {
-                      const active = curStatus===status;
+                      const active       = curStatus===status;
+                      const explicit     = changedRef.current.has(s.id) && curStatus===status;
+                      const savedActive  = active && !changedRef.current.has(s.id); // loaded from DB, not changed this session
                       return (
                         <button key={status} onClick={()=>setStatus(s.id, status)} style={{
                           padding:"5px 10px", borderRadius:6,
-                          border:`1px solid ${active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS}`,
-                          background:active?(status==="present"?T.lime:status==="absent"?T.redL:T.amberL):"transparent",
-                          color:active?(status==="present"?"#fff":status==="absent"?T.red:T.amberD):T.txt2,
+                          border:`1px solid ${explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):savedActive?(status==="present"?"#A3E635":status==="absent"?"#FCA5A5":"#FDE68A"):T.bdrS}`,
+                          background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
+                              savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
+                              "transparent",
+                          color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2:T.txt2,
                           fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
                         }}>{status==="half_day"?"½ Day":status==="absent"?"Absent":"Present"}</button>
                       );
@@ -4070,7 +4077,8 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
 function OfficeMarkAttendance({ user, state, setState, toast }) {
   const [selExec, setSelExec] = useState("");
   const [displayDate, setDisplayDate] = useState(today());
-  const recordsRef = useRef({});
+  const recordsRef  = useRef({});
+  const changedRef  = useRef(new Set()); // tracks explicitly changed staff this session
   const reasonsRef = useRef({});
   const [formTick, setFormTick] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -4158,9 +4166,11 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
                       const active=st===status||(!st&&status==="present");
                       return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                         padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                        border:`1px solid ${active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS}`,
-                        background:active?(status==="present"?T.lime:status==="absent"?T.redL:T.amberL):"transparent",
-                        color:active?(status==="present"?"#fff":status==="absent"?T.red:T.amberD):T.txt2
+                        border:`1px solid ${explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):savedActive?(status==="present"?"#A3E635":status==="absent"?"#FCA5A5":"#FDE68A"):T.bdrS}`,
+                        background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
+                              savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
+                              "transparent",
+                        color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2:T.txt2
                       }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
                     })}
                   </div>
@@ -5666,7 +5676,8 @@ function OfficeSalesEntry({ user, state, setState, toast }) {
 
 function OfficeOwnAttendance({ user, state, setState, toast }) {
   const [displayDate, setDisplayDate] = useState(today());
-  const recordsRef = useRef({});
+  const recordsRef  = useRef({});
+  const changedRef  = useRef(new Set()); // tracks explicitly changed staff this session
   const reasonsRef = useRef({});
   const [formTick, setFormTick] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -5704,8 +5715,10 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
                 return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                   padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
                   border:"1px solid "+(active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS),
-                  background:active?(status==="present"?T.lime:status==="absent"?T.redL:T.amberL):"transparent",
-                  color:active?(status==="present"?"#fff":status==="absent"?T.red:T.amberD):T.txt2
+                  background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
+                              savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
+                              "transparent",
+                  color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2:T.txt2
                 }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
               })}
             </div>
