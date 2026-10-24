@@ -1522,7 +1522,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                           background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
                               savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
                               "transparent",
-                          color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2:T.txt2,
+                          color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2,
                           fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
                         }}>{status==="half_day"?"½ Day":status==="absent"?"Absent":"Present"}</button>
                       );
@@ -4172,7 +4172,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
                         background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
                               savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
                               "transparent",
-                        color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2:T.txt2
+                        color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2
                       }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
                     })}
                   </div>
@@ -5720,7 +5720,7 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
                   background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
                               savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
                               "transparent",
-                  color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2:T.txt2
+                  color:explicit?(status==="present"?"#fff":status==="absent"?"#fff":"#78350F"):savedActive?(status==="present"?T.limeD:status==="absent"?T.red:T.amberD):T.txt2
                 }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
               })}
             </div>
