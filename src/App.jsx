@@ -541,8 +541,13 @@ const T = {
   amber:   "#E8A020",
   amberL:  "#FEF3DC",
   amberD:  "#B87D18",
-  grn:     "#15803D",
+  grn:     "#16A34A",
   grnL:    "#DCFCE7",
+  lime:    "#84CC16",
+  limeL:   "#F7FEE7",
+  limeD:   "#4D7C0F",
+  present: "#84CC16",
+  presentL:"#F0FDF4",
   red:     "#DC2626",
   redL:    "#FEF2F2",
   pur:     "#6D28D9",
@@ -1292,7 +1297,7 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
               const att = todayAtt.find(a=>a.staffId===s.id);
               return <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.bdr}` }}>
                 <span style={{fontSize:13}}>{s.name}</span>
-                {att ? <Badge color={att.status==="present"?T.grn:T.red}>{att.status}</Badge> : <Badge color={T.txt3}>Not marked</Badge>}
+                {att ? <Badge color={att.status==="present"?T.lime:T.red}>{att.status}</Badge> : <Badge color={T.txt3}>Not marked</Badge>}
               </div>;
             })
           }
@@ -1489,14 +1494,14 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
               const curStatus = recordsRef.current[s.id];
               return (
                 <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:8,
-                  background:curStatus==="present"?T.grnL:curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf,
+                  background:curStatus==="present"?T.limeL:curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf,
                   padding:"8px 10px", borderRadius:8,
-                  borderLeft:`3px solid ${curStatus==="present"?T.grn:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
+                  borderLeft:`3px solid ${curStatus==="present"?T.lime:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
                   transition:"all 0.2s" }}>
                   <div>
                     <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
                     {!curStatus && <div style={{fontSize:10,color:T.txt3,marginTop:1}}>Not marked yet</div>}
-                    {curStatus && <div style={{fontSize:10,color:curStatus==="present"?T.grn:curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:700}}>✓ {curStatus==="half_day"?"Half Day":curStatus==="absent"?"Absent":"Present"}</div>}
+                    {curStatus && <div style={{fontSize:10,color:curStatus==="present"?T.lime:curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:700}}>✓ {curStatus==="half_day"?"Half Day":curStatus==="absent"?"Absent":"Present"}</div>}
                   </div>
                   <div style={{ display:"flex", gap:4 }}>
                     {["present","absent","half_day"].map(status => {
@@ -1504,9 +1509,9 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                       return (
                         <button key={status} onClick={()=>setStatus(s.id, status)} style={{
                           padding:"5px 10px", borderRadius:6,
-                          border:`1px solid ${active?(status==="present"?T.grn:status==="absent"?T.red:T.amber):T.bdrS}`,
-                          background:active?(status==="present"?T.grnL:status==="absent"?T.redL:T.amberL):"transparent",
-                          color:active?(status==="present"?T.grn:status==="absent"?T.red:T.amberD):T.txt2,
+                          border:`1px solid ${active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS}`,
+                          background:active?(status==="present"?T.limeL:status==="absent"?T.redL:T.amberL):"transparent",
+                          color:active?(status==="present"?T.lime:status==="absent"?T.red:T.amberD):T.txt2,
                           fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
                         }}>{status==="half_day"?"½ Day":status==="absent"?"Absent":"Present"}</button>
                       );
@@ -1544,7 +1549,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
             ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No records for {fmtDate(histDate)}</div></Card>
             : <Table cols={[
                 {key:"staff",label:"Staff",render:r=>{ const u=state.users.find(u=>u.id===r.staffId); return <b>{u?.name||r.staffId}{r.staffId===user.id?" (You)":""}</b>; }},
-                {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
+                {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.lime:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
                 {key:"reason",label:"Reason",render:r=>r.reason||"—"},
                 {key:"markedAt",label:"Marked At"},
               ]} rows={histAtt}/>
@@ -3007,8 +3012,8 @@ function MDAttendance({ state }) {
     .filter(r=>!search||r.staffName.toLowerCase().includes(search.toLowerCase())||r.supervisorName.toLowerCase().includes(search.toLowerCase()))
     .sort((a,b)=>b.date.localeCompare(a.date)||a.staffName.localeCompare(b.staffName));
 
-  const statusColor = s=>({present:T.grn,absent:T.red,half_day:T.amber,on_leave:"#7C3AED",not_marked:T.txt3}[s]||T.txt2);
-  const statusBg    = s=>({present:T.grnL,absent:T.redL,half_day:T.amberL,on_leave:"#EDE9FE",not_marked:T.surf}[s]||T.surf);
+  const statusColor = s=>({present:T.lime,absent:T.red,half_day:T.amber,on_leave:"#7C3AED",not_marked:T.txt3}[s]||T.txt2);
+  const statusBg    = s=>({present:T.limeL,absent:T.redL,half_day:T.amberL,on_leave:"#EDE9FE",not_marked:T.surf}[s]||T.surf);
   const statusLabel = s=>({all:"All",present:"Present",absent:"Absent",half_day:"Half Day",on_leave:"On Leave",not_marked:"Not Marked"}[s]||s);
 
   const summary = {
@@ -3408,7 +3413,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             { l:"Month Sales",    v:fmtCurr(gMoSales),   i:"📊", c:"#bbf7d0" },
             { l:"Month Total",    v:fmtCurr(gMoTotal),   i:"🏆", c:"#fde68a" },
             { l:"Monthly Growth", v:lastMonthRev>0?(growth>=0?"+":"")+growth+"%":"New Month", i:growth>0?"📈":growth<0?"📉":"➡️", c:growth>0?"#86EFAC":growth<0?"#FCA5A5":"rgba(255,255,255,.7)" },
-            { l:"Present Today",  v:presentToday.length+halfToday.length, i:"✅", c:"#86EFAC" },
+            { l:"Present Today",  v:presentToday.length+halfToday.length, i:"✅", c:"#84CC16" },
             { l:"Absent Today",   v:absentToday.length,  i:"❌", c:"#FCA5A5" },
             { l:"Not Marked",     v:notMarkedToday,       i:"❓", c:"rgba(255,255,255,.5)" },
             { l:"Total Staff",    v:activeStaff.length,   i:"👥", c:"#e9d5ff" },
@@ -4149,9 +4154,9 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
                       const active=st===status||(!st&&status==="present");
                       return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                         padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                        border:`1px solid ${active?(status==="present"?T.grn:status==="absent"?T.red:T.amber):T.bdrS}`,
-                        background:active?(status==="present"?T.grnL:status==="absent"?T.redL:T.amberL):"transparent",
-                        color:active?(status==="present"?T.grn:status==="absent"?T.red:T.amberD):T.txt2
+                        border:`1px solid ${active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS}`,
+                        background:active?(status==="present"?T.limeL:status==="absent"?T.redL:T.amberL):"transparent",
+                        color:active?(status==="present"?T.lime:status==="absent"?T.red:T.amberD):T.txt2
                       }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
                     })}
                   </div>
@@ -5573,9 +5578,9 @@ function OfficeAttendanceView({ state }) {
         {["all","present","absent","half_day"].map(s=>(
           <button key={s} onClick={()=>setFilterStatus(s)} style={{
             padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
-            border:"1px solid "+(filterStatus===s?(s==="present"?T.grn:s==="absent"?T.red:s==="half_day"?T.amber:T.navy):T.bdrS),
-            background:filterStatus===s?(s==="present"?T.grnL:s==="absent"?T.redL:s==="half_day"?T.amberL:T.navy):"transparent",
-            color:filterStatus===s?(s==="all"?"#fff":s==="present"?T.grn:s==="absent"?T.red:T.amberD):T.txt2
+            border:"1px solid "+(filterStatus===s?(s==="present"?T.lime:s==="absent"?T.red:s==="half_day"?T.amber:T.navy):T.bdrS),
+            background:filterStatus===s?(s==="present"?T.limeL:s==="absent"?T.redL:s==="half_day"?T.amberL:T.navy):"transparent",
+            color:filterStatus===s?(s==="all"?"#fff":s==="present"?T.lime:s==="absent"?T.red:T.amberD):T.txt2
           }}>{s==="half_day"?"Half Day":s==="all"?"All":s.charAt(0).toUpperCase()+s.slice(1)}{s!=="all"?" ("+att.filter(a=>a.status===s).length+")":""}</button>
         ))}
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff..."
@@ -5586,7 +5591,7 @@ function OfficeAttendanceView({ state }) {
         {key:"date",label:"Date",render:r=>fmtDate(r.date)},
         {key:"staff",label:"Staff",render:r=><b>{state.users.find(u=>u.id===r.staffId)?.name||r.staffId}</b>},
         {key:"counter",label:"Counter",render:r=>state.counters.find(c=>c.supervisorId===r.supervisorId)?.name||"—"},
-        {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.grn:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
+        {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.lime:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
         {key:"reason",label:"Reason",render:r=>r.reason||"—"},
       ]} rows={att} emptyMsg="No records"/>
     </div>
@@ -5694,9 +5699,9 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
               {["present","absent","half_day"].map(status=>{ const active=st===status||(!st&&status==="present");
                 return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                   padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                  border:"1px solid "+(active?(status==="present"?T.grn:status==="absent"?T.red:T.amber):T.bdrS),
-                  background:active?(status==="present"?T.grnL:status==="absent"?T.redL:T.amberL):"transparent",
-                  color:active?(status==="present"?T.grn:status==="absent"?T.red:T.amberD):T.txt2
+                  border:"1px solid "+(active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS),
+                  background:active?(status==="present"?T.limeL:status==="absent"?T.redL:T.amberL):"transparent",
+                  color:active?(status==="present"?T.lime:status==="absent"?T.red:T.amberD):T.txt2
                 }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
               })}
             </div>
