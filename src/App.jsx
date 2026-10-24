@@ -1096,111 +1096,135 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
 //  SHELL / NAV
 // ═══════════════════════════════════════════════════════════════════════════════
 function Shell({ user, children, activePage, setActivePage, navItems, onLogout, state, syncStatus }) {
-  const [sideOpen, setSideOpen] = useState(true);
+  const [sideOpen, setSideOpen]       = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+
+  const toggleGroup = (g) => setCollapsedGroups(p=>({...p,[g]:!p[g]}));
+
+  // Group navItems by their `group` field; ungrouped items render flat
+  const grouped = [];
+  const seen = new Set();
+  navItems.forEach(item => {
+    if (!item.group) {
+      grouped.push({type:'item', item});
+    } else if (!seen.has(item.group)) {
+      seen.add(item.group);
+      grouped.push({type:'group', group:item.group, groupIcon:item.groupIcon||'📁',
+        items: navItems.filter(i=>i.group===item.group)});
+    }
+  });
+
+  const NavBtn = ({item, indent=false}) => (
+    <button key={item.id} onClick={()=>setActivePage(item.id)} style={{
+      display:"flex", alignItems:"center", gap:10, width:"100%",
+      padding:indent?"7px 10px 7px 28px":"9px 10px",
+      borderRadius:8, border:"none",
+      background:activePage===item.id?"rgba(232,160,32,.2)":"transparent",
+      color:activePage===item.id?T.amber:"rgba(255,255,255,.7)",
+      fontFamily:"inherit", fontSize:indent?12:13, fontWeight:activePage===item.id?700:500,
+      cursor:"pointer", marginBottom:2, transition:"all .15s", textAlign:"left"
+    }}>
+      <span style={{fontSize:indent?13:16,flexShrink:0}}>{item.icon}</span>
+      {sideOpen && <span>{item.label}</span>}
+    </button>
+  );
 
   return (
-    <div style={{ display:"flex", minHeight:"100vh", background:T.surf, fontFamily:"'Segoe UI', system-ui, sans-serif", color:T.txt }}>
+    <div style={{display:"flex",minHeight:"100vh",background:T.surf,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.txt}}>
       {/* Sidebar */}
-      <div style={{ width:sideOpen?220:60, background:T.navy, flexShrink:0, display:"flex", flexDirection:"column", transition:"width .2s", overflow:"hidden" }}>
+      <div style={{width:sideOpen?220:60,background:T.navy,flexShrink:0,display:"flex",flexDirection:"column",transition:"width .2s",overflow:"hidden"}}>
         {/* Brand */}
-        <div style={{ padding:"20px 16px", borderBottom:`1px solid rgba(255,255,255,.1)` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:36, height:36, background:T.amber, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>✨</div>
-            {sideOpen && <div><div style={{ fontSize:15, fontWeight:800, color:"#fff" }}>Benaka Enterprises</div><div style={{ fontSize:10, color:"rgba(255,255,255,.5)" }}>BE</div></div>}
+        <div style={{padding:"20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,background:T.amber,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✨</div>
+            {sideOpen && <div><div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Benaka Enterprises</div><div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>Operations</div></div>}
           </div>
         </div>
 
-        {/* Nav items */}
-        <div style={{ flex:1, padding:"12px 8px", overflowY:"auto" }}>
-          {navItems.map(item => (
-            <button key={item.id} onClick={()=>setActivePage(item.id)} style={{
-              display:"flex", alignItems:"center", gap:10, width:"100%", padding:"9px 10px", borderRadius:8,
-              border:"none", background:activePage===item.id?"rgba(232,160,32,.2)":"transparent",
-              color:activePage===item.id?T.amber:"rgba(255,255,255,.7)",
-              fontFamily:"inherit", fontSize:13, fontWeight:activePage===item.id?700:500,
-              cursor:"pointer", marginBottom:2, transition:"all .15s", textAlign:"left"
-            }}>
-              <span style={{ fontSize:16, flexShrink:0 }}>{item.icon}</span>
-              {sideOpen && <span>{item.label}</span>}
-            </button>
-          ))}
+        {/* Nav */}
+        <div style={{flex:1,padding:"12px 8px",overflowY:"auto"}}>
+          {grouped.map((entry,ei) => {
+            if (entry.type==="item") return <NavBtn key={entry.item.id} item={entry.item}/>;
+            const isOpen = !collapsedGroups[entry.group];
+            const hasActive = entry.items.some(i=>i.id===activePage);
+            return (
+              <div key={entry.group} style={{marginBottom:2}}>
+                {/* Group header */}
+                <button onClick={()=>sideOpen&&toggleGroup(entry.group)} style={{
+                  display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",
+                  borderRadius:8,border:"none",
+                  background:hasActive?"rgba(232,160,32,.15)":"transparent",
+                  color:hasActive?T.amber:"rgba(255,255,255,.6)",
+                  fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer",
+                  textAlign:"left",transition:"all .15s",textTransform:"uppercase",letterSpacing:".04em"
+                }}>
+                  <span style={{fontSize:14,flexShrink:0}}>{entry.groupIcon}</span>
+                  {sideOpen && <>
+                    <span style={{flex:1}}>{entry.group}</span>
+                    <span style={{fontSize:10,opacity:.7}}>{isOpen?"▲":"▼"}</span>
+                  </>}
+                </button>
+                {/* Group items */}
+                {(isOpen||!sideOpen) && entry.items.map(item=>(
+                  <NavBtn key={item.id} item={item} indent={sideOpen}/>
+                ))}
+              </div>
+            );
+          })}
         </div>
 
-        {/* User */}
-        <div style={{ padding:"12px 10px", borderTop:`1px solid rgba(255,255,255,.1)` }}>
+        {/* User info & logout */}
+        <div style={{padding:"12px",borderTop:"1px solid rgba(255,255,255,.1)"}}>
           {sideOpen && (
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,.5)" }}>{ROLE_LABELS[user.role]} · {user.empId}</div>
+            <div style={{marginBottom:8}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>{ROLE_LABELS[user.role]||user.role} · {user.empId}</div>
+              {syncStatus&&<div style={{fontSize:9,color:syncStatus==="synced"?"#86efac":"rgba(255,255,255,.4)",marginTop:2}}>{syncStatus==="synced"?"● Synced":"● Syncing..."}</div>}
             </div>
           )}
-          <button onClick={onLogout} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,.1)", border:"none", borderRadius:8, padding:"7px 10px", color:"rgba(255,255,255,.7)", fontSize:12, cursor:"pointer", width:"100%", fontFamily:"inherit" }}>
-            <span>🚪</span>{sideOpen&&"Sign out"}
+          <button onClick={()=>setSideOpen(p=>!p)} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 8px",borderRadius:6,
+            border:"none",background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.7)",
+            fontFamily:"inherit",fontSize:12,cursor:"pointer",marginBottom:6
+          }}>{sideOpen?"◀ Collapse":"▶"}</button>
+          <button onClick={onLogout} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 8px",borderRadius:6,
+            border:"none",background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.7)",
+            fontFamily:"inherit",fontSize:12,cursor:"pointer"
+          }}>
+            <span>🚪</span>{sideOpen&&<span>Sign out</span>}
           </button>
         </div>
       </div>
 
       {/* Main */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0 }}>
-        {/* Top bar */}
-        <div style={{ background:T.card, borderBottom:`1px solid ${T.bdr}`, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <button onClick={()=>setSideOpen(p=>!p)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:T.txt2 }}>☰</button>
-            <div>
-              <div style={{ fontSize:16, fontWeight:700, color:T.txt }}>{navItems.find(n=>n.id===activePage)?.label || "Dashboard"}</div>
-              <div style={{ fontSize:11, color:T.txt3 }}>{fmtDate(today())}</div>
-            </div>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <Badge color={ROLE_COLORS[user.role]}>{ROLE_LABELS[user.role]}</Badge>
-            <div style={{ width:32, height:32, background:T.navy, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:700 }}>{user.name[0]}</div>
-          </div>
-        </div>
-
-        {/* Sync status bar */}
-        {syncStatus && syncStatus !== "idle" && (
-          <div style={{ background: syncStatus==="ok"?T.grnL : syncStatus==="syncing"?"#EFF6FF" : syncStatus==="setup_needed"?"#FEF3DC" : syncStatus==="offline"?"#FEF3DC" : T.redL,
-            padding:"5px 20px", fontSize:11, fontWeight:700, color: syncStatus==="ok"?T.grn : syncStatus==="syncing"?"#0369A1" : syncStatus==="setup_needed"?T.amberD : syncStatus==="offline"?T.amberD : T.red,
-            display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
-            <span>
-              {syncStatus==="ok"           && "✅ All devices in sync — data saved to cloud"}
-              {syncStatus==="syncing"      && "🔄 Syncing with database..."}
-              {syncStatus==="setup_needed" && "⚠️ Database tables not set up — run supabase-setup.sql in Supabase SQL Editor"}
-              {syncStatus==="offline"      && "⚠️ Offline mode — changes saved locally only"}
-              {syncStatus==="error"        && "❌ Could not reach database — working offline"}
-            </span>
-          </div>
-        )}
-        {/* Birthday banner */}
-        <BirthdayBanner state={state}/>
-        {/* Page content */}
-        <div style={{ flex:1, padding:24, overflowY:"auto" }}>{children}</div>
+      <div style={{flex:1,overflow:"auto",padding:"0 0 40px 0"}}>
+        {children}
       </div>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  SUPERVISOR PORTAL
-// ═══════════════════════════════════════════════════════════════════════════════
+
 function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
   const [page, setPage] = useState("dashboard");
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
-    { id:"dashboard",    icon:"🏠", label:"Dashboard" },
-    { id:"attendance",   icon:"👥", label:"Mark Attendance" },
-    { id:"report",       icon:"📋", label:"Daily Report" },
-    { id:"collection",   icon:"📊", label:"Collection Report" },
-    { id:"analysis",     icon:"📈", label:"Analysis" },
-    { id:"staffleaves",  icon:"🗓️", label:"Staff Leaves" },
-    { id:"feedback",     icon:"⭐", label:"Customer Feedback" },
-    { id:"myleaves",     icon:"🌿", label:"My Leave" },
-    { id:"counternotes",  icon:"📝", label:"Daily Note" },
-    { id:"stockrequest",  icon:"📦", label:"Request Stock" },
-    { id:"history",      icon:"📁", label:"Report History" },
-    { id:"directory",    icon:"👤", label:"Staff Directory" },
+    { id:"dashboard", icon:"🏠", label:"Dashboard" },
+    { id:"report", icon:"📋", label:"Daily Report", group:"Reports", groupIcon:"📋" },
+    { id:"collection", icon:"📊", label:"Collection Report", group:"Reports", groupIcon:"📋" },
+    { id:"analysis", icon:"📈", label:"Analysis", group:"Reports", groupIcon:"📋" },
+    { id:"history", icon:"📁", label:"Report History", group:"Reports", groupIcon:"📋" },
+    { id:"attendance", icon:"👥", label:"Mark Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"staffleaves", icon:"🗓️", label:"Staff Leaves", group:"Attendance", groupIcon:"🗓️" },
+    { id:"myleaves", icon:"🌿", label:"My Leave", group:"Attendance", groupIcon:"🗓️" },
+    { id:"stockrequest", icon:"📦", label:"Request Stock", group:"Inventory", groupIcon:"📦" },
+    { id:"counternotes", icon:"📝", label:"Daily Note" },
+    { id:"feedback", icon:"⭐", label:"Customer Feedback" },
+    { id:"directory", icon:"👤", label:"Staff Directory" },
   ];
+
 
   const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active !== false);
   const myCounter = state.counters.find(c => c.supervisorId === user.id);
@@ -1973,27 +1997,29 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
-    { id:"dashboard",   icon:"🏠", label:"Dashboard" },
-    { id:"collection",  icon:"📊", label:"Collection Report" },
-    { id:"colldash",    icon:"🏦", label:"Collection Dashboard" },
-    { id:"analysis",    icon:"📈", label:"Counter Analysis" },
-    { id:"reports",     icon:"📋", label:"Reports" },
-    { id:"leaves",      icon:"✅", label:"Leave Approvals" },
-    { id:"people",      icon:"👥", label:"People & Counters" },
-    { id:"salary",      icon:"💰", label:"Salary & P&L" },
-    { id:"attendance",  icon:"🗓️", label:"All Attendance" },
-    { id:"financial",   icon:"💹", label:"Financial Trends" },
-    { id:"operations",  icon:"🏪", label:"Operations" },
-    { id:"targets",     icon:"🎯", label:"Set Targets" },
-    { id:"staffnotes",  icon:"📝", label:"Staff Notes" },
-    { id:"inventory",     icon:"📊", label:"Inventory" },
-    { id:"stockcheckin",  icon:"🏭", label:"Godown Check-in" },
-    { id:"stockapproval", icon:"📦", label:"Stock Requests" },
-    { id:"inventory",     icon:"📊", label:"Inventory" },
-    { id:"feedback",    icon:"💬", label:"Feedback" },
-    { id:"myleaves",    icon:"🌿", label:"My Leave" },
-    { id:"directory",   icon:"👤", label:"Staff Directory" },
+    { id:"dashboard", icon:"🏠", label:"Dashboard" },
+    { id:"collection", icon:"📊", label:"Collection Report", group:"Collection", groupIcon:"💰" },
+    { id:"colldash", icon:"🏦", label:"Collection Dashboard", group:"Collection", groupIcon:"💰" },
+    { id:"reports", icon:"📋", label:"Reports", group:"Reports", groupIcon:"📋" },
+    { id:"targetreport", icon:"🎯", label:"Target Report", group:"Reports", groupIcon:"📋" },
+    { id:"execreport", icon:"📄", label:"MD Report", group:"Reports", groupIcon:"📋" },
+    { id:"financial", icon:"💹", label:"Financial Trends", group:"Reports", groupIcon:"📋" },
+    { id:"operations", icon:"🏪", label:"Operations", group:"Reports", groupIcon:"📋" },
+    { id:"analysis", icon:"📈", label:"Counter Analysis", group:"Reports", groupIcon:"📋" },
+    { id:"attendance", icon:"🗓️", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"leaves", icon:"✅", label:"Leave Approvals", group:"Attendance", groupIcon:"🗓️" },
+    { id:"myleaves", icon:"🌿", label:"My Leave", group:"Attendance", groupIcon:"🗓️" },
+    { id:"stockcheckin", icon:"🏭", label:"Godown Check-in", group:"Inventory", groupIcon:"📦" },
+    { id:"stockapproval", icon:"📦", label:"Stock Requests", group:"Inventory", groupIcon:"📦" },
+    { id:"inventory", icon:"📊", label:"Inventory", group:"Inventory", groupIcon:"📦" },
+    { id:"people", icon:"👥", label:"People & Counters", group:"Team", groupIcon:"👥" },
+    { id:"staffnotes", icon:"📝", label:"Staff Notes", group:"Team", groupIcon:"👥" },
+    { id:"targets", icon:"🎯", label:"Set Targets", group:"Team", groupIcon:"👥" },
+    { id:"salary", icon:"💰", label:"Salary & P&L", group:"Team", groupIcon:"👥" },
+    { id:"feedback", icon:"💬", label:"Feedback", group:"Team", groupIcon:"👥" },
+    { id:"directory", icon:"👤", label:"Staff Directory", group:"Team", groupIcon:"👥" },
   ];
+
 
   const mySupervisors = state.users.filter(u=>u.managerId===user.id&&u.role==="supervisor"&&u.active!==false);
   const myCounters = state.counters.filter(c=>mySupervisors.some(s=>s.id===c.supervisorId));
@@ -2005,9 +2031,10 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
+      {page==="targetreport" && <TargetFulfillmentReport user={user} state={state}/>}
       {page==="leaves"    && <MgrLeaves user={user} state={state} setState={setState} toast={toast} syncFromCloud={syncFromCloud}/>}
       {page==="people"    && <MgrPeople user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="targets"    && <MgrTargets user={user} state={state} setState={setState} mySupervisors={mySupervisors} toast={toast}/>}
+      
       {page==="feedback"   && <MgrFeedback user={user} state={state} myCounters={myCounters}/>}
       {page==="staffnotes" && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
       {page==="stockcheckin"  && <StockCheckin user={user} state={state} setState={setState} toast={toast}/>}
@@ -2622,179 +2649,163 @@ function MgrPeople({ user, state, setState, toast }) {
   );
 }
 
-function MgrTargets({ user, state, setState, mySupervisors, toast }) {
+function MDTargets({ user, state, setState, toast }) {
   const [selPeriod, setSelPeriod] = useState("monthly");
-  const [selRef, setSelRef] = useState(today().slice(0,7)); // month or week or year
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ daily:"", weekly:"", monthly:"", quarterly:"", yearly:"" });
+  const [selRef,    setSelRef]    = useState(today().slice(0,7));
+  const [viewMode,  setViewMode]  = useState("counter"); // counter | executive | manager
+  const [editing,   setEditing]   = useState(null);
+  const [form,      setForm]      = useState({ daily:"", weekly:"", monthly:"", quarterly:"", yearly:"" });
 
   const periods = [
-    { id:"daily",     label:"Daily",     inputType:"date",  placeholder:"YYYY-MM-DD" },
-    { id:"weekly",    label:"Weekly",    inputType:"week",  placeholder:"YYYY-Www" },
-    { id:"monthly",   label:"Monthly",   inputType:"month", placeholder:"YYYY-MM" },
-    { id:"quarterly", label:"Quarterly", inputType:"month", placeholder:"YYYY-MM (start of quarter)" },
-    { id:"yearly",    label:"Yearly",    inputType:"month", placeholder:"YYYY-04 (financial year start)" },
+    { id:"daily",     label:"Daily",     inputType:"date"  },
+    { id:"weekly",    label:"Weekly",    inputType:"week"  },
+    { id:"monthly",   label:"Monthly",   inputType:"month" },
+    { id:"quarterly", label:"Quarterly", inputType:"month" },
+    { id:"yearly",    label:"Yearly",    inputType:"number"},
   ];
 
-  const getTargetKey = (supId) => `tgt_${supId}_${selPeriod}_${selRef}`;
-
-  const startEdit = (sup) => {
-    const existing = (state.targets||[]).find(t=>t.id===getTargetKey(sup.id));
-    setEditing(sup.id);
-    setForm({
-      daily:     existing?.daily     || "",
-      weekly:    existing?.weekly    || "",
-      monthly:   existing?.monthly   || "",
-      quarterly: existing?.quarterly || "",
-      yearly:    existing?.yearly    || "",
-      [selPeriod]: existing?.[selPeriod] || "",
+  const getTargetKey = (id) => `tgt_${id}_${selPeriod}_${selRef}`;
+  const getActual = (supId) => {
+    const reps = (state.serviceReports||[]).filter(r=>{
+      if (selPeriod==="monthly") return r.date.startsWith(selRef) && r.supervisorId===supId;
+      if (selPeriod==="daily")   return r.date===selRef && r.supervisorId===supId;
+      return r.supervisorId===supId;
     });
+    return reps.reduce((s,r)=>s+r.totalAmount,0);
   };
 
-  const save = (sup) => {
-    const counter = state.counters.find(c=>c.supervisorId===sup.id);
+  const save = (targetId, supervisorId, counterId) => {
     const tgt = {
-      id:          getTargetKey(sup.id),
-      counterId:   counter?.id,
-      supervisorId: sup.id,
-      period:      selPeriod,
-      periodRef:   selRef,
-      month:       selPeriod==="monthly" ? selRef : selRef.slice(0,7),
-      daily:       Number(form.daily)||0,
-      weekly:      Number(form.weekly)||0,
-      monthly:     Number(form.monthly)||0,
-      quarterly:   Number(form.quarterly)||0,
-      yearly:      Number(form.yearly)||0,
-      // Legacy fields for compatibility
-      dailyTarget:   Number(form.daily)||0,
-      monthlyTarget: Number(form.monthly)||0,
-      setBy: user.id,
-      setAt: new Date().toISOString(),
+      id: getTargetKey(targetId),
+      counterId, supervisorId,
+      period:selPeriod, periodRef:selRef,
+      month: selPeriod==="monthly"?selRef:today().slice(0,7),
+      ...form,
+      setBy: user.id, setAt: new Date().toISOString(),
     };
-    setState(p=>({
-      ...p,
-      targets:[...(p.targets||[]).filter(t=>t.id!==tgt.id), tgt]
-    }));
-    toast.show("Target saved for " + sup.name + " ✅");
+    const newTargets = [...(state.targets||[]).filter(t=>t.id!==tgt.id), tgt];
+    setState(p=>({...p, targets:newTargets}));
+    DB.upsertTargets && DB.upsertTargets(newTargets).catch(console.error);
+    toast.show("Target saved ✅");
     setEditing(null);
   };
 
-  const getPct = (actual, target) => target > 0 ? Math.min(100, Math.round(actual * 100 / (target + 0.001))) : null;
-
-  // Get actual revenue for a supervisor in selected period
-  const getActual = (sup) => {
-    const myCounterIds = state.counters.filter(c=>c.supervisorId===sup.id).map(c=>c.id);
-    const myCounterNames = state.counters.filter(c=>c.supervisorId===sup.id).map(c=>c.name);
-    let reps = state.serviceReports.filter(r=>
-      r.supervisorId===sup.id ||
-      myCounterIds.includes(r.counterId) ||
-      myCounterNames.includes(r.counterName)
-    );
-    if (selPeriod==="daily")     reps = reps.filter(r=>r.date===selRef);
-    if (selPeriod==="weekly")    reps = reps.filter(r=>{ const d=new Date(r.date); return d>=new Date(selRef.replace(/W/g,"-").replace(/-(\d\d)$/,"-W$1").slice(0,10)); });
-    if (selPeriod==="monthly")   reps = reps.filter(r=>r.date.startsWith(selRef));
-    if (selPeriod==="quarterly") reps = reps.filter(r=>r.date.startsWith(selRef.slice(0,4)));
-    if (selPeriod==="yearly")    reps = reps.filter(r=>r.date.startsWith(selRef.slice(0,4)));
-    return reps.reduce((s,r)=>s+r.totalAmount, 0);
+  const openEdit = (id, existing) => {
+    setEditing(id);
+    setForm({ daily:existing?.daily||"", weekly:existing?.weekly||"",
+      monthly:existing?.monthly||"", quarterly:existing?.quarterly||"", yearly:existing?.yearly||"" });
   };
 
-  const curPeriod = periods.find(p=>p.id===selPeriod);
+  // Build target subjects based on viewMode
+  const subjects = viewMode==="counter"
+    ? state.counters.filter(c=>c.name!=="OFFICE").map(c=>{
+        const execs = state.users.filter(u=>u.supervisorId===c.id||(c.supervisorIds||[]).includes(u.id)||c.supervisorId===u.id);
+        return { id:c.id, name:c.name, subtitle:execs.map(e=>e.name).join(", ")||"No exec", supervisorId:c.supervisorId||"", counterId:c.id };
+      })
+    : viewMode==="executive"
+    ? state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u=>{
+        const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+        return { id:u.id, name:u.name, subtitle:ctr?.name||"No counter", supervisorId:u.id, counterId:ctr?.id||"" };
+      })
+    : state.users.filter(u=>u.role==="manager"&&u.active!==false).map(u=>{
+        const execs = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
+        return { id:u.id, name:u.name, subtitle:`${execs.length} executives`, supervisorId:u.id, counterId:"" };
+      });
 
   return (
     <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Set Targets</div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Set Targets</div>
+
+      {/* View mode toggle */}
+      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+        {[["counter","🏪 By Counter"],["executive","👤 By Executive"],["manager","👔 By Manager"]].map(([id,label])=>(
+          <button key={id} onClick={()=>{setViewMode(id);setEditing(null);}} style={{
+            padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(viewMode===id?T.navy:T.bdrS),
+            background:viewMode===id?T.navy:"transparent",color:viewMode===id?"#fff":T.txt2
+          }}>{label}</button>
+        ))}
+      </div>
 
       {/* Period selector */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
         {periods.map(p=>(
           <button key={p.id} onClick={()=>setSelPeriod(p.id)} style={{
-            padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
-            border:"1px solid "+(selPeriod===p.id?T.navy:T.bdrS),
-            background:selPeriod===p.id?T.navy:"transparent",
-            color:selPeriod===p.id?"#fff":T.txt2
+            padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
+            background:selPeriod===p.id?T.amber:"transparent",color:selPeriod===p.id?"#fff":T.txt2
           }}>{p.label}</button>
         ))}
       </div>
 
-      <div style={{ marginBottom:20 }}>
-        <label style={{ display:"block", fontSize:11, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>{curPeriod.label} Reference Period</label>
-        <input type={curPeriod.inputType} value={selRef} onChange={e=>setSelRef(e.target.value)}
-          style={{ padding:"8px 12px", border:"1px solid "+T.bdrS, borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+      {/* Reference period input */}
+      <div style={{marginBottom:16}}>
+        <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>
+          {selPeriod==="yearly"?"Year":"Period Reference"}
+        </label>
+        <input type={periods.find(p=>p.id===selPeriod)?.inputType||"month"}
+          value={selRef} onChange={e=>setSelRef(e.target.value)}
+          style={{padding:"7px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
       </div>
 
-      {mySupervisors.map(s => {
-        const existing = (state.targets||[]).find(t=>t.id===getTargetKey(s.id));
-        const targetVal = existing?.[selPeriod] || existing?.monthly || 0;
-        const actual = getActual(s);
-        const pct = getPct(actual, targetVal);
-        const isEditing = editing===s.id;
+      {/* Target cards */}
+      {subjects.map(sub => {
+        const existing = (state.targets||[]).find(t=>t.id===getTargetKey(sub.id));
+        const targetVal = Number(existing?.[selPeriod]||existing?.monthly||0);
+        const actual    = getActual(sub.supervisorId);
+        const pct       = targetVal>0 ? Math.round(actual/targetVal*100) : 0;
+        const isEditing = editing===sub.id;
 
         return (
-          <Card key={s.id} style={{ marginBottom:12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:isEditing?16:0 }}>
-              <div>
-                <div style={{ fontWeight:700, fontSize:15 }}>{s.name}</div>
-                <div style={{ fontSize:12, color:T.txt2 }}>{s.counter || state.counters.find(c=>c.supervisorId===s.id)?.name || "—"}</div>
-              </div>
-              {!isEditing && (
-                <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-                  {targetVal > 0 ? (
-                    <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:13, color:T.txt2 }}>{curPeriod.label} target</div>
-                      <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(targetVal)}</div>
-                      <div style={{ fontSize:12, color:T.txt2 }}>Actual: {fmtCurr(actual)}</div>
+          <Card key={sub.id} style={{marginBottom:10,borderLeft:`3px solid ${pct>=100?T.grn:pct>=75?T.amber:targetVal?T.red:T.bdrS}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:isEditing?14:0}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:800,fontSize:14}}>{sub.name}</div>
+                <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{sub.subtitle}</div>
+                {targetVal>0 && (
+                  <div style={{marginTop:6}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                      <span>{fmtCurr(actual)} actual</span>
+                      <span style={{fontWeight:700,color:pct>=100?T.grn:pct>=75?T.amber:T.red}}>{pct}%</span>
                     </div>
-                  ) : <div style={{ fontSize:12, color:T.txt3 }}>No target set</div>}
-                  <Btn onClick={()=>startEdit(s)} size="sm" variant="outline">{targetVal>0?"Edit":"Set Target"}</Btn>
-                </div>
-              )}
+                    <div style={{height:6,background:T.surf,borderRadius:3}}>
+                      <div style={{height:6,borderRadius:3,width:Math.min(pct,100)+"%",
+                        background:pct>=100?T.grn:pct>=75?T.amber:T.red,transition:"width .3s"}}/>
+                    </div>
+                    <div style={{fontSize:11,color:T.txt2,marginTop:2}}>Target: {fmtCurr(targetVal)}</div>
+                  </div>
+                )}
+                {!targetVal && <div style={{fontSize:11,color:T.txt3,marginTop:4}}>No target set</div>}
+              </div>
+              <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+                <Btn onClick={()=>isEditing?setEditing(null):openEdit(sub.id,existing)} size="sm" variant={isEditing?"ghost":"outline"}>
+                  {isEditing?"Cancel":"✏️ Set Target"}
+                </Btn>
+              </div>
             </div>
 
-            {pct !== null && !isEditing && (
-              <div style={{ marginTop:8 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.txt2, marginBottom:3 }}>
-                  <span>{pct}% achieved</span>
-                  <span>{fmtCurr(actual)} of {fmtCurr(targetVal)}</span>
-                </div>
-                <div style={{ height:8, background:T.surf, borderRadius:4, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:pct+"%", borderRadius:4,
-                    background:pct>=100?T.grn:pct>=70?T.amber:T.red }}/>
-                </div>
-              </div>
-            )}
-
             {isEditing && (
-              <div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:14 }}>
-                  {[
-                    {key:"daily",    label:"Daily Target (₹)"},
-                    {key:"weekly",   label:"Weekly Target (₹)"},
-                    {key:"monthly",  label:"Monthly Target (₹)"},
-                    {key:"quarterly",label:"Quarterly Target (₹)"},
-                    {key:"yearly",   label:"Yearly Target (₹)"},
-                  ].map(f=>(
-                    <div key={f.key}>
-                      <label style={{ display:"block", fontSize:11, fontWeight:700, color:f.key===selPeriod?T.navy:T.txt2, marginBottom:4, textTransform:"uppercase" }}>
-                        {f.label}{f.key===selPeriod?" ◀":""}
-                      </label>
-                      <input type="number" value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+              <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:12}}>
+                  {periods.map(p=>(
+                    <div key={p.id}>
+                      <label style={{display:"block",fontSize:10,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{p.label} Target (₹)</label>
+                      <input type="number" value={form[p.id]||""} onChange={e=>setForm(f=>({...f,[p.id]:e.target.value}))}
                         placeholder="0"
-                        style={{ width:"100%", padding:"8px 10px", border:"1px solid "+(f.key===selPeriod?T.navy:T.bdrS),
-                          borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none",
-                          background:f.key===selPeriod?T.navyXL:"#fff", boxSizing:"border-box" }}/>
+                        style={{width:"100%",padding:"6px 8px",border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
+                          borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",
+                          background:selPeriod===p.id?T.amberL:"transparent"}}/>
                     </div>
                   ))}
                 </div>
-                <div style={{ display:"flex", gap:10 }}>
-                  <Btn onClick={()=>save(s)} variant="amber">Save Targets</Btn>
-                  <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
-                </div>
+                <Btn onClick={()=>save(sub.id, sub.supervisorId, sub.counterId)} variant="amber">💾 Save Target</Btn>
               </div>
             )}
           </Card>
         );
       })}
-      {mySupervisors.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:24}}>No executives assigned to you.</div></Card>}
+
+      {subjects.length===0 && <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No {viewMode}s found</div></Card>}
     </div>
   );
 }
@@ -3125,21 +3136,27 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
-    { id:"dashboard",   icon:"🏆", label:"Live Dashboard" },
-    { id:"collection",  icon:"📊", label:"Collection Report" },
-    { id:"analysis",    icon:"📈", label:"Counter Analysis" },
-    { id:"reports",     icon:"📋", label:"All Reports" },
-    { id:"execreport",  icon:"📄", label:"MD Report" },
-    { id:"financial",   icon:"💰", label:"Financial Trends" },
-    { id:"operations",  icon:"🏪", label:"Operations" },
-    { id:"salary",      icon:"💳", label:"Salary & P&L" },
-    { id:"attendance",  icon:"🗓️", label:"All Attendance" },
-    { id:"leaves",      icon:"✅", label:"Leave Approvals" },
-    { id:"staffnotes",  icon:"📝", label:"Staff Notes" },
-    { id:"feedback",    icon:"💬", label:"All Feedback" },
-    { id:"people",      icon:"👥", label:"Full Org" },
-    { id:"directory",   icon:"👤", label:"Staff Directory" },
+    { id:"dashboard", icon:"🏆", label:"Live Dashboard" },
+    { id:"collection", icon:"📊", label:"Collection Report", group:"Collection", groupIcon:"💰" },
+    { id:"colldash", icon:"🏦", label:"Collection Dashboard", group:"Collection", groupIcon:"💰" },
+    { id:"reports", icon:"📋", label:"All Reports", group:"Reports", groupIcon:"📋" },
+    { id:"targetreport", icon:"🎯", label:"Target Report", group:"Reports", groupIcon:"📋" },
+    { id:"execreport", icon:"📄", label:"MD Report", group:"Reports", groupIcon:"📋" },
+    { id:"financial", icon:"💰", label:"Financial Trends", group:"Reports", groupIcon:"📋" },
+    { id:"operations", icon:"🏪", label:"Operations", group:"Reports", groupIcon:"📋" },
+    { id:"analysis", icon:"📈", label:"Counter Analysis", group:"Reports", groupIcon:"📋" },
+    { id:"salary", icon:"💳", label:"Salary & P&L", group:"Reports", groupIcon:"📋" },
+    { id:"attendance", icon:"🗓️", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"leaves", icon:"✅", label:"Leave Approvals", group:"Attendance", groupIcon:"🗓️" },
+    { id:"inventory", icon:"📊", label:"Inventory", group:"Inventory", groupIcon:"📦" },
+    { id:"people", icon:"👥", label:"Full Org", group:"Team", groupIcon:"👥" },
+    { id:"staffnotes", icon:"📝", label:"Staff Notes", group:"Team", groupIcon:"👥" },
+    { id:"targets", icon:"🎯", label:"Set Targets", group:"Team", groupIcon:"👥" },
+    { id:"feedback", icon:"💬", label:"All Feedback", group:"Team", groupIcon:"👥" },
+    { id:"directory", icon:"👤", label:"Staff Directory", group:"Team", groupIcon:"👥" },
+    { id:"debug", icon:"🔍", label:"Debug" },
   ];
+
 
   return (
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
@@ -3156,6 +3173,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="reports"     && <AllReports state={state}/>}
       {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
+      {page==="targets"      && <MDTargets user={user} state={state} setState={setState} toast={toast}/>}
       {page==="staffnotes"  && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
       {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
@@ -3761,22 +3779,23 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = (p) => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
-    { id:"enter",        icon:"✏️",  label:"Enter Report" },
-    { id:"sales",        icon:"🛒",  label:"Sales Entry" },
-    { id:"collection",   icon:"📊",  label:"Collection Report" },
-    { id:"colldash",     icon:"🏦",  label:"Collection Dashboard" },
-    { id:"attendance",   icon:"👥",  label:"Mark Attendance" },
-    { id:"reports",      icon:"📋",  label:"View Reports" },
-    { id:"viewatt",      icon:"📅",  label:"All Attendance" },
-    { id:"myleaves",     icon:"🌿",  label:"My Leave" },
-    { id:"counternotes",  icon:"📝",  label:"Daily Note" },
-    { id:"stockcheckin",  icon:"🏭",  label:"Godown Check-in" },
-    { id:"stockapproval", icon:"📦",  label:"Stock Requests" },
-    { id:"inventory",     icon:"📊",  label:"Inventory" },
-    { id:"execreport",   icon:"📄",  label:"Executive Report" },
-    { id:"export",       icon:"📥",  label:"Export Data" },
-    { id:"directory",    icon:"👤",  label:"Staff Directory" },
+    { id:"enter", icon:"✏️", label:"Enter Report", group:"Reports", groupIcon:"📋" },
+    { id:"sales", icon:"🛒", label:"Sales Entry", group:"Reports", groupIcon:"📋" },
+    { id:"reports", icon:"📋", label:"View Reports", group:"Reports", groupIcon:"📋" },
+    { id:"execreport", icon:"📄", label:"Executive Report", group:"Reports", groupIcon:"📋" },
+    { id:"collection", icon:"📊", label:"Collection Report", group:"Collection", groupIcon:"💰" },
+    { id:"colldash", icon:"🏦", label:"Collection Dashboard", group:"Collection", groupIcon:"💰" },
+    { id:"attendance", icon:"👥", label:"Mark Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"viewatt", icon:"📅", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"myleaves", icon:"🌿", label:"My Leave", group:"Attendance", groupIcon:"🗓️" },
+    { id:"stockcheckin", icon:"🏭", label:"Godown Check-in", group:"Inventory", groupIcon:"📦" },
+    { id:"stockapproval", icon:"📦", label:"Stock Requests", group:"Inventory", groupIcon:"📦" },
+    { id:"inventory", icon:"📊", label:"Inventory", group:"Inventory", groupIcon:"📦" },
+    { id:"counternotes", icon:"📝", label:"Daily Note" },
+    { id:"export", icon:"📥", label:"Export Data" },
+    { id:"directory", icon:"👤", label:"Staff Directory" },
   ];
+
 
   return (
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
@@ -4528,14 +4547,15 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = p => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
-    { id:"users",    icon:"👥", label:"User Management" },
-    { id:"counters", icon:"🏪", label:"Counters" },
-    { id:"worktypes",icon:"🔧", label:"Work Types" },
-    { id:"reports",  icon:"📋", label:"All Reports" },
-    { id:"data",     icon:"🗑️", label:"Data Management" },
-    { id:"export",   icon:"📥", label:"Export" },
-    { id:"debug",    icon:"🔍", label:"Debug Reports" },
+    { id:"users", icon:"👥", label:"User Management", group:"Setup", groupIcon:"⚙️" },
+    { id:"counters", icon:"🏪", label:"Counters", group:"Setup", groupIcon:"⚙️" },
+    { id:"worktypes", icon:"🔧", label:"Work Types", group:"Setup", groupIcon:"⚙️" },
+    { id:"reports", icon:"📋", label:"All Reports", group:"Reports", groupIcon:"📋" },
+    { id:"data", icon:"🗑️", label:"Data Management", group:"Reports", groupIcon:"📋" },
+    { id:"export", icon:"📥", label:"Export", group:"Reports", groupIcon:"📋" },
+    { id:"debug", icon:"🔍", label:"Debug Reports", group:"Reports", groupIcon:"📋" },
   ];
+
   return (
     <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems}
       onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
@@ -7149,6 +7169,207 @@ function InventoryDashboard({ user, state, setState, toast }) {
             }
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Target Fulfillment Report ───────────────────────────────────────────────
+function TargetFulfillmentReport({ user, state }) {
+  const [view, setView]   = useState("counter");  // counter | executive | manager
+  const [period, setPeriod] = useState("monthly");
+  const [selRef, setSelRef] = useState(today().slice(0,7));
+  const [expanded, setExpanded] = useState(null);
+
+  const periods = [
+    {id:"daily",label:"Daily"},{id:"weekly",label:"Weekly"},
+    {id:"monthly",label:"Monthly"},{id:"quarterly",label:"Quarterly"},{id:"yearly",label:"Yearly"}
+  ];
+
+  // Get revenue for a supervisor in period
+  const getRevenue = (supId) => {
+    return (state.serviceReports||[]).filter(r => {
+      if (!supId) return false;
+      if (r.supervisorId !== supId) return false;
+      if (period==="daily")   return r.date===selRef;
+      if (period==="monthly") return r.date.startsWith(selRef);
+      if (period==="yearly")  return r.date.startsWith(selRef);
+      return r.date.startsWith(selRef.slice(0,7));
+    }).reduce((s,r)=>s+r.totalAmount,0);
+  };
+
+  // Get target value for an id
+  const getTarget = (id) => {
+    const tgt = (state.targets||[]).find(t =>
+      t.supervisorId===id || t.counterId===id
+    );
+    return tgt ? Number(tgt[period]||tgt.monthly||0) : 0;
+  };
+
+  // Build rows
+  const counterRows = state.counters.filter(c=>c.name!=="OFFICE").map(c => {
+    const execs   = state.users.filter(u=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const revenue = execs.reduce((s,e)=>s+getRevenue(e.id),0);
+    const target  = getTarget(c.id) || execs.reduce((s,e)=>s+getTarget(e.id),0);
+    const pct     = target>0 ? Math.round(revenue/target*100) : null;
+    return {id:c.id, name:c.name, subtitle:execs.map(e=>e.name).join(", ")||"—",
+      revenue, target, pct, execs};
+  }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
+
+  const execRows = state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u => {
+    const ctr     = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const mgr     = state.users.find(m=>m.id===u.managerId);
+    const revenue = getRevenue(u.id);
+    const target  = getTarget(u.id) || getTarget(ctr?.id||"");
+    const pct     = target>0 ? Math.round(revenue/target*100) : null;
+    return {id:u.id, name:u.name, subtitle:(ctr?.name||"No counter")+(mgr?" · "+mgr.name:""),
+      revenue, target, pct};
+  }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
+
+  const mgrRows = state.users.filter(u=>u.role==="manager"&&u.active!==false).map(u => {
+    const myExecs  = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
+    const revenue  = myExecs.reduce((s,e)=>s+getRevenue(e.id),0);
+    const target   = getTarget(u.id) || myExecs.reduce((s,e)=>s+getTarget(e.id),0);
+    const pct      = target>0 ? Math.round(revenue/target*100) : null;
+    return {id:u.id, name:u.name, subtitle:myExecs.length+" executives",
+      revenue, target, pct, execs:myExecs};
+  }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
+
+  const rows = view==="counter" ? counterRows : view==="executive" ? execRows : mgrRows;
+  const withTarget  = rows.filter(r=>r.target>0);
+  const noTarget    = rows.filter(r=>!r.target);
+  const achieved    = withTarget.filter(r=>r.pct>=100).length;
+  const totalRev    = rows.reduce((s,r)=>s+r.revenue,0);
+  const totalTarget = withTarget.reduce((s,r)=>s+r.target,0);
+  const overallPct  = totalTarget>0 ? Math.round(totalRev/totalTarget*100) : null;
+
+  const PctBar = ({pct}) => {
+    if (pct===null) return <span style={{fontSize:11,color:T.txt3}}>No target</span>;
+    const col = pct>=100?T.grn:pct>=75?T.amber:T.red;
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:8,minWidth:140}}>
+        <div style={{flex:1,height:8,background:T.surf,borderRadius:4}}>
+          <div style={{height:8,borderRadius:4,width:Math.min(pct,100)+"%",background:col,transition:"width .3s"}}/>
+        </div>
+        <span style={{fontWeight:800,color:col,minWidth:38,fontSize:13}}>{pct}%</span>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Target Fulfillment Report</div>
+
+      {/* Summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
+        <Card style={{textAlign:"center",padding:12}}>
+          <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{fmtCurr(totalRev)}</div>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Total Revenue</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:12}}>
+          <div style={{fontSize:22,fontWeight:800,color:T.amber}}>{fmtCurr(totalTarget)}</div>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Total Target</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:12,background:overallPct>=100?T.grnL:overallPct>=75?T.amberL:T.redL}}>
+          <div style={{fontSize:22,fontWeight:800,color:overallPct>=100?T.grn:overallPct>=75?T.amber:T.red}}>
+            {overallPct!==null?overallPct+"%":"—"}
+          </div>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Overall Fulfillment</div>
+        </Card>
+        <Card style={{textAlign:"center",padding:12}}>
+          <div style={{fontSize:22,fontWeight:800,color:T.grn}}>{achieved}/{withTarget.length}</div>
+          <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Targets Achieved</div>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+        {[["counter","🏪 Counter"],["executive","👤 Executive"],["manager","👔 Manager"]].map(([id,label])=>(
+          <button key={id} onClick={()=>{setView(id);setExpanded(null);}} style={{
+            padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(view===id?T.navy:T.bdrS),background:view===id?T.navy:"transparent",color:view===id?"#fff":T.txt2
+          }}>{label}</button>
+        ))}
+        <div style={{width:1,height:20,background:T.bdr}}/>
+        {periods.map(p=>(
+          <button key={p.id} onClick={()=>setPeriod(p.id)} style={{
+            padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+            border:"1px solid "+(period===p.id?T.amber:T.bdrS),background:period===p.id?T.amber:"transparent",color:period===p.id?"#fff":T.txt2
+          }}>{p.label}</button>
+        ))}
+        <input type={period==="yearly"?"number":"month"} value={selRef} onChange={e=>setSelRef(e.target.value)}
+          style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+      </div>
+
+      {/* Table */}
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{background:T.navy,color:"#fff"}}>
+              {["Name","Revenue","Target","Fulfillment","Gap",""].map(h=>(
+                <th key={h} style={{padding:"8px 12px",textAlign:h==="Name"?"left":"right",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {withTarget.map((r,i)=>(
+              <tr key={r.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr,cursor:r.execs?"pointer":"default"}}
+                onClick={()=>r.execs&&setExpanded(expanded===r.id?null:r.id)}>
+                <td style={{padding:"8px 12px"}}>
+                  <div style={{fontWeight:700}}>{r.name}</div>
+                  <div style={{fontSize:11,color:T.txt2}}>{r.subtitle}</div>
+                  {expanded===r.id && r.execs && (
+                    <div style={{marginTop:8,paddingLeft:8,borderLeft:"2px solid "+T.bdr}}>
+                      {r.execs.map(e=>{
+                        const er = getRevenue(e.id);
+                        const et = getTarget(e.id);
+                        const ep = et>0?Math.round(er/et*100):null;
+                        return (
+                          <div key={e.id} style={{fontSize:12,marginBottom:4,display:"flex",justifyContent:"space-between",gap:12}}>
+                            <span style={{color:T.txt2}}>{e.name}</span>
+                            <span>{fmtCurr(er)}{et>0&&<span style={{color:ep>=100?T.grn:ep>=75?T.amber:T.red,marginLeft:6}}>{ep}%</span>}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </td>
+                <td style={{padding:"8px 12px",textAlign:"right",fontWeight:600}}>{fmtCurr(r.revenue)}</td>
+                <td style={{padding:"8px 12px",textAlign:"right",color:T.txt2}}>{fmtCurr(r.target)}</td>
+                <td style={{padding:"8px 12px",textAlign:"right"}}><PctBar pct={r.pct}/></td>
+                <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,
+                  color:r.revenue>=r.target?T.grn:T.red}}>
+                  {r.revenue>=r.target?"+":""}{fmtCurr(r.revenue-r.target)}
+                </td>
+                <td style={{padding:"8px 12px",textAlign:"center",fontSize:11,color:T.txt3}}>
+                  {r.execs?"▼":""}
+                </td>
+              </tr>
+            ))}
+            {noTarget.length>0 && (
+              <tr><td colSpan={6} style={{padding:"8px 12px",color:T.txt3,fontSize:12,fontStyle:"italic"}}>
+                {noTarget.length} {view}(s) with no target set — {noTarget.map(r=>r.name).join(", ")}
+              </td></tr>
+            )}
+          </tbody>
+          {withTarget.length>0 && (
+            <tfoot>
+              <tr style={{background:T.navy,color:"#fff",fontWeight:800}}>
+                <td style={{padding:"8px 12px"}}>TOTAL</td>
+                <td style={{padding:"8px 12px",textAlign:"right"}}>{fmtCurr(totalRev)}</td>
+                <td style={{padding:"8px 12px",textAlign:"right"}}>{fmtCurr(totalTarget)}</td>
+                <td style={{padding:"8px 12px",textAlign:"right",color:overallPct>=100?"#86efac":overallPct>=75?"#fde68a":"#fca5a5"}}>
+                  {overallPct!==null?overallPct+"%":"—"}
+                </td>
+                <td style={{padding:"8px 12px",textAlign:"right",color:totalRev>=totalTarget?"#86efac":"#fca5a5"}}>
+                  {totalRev>=totalTarget?"+":""}{fmtCurr(totalRev-totalTarget)}
+                </td>
+                <td/>
+              </tr>
+            </tfoot>
+          )}
+        </table>
       </div>
     </div>
   );
