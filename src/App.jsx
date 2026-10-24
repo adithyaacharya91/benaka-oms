@@ -1494,14 +1494,18 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
               const curStatus = recordsRef.current[s.id];
               return (
                 <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:8,
-                  background:curStatus==="present"?T.limeL:curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf,
+                  background:curStatus==="present"?"#ECFCCB":curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf,
                   padding:"8px 10px", borderRadius:8,
-                  borderLeft:`3px solid ${curStatus==="present"?T.lime:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
+                  borderLeft:`4px solid ${curStatus==="present"?T.lime:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
                   transition:"all 0.2s" }}>
                   <div>
                     <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
                     {!curStatus && <div style={{fontSize:10,color:T.txt3,marginTop:1}}>Not marked yet</div>}
-                    {curStatus && <div style={{fontSize:10,color:curStatus==="present"?T.lime:curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:700}}>✓ {curStatus==="half_day"?"Half Day":curStatus==="absent"?"Absent":"Present"}</div>}
+                    {curStatus && <div style={{fontSize:11,color:curStatus==="present"?"#fff":curStatus==="absent"?T.red:T.amberD,marginTop:1,fontWeight:800,
+                      background:curStatus==="present"?T.lime:"transparent",
+                      padding:curStatus==="present"?"1px 6px":"0",borderRadius:10,display:"inline-block"}}>
+                      {curStatus==="present"?"✓ Present":curStatus==="absent"?"✗ Absent":"◑ Half Day"}
+                    </div>}
                   </div>
                   <div style={{ display:"flex", gap:4 }}>
                     {["present","absent","half_day"].map(status => {
@@ -1510,8 +1514,8 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                         <button key={status} onClick={()=>setStatus(s.id, status)} style={{
                           padding:"5px 10px", borderRadius:6,
                           border:`1px solid ${active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS}`,
-                          background:active?(status==="present"?T.limeL:status==="absent"?T.redL:T.amberL):"transparent",
-                          color:active?(status==="present"?T.lime:status==="absent"?T.red:T.amberD):T.txt2,
+                          background:active?(status==="present"?T.lime:status==="absent"?T.redL:T.amberL):"transparent",
+                          color:active?(status==="present"?"#fff":status==="absent"?T.red:T.amberD):T.txt2,
                           fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit"
                         }}>{status==="half_day"?"½ Day":status==="absent"?"Absent":"Present"}</button>
                       );
@@ -3064,9 +3068,9 @@ function MDAttendance({ state }) {
                 <tr style={{background:T.navy,color:"#fff"}}>
                   <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700}}>Staff</th>
                   <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700}}>Role / Exec</th>
-                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#4ade80"}}>Present</th>
-                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fca5a5"}}>Absent</th>
-                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fcd34d"}}>Half Day</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#4ade80"}}>{active&&status==="present"?"✓ Present":"Present"}</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fca5a5"}}>{active&&status==="absent"?"✓ Absent":"Absent"}</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fcd34d"}}>{active&&status==="half_day"?"✓ Half Day":"Half Day"}</th>
                   <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#c4b5fd"}}>On Leave</th>
                   <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700}}>Marked</th>
                   <th style={{padding:"8px 12px",textAlign:"center",fontWeight:700,color:T.amber}}>Attendance %</th>
@@ -4155,8 +4159,8 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
                       return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                         padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
                         border:`1px solid ${active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS}`,
-                        background:active?(status==="present"?T.limeL:status==="absent"?T.redL:T.amberL):"transparent",
-                        color:active?(status==="present"?T.lime:status==="absent"?T.red:T.amberD):T.txt2
+                        background:active?(status==="present"?T.lime:status==="absent"?T.redL:T.amberL):"transparent",
+                        color:active?(status==="present"?"#fff":status==="absent"?T.red:T.amberD):T.txt2
                       }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
                     })}
                   </div>
@@ -5700,8 +5704,8 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
                 return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                   padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
                   border:"1px solid "+(active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS),
-                  background:active?(status==="present"?T.limeL:status==="absent"?T.redL:T.amberL):"transparent",
-                  color:active?(status==="present"?T.lime:status==="absent"?T.red:T.amberD):T.txt2
+                  background:active?(status==="present"?T.lime:status==="absent"?T.redL:T.amberL):"transparent",
+                  color:active?(status==="present"?"#fff":status==="absent"?T.red:T.amberD):T.txt2
                 }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
               })}
             </div>
