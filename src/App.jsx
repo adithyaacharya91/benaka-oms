@@ -5059,12 +5059,10 @@ function CollectionReportView({ date, report, counters, allReports, attendance, 
               <td style={{ padding:"6px 10px", fontWeight:700, textAlign:"right" }}>TOTAL SERVICE</td>
               <td></td><td></td>
               <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800 }}>{fmtCurr(totalSvc)}</td>
-            </tr>
             <tr style={{ background:T.grnL }}>
               <td style={{ padding:"6px 10px", fontWeight:700, color:T.grn, textAlign:"right" }}>TOTAL SALES</td>
               <td></td><td></td>
               <td style={{ padding:"6px 10px", textAlign:"right", fontWeight:800, color:T.grn }}>{fmtCurr(totalSales)}</td>
-            </tr>
             <tr style={{ background:T.amberL }}>
               <td style={{ padding:"6px 10px", fontWeight:800, color:T.amber, textAlign:"right" }}>GRAND TOTAL (SERVICE + SALES)</td>
               <td></td><td></td>
@@ -6415,7 +6413,7 @@ function StockCheckin({ user, state, setState, toast }) {
               {["Product","Qty","Unit","Notes",""].map(h=>(
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
               ))}
-            </tr></thead>
+              </tr></thead>
           <tbody>
             {rows.map((row,i)=>(
               <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
@@ -6654,29 +6652,22 @@ function StockRequest({ user, state, setState, toast }) {
                       {["Product","Qty","Notes",""].map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:T.txt2}}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {editRows.map((row,i)=>(
-                        <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                          <td style={{padding:"4px 5px"}}>
-                            <input list="req-edit-products" value={row.productName}
-                        </tr>
-                              onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,productName:e.target.value}:r))}
-                              style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                          </td>
-                          <td style={{padding:"4px 5px",width:70}}>
-                            <input type="number" value={row.qty} min="1"
-                              onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,qty:e.target.value}:r))}
-                              style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                          </td>
-                          <td style={{padding:"4px 5px"}}>
-                            <input value={row.notes||""} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,notes:e.target.value}:r))}
-                              style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                          </td>
-                          <td style={{padding:"4px 5px",width:30,textAlign:"center"}}>
-                            <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))}
-                              style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
-                          </td>
-                      ))}
-                    </tbody>
+                       {editRows.map((row,i)=>(
+                         <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                           <td style={{padding:"4px 5px"}}>
+                             <input list="req-edit-products" value={row.productName} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,productName:e.target.value}:r))} style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                           </td>
+                           <td style={{padding:"4px 5px",width:70}}>
+                             <input type="number" value={row.qty} min="1" onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,qty:e.target.value}:r))} style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                           </td>
+                           <td style={{padding:"4px 5px"}}>
+                             <input value={row.notes||""} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,notes:e.target.value}:r))} style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                           </td>
+                           <td style={{padding:"4px 5px",width:30,textAlign:"center"}}>
+                             <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
+                           </td>
+                         </tr>
+                       ))}
                   </table>
                   <datalist id="req-edit-products">
                     {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
