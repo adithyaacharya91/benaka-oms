@@ -6670,6 +6670,7 @@ function StockRequest({ user, state, setState, toast }) {
                            </td>
                          </tr>
                        ))}
+                     </tbody>
                   </table>
                   <datalist id="req-edit-products">
                     {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
