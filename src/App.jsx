@@ -6974,8 +6974,8 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
                   {["Product","Unit","Current Stock","Min Stock","Status","Last Updated","Updated By",""].map(h=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                   </tr></thead>
                 <tbody>
@@ -7011,8 +7011,8 @@ function InventoryDashboard({ user, state, setState, toast }) {
             <div style={{marginTop:12,overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:T.navy,color:"#fff"}}>
-                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
                   {["Date","Counter","Requested By","Items","Status","Approved By",""].map(h=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11}}>{h}</th>
                   ))}
                   </tr></thead>
                 <tbody>
