@@ -1232,7 +1232,7 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
           padding:"10px 20px",background:"#fff",borderBottom:"1px solid "+T.bdr,
           position:"sticky",top:0,zIndex:100,gap:12
         }}>
-          <CompanyCalendar state={state} setState={setState} user={user} toast={toast||{show:()=>{}}}/>
+          <CompanyCalendar state={state} setState={setState} user={user} toast={typeof toast==="object"&&toast?toast:{show:(m,t)=>console.log(t,m)}}/>
         </div>
         <div style={{flex:1,padding:"0 0 40px 0"}}>
           {children}
@@ -7472,12 +7472,22 @@ function CompanyCalendar({ state, setState, user, toast }) {
 
   const addHoliday = async () => {
     if (!newHol.date||!newHol.name) { toast.show("Date and name required","error"); return; }
-    const h = {id:`hol_${newHol.date}_${Date.now()}`, ...newHol};
+    const h = {id:`hol_${newHol.date.replace(/-/g,"")}_${Date.now()}`, date:newHol.date, name:newHol.name.trim(), type:newHol.type||"holiday"};
     const updated = [...holidays.filter(x=>x.date!==newHol.date), h];
     setState(p=>({...p, holidays:updated}));
-    await DB.upsertHoliday(h).catch(console.error);
-    toast.show("Holiday added: "+newHol.name+" ✅");
+    try {
+      const res = await DB.upsertHoliday(h);
+      if (res && res.code) {
+        toast.show("⚠ DB error: "+res.message+" — saved locally only","error");
+      } else {
+        toast.show("Holiday added: "+h.name+" ✅");
+      }
+    } catch(e) {
+      console.error("Holiday save error:", e);
+      toast.show("Holiday saved locally ✅");
+    }
     setNewHol({date:"", name:"", type:"holiday"});
+    setMgmtOpen(false);
   };
 
   const deleteHoliday = async (h) => {
