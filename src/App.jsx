@@ -166,7 +166,10 @@ const DB = {
     return Array.isArray(d) ? d : [];
   },
   async upsertHoliday(h) {
-    return supabase.from("holidays").upsert({id:h.id, date:h.date, name:h.name, type:h.type||"holiday"});
+    const row = {id:h.id, date:h.date, name:h.name, type:h.type||"holiday"};
+    const res = await supabase.from("holidays").upsert(row);
+    console.log("upsertHoliday response:", JSON.stringify(res));
+    return res;
   },
   async deleteHoliday(id) {
     return supabase.from("holidays").delete().eq("id", id);
@@ -7484,11 +7487,22 @@ function CompanyCalendar({ state, setState, user, toast }) {
     setState(p=>({...p, holidays:[...(p.holidays||[]).filter(x=>x.date!==d), h]}));
     setNewHol({date:"", name:"", type:"holiday"});
     setMgmtOpen(false);
-    // Save to DB - fire and forget with toast feedback
+    // Save to DB with full error feedback
     DB.upsertHoliday(h).then(res=>{
-      if (res&&res.code) toast.show("⚠ DB error: "+res.message,"error");
-      else toast.show("✅ "+h.name+" saved!");
-    }).catch(()=>toast.show("Saved locally only"));
+      console.log("Holiday save result:", res);
+      if (Array.isArray(res)) {
+        toast.show("✅ "+h.name+" saved to DB!");
+      } else if (res&&res.code) {
+        toast.show("DB Error "+res.code+": "+res.message,"error");
+      } else if (res&&res.error) {
+        toast.show("DB Error: "+JSON.stringify(res.error),"error");
+      } else {
+        toast.show("✅ "+h.name+" saved!");
+      }
+    }).catch(e=>{
+      console.error("Holiday save exception:", e);
+      toast.show("Network error — saved locally only","error");
+    });
   };
 
   const delHoliday = (h) => {
