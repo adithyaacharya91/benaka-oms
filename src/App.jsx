@@ -7442,163 +7442,181 @@ function TargetFulfillmentReport({ user, state }) {
 
 // ─── Company Calendar ─────────────────────────────────────────────────────────
 function CompanyCalendar({ state, setState, user, toast }) {
-  const [open, setOpen]       = useState(false);
+  const [open, setOpen]         = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
   const [mgmtOpen, setMgmtOpen] = useState(false);
-  const [newHol, setNewHol]   = useState({date:"", name:"", type:"holiday"});
-  const [saving, setSaving]   = useState(false);
+  const [selDate, setSelDate]   = useState(null);
+  const [newHol, setNewHol]     = useState({date:"", name:"", type:"holiday"});
 
-  const canManage = user.role==="md" || user.role==="it_admin";
-  const holidays  = state.holidays||[];
+  const canManage  = user.role==="md" || user.role==="it_admin";
+  const holidays   = state.holidays||[];
   const year  = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const tod   = today();
   const fmt2  = n => String(n).padStart(2,"0");
-  const dateStr = d => `${year}-${fmt2(month+1)}-${fmt2(d)}`;
-  const isSunday  = d => new Date(year, month, d).getDay()===0;
-  const getHoliday = d => holidays.find(h=>h.date===dateStr(d));
+  const dateStr   = d => `${year}-${fmt2(month+1)}-${fmt2(d)}`;
+  const isSunday  = d => new Date(year,month,d).getDay()===0;
+  const getHol    = d => holidays.find(h=>h.date===dateStr(d));
   const isToday   = d => dateStr(d)===tod;
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const days   = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+  const isSelected= d => dateStr(d)===selDate;
 
-  const firstDay   = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month+1, 0).getDate();
-  const cells = [];
-  for (let i=0; i<firstDay; i++) cells.push(null);
-  for (let d=1; d<=daysInMonth; d++) cells.push(d);
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const DAYS   = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+  const firstDay    = new Date(year,month,1).getDay();
+  const daysInMonth = new Date(year,month+1,0).getDate();
+  const cells = [...Array(firstDay).fill(null), ...Array.from({length:daysInMonth},(_,i)=>i+1)];
 
   const thisMonthHols = holidays
     .filter(h=>h.date.startsWith(`${year}-${fmt2(month+1)}`))
     .sort((a,b)=>a.date.localeCompare(b.date));
 
+  const selectedHol = selDate ? holidays.find(h=>h.date===selDate) : null;
+  const selectedSun = selDate ? new Date(selDate+"T00:00:00").getDay()===0 : false;
+
+  const close = () => { setOpen(false); setMgmtOpen(false); setSelDate(null); };
+
   const addHoliday = async () => {
-    if (!newHol.date || !newHol.name.trim()) {
-      toast.show("Date and name required","error"); return;
-    }
-    setSaving(true);
-    const h = { id:`hol_${newHol.date.replace(/-/g,"")}_${Date.now()}`,
-      date:newHol.date, name:newHol.name.trim(), type:newHol.type||"holiday" };
-    setState(p=>({...p, holidays:[...(p.holidays||[]).filter(x=>x.date!==h.date), h]}));
-    try {
-      const res = await DB.upsertHoliday(h);
-      if (res && res.code) toast.show("Saved locally — DB: "+res.message,"error");
-      else toast.show("✅ "+h.name+" added!");
-    } catch(e) {
-      toast.show("Saved locally only","error");
-    }
+    const d = newHol.date || selDate;
+    const n = newHol.name.trim();
+    if (!d || !n) { toast.show("Date and name are required","error"); return; }
+    const h = { id:`hol_${d.replace(/-/g,"")}_${Date.now()}`, date:d, name:n, type:newHol.type||"holiday" };
+    setState(p=>({...p, holidays:[...(p.holidays||[]).filter(x=>x.date!==d), h]}));
     setNewHol({date:"", name:"", type:"holiday"});
     setMgmtOpen(false);
-    setSaving(false);
+    // Save to DB - fire and forget with toast feedback
+    DB.upsertHoliday(h).then(res=>{
+      if (res&&res.code) toast.show("⚠ DB error: "+res.message,"error");
+      else toast.show("✅ "+h.name+" saved!");
+    }).catch(()=>toast.show("Saved locally only"));
   };
 
-  const deleteHoliday = async (h) => {
+  const delHoliday = (h) => {
     setState(p=>({...p, holidays:(p.holidays||[]).filter(x=>x.id!==h.id)}));
-    await DB.deleteHoliday(h.id).catch(console.error);
+    DB.deleteHoliday(h.id).catch(console.error);
     toast.show("Holiday removed");
   };
 
-  const prevMonth = (e) => { e.stopPropagation(); setViewDate(new Date(year, month-1, 1)); };
-  const nextMonth = (e) => { e.stopPropagation(); setViewDate(new Date(year, month+1, 1)); };
-  const goToday   = (e) => { e.stopPropagation(); setViewDate(new Date()); };
-  const toggleMgmt= (e) => { e.stopPropagation(); setMgmtOpen(p=>!p); };
-
   return (
     <div style={{position:"relative",display:"inline-block"}}>
-      {/* Trigger button */}
+      {/* Trigger */}
       <button onClick={()=>setOpen(p=>!p)} style={{
-        background:T.navyXL, border:"1px solid "+T.bdr, cursor:"pointer",
-        padding:"7px 14px", borderRadius:10, color:T.navy, fontSize:20,
-        display:"flex", alignItems:"center", gap:8, fontFamily:"inherit",
-        boxShadow:"0 1px 3px rgba(0,0,0,.08)"
+        background:T.navyXL,border:"1px solid "+T.bdr,cursor:"pointer",
+        padding:"7px 14px",borderRadius:10,color:T.navy,fontSize:20,
+        display:"flex",alignItems:"center",gap:8,fontFamily:"inherit"
       }}>
         📅
-        <span style={{fontSize:12,fontWeight:700,color:T.navy}}>
-          {months[new Date().getMonth()].slice(0,3)} {new Date().getDate()}
+        <span style={{fontSize:12,fontWeight:700}}>
+          {MONTHS[new Date().getMonth()].slice(0,3)} {new Date().getDate()}
         </span>
         {holidays.some(h=>h.date===tod)&&(
           <span style={{background:T.red,color:"#fff",fontSize:9,borderRadius:10,padding:"1px 5px",fontWeight:800}}>HOL</span>
         )}
       </button>
 
-      {/* Backdrop — pointer-events only, not covering popup */}
-      {open && <div onClick={()=>{setOpen(false);setMgmtOpen(false);}} style={{
-        position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.35)"
-      }}/>}
+      {/* Backdrop */}
+      {open&&<div onClick={close} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.4)"}}/>}
 
-      {/* Calendar popup — zIndex above backdrop */}
-      {open && (
-        <div onClick={e=>e.stopPropagation()} style={{
-          position:"fixed", top:"50%", left:"50%",
-          transform:"translate(-50%,-50%)",
-          zIndex:1001, background:"#fff", borderRadius:16,
+      {/* Popup */}
+      {open&&(
+        <div style={{
+          position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+          zIndex:1001,background:"#fff",borderRadius:16,
           boxShadow:"0 24px 64px rgba(0,0,0,.3)",
-          width:340, maxHeight:"90vh", overflowY:"auto",
-          border:"1px solid "+T.bdr
+          width:340,maxHeight:"90vh",overflowY:"auto",border:"1px solid "+T.bdr
         }}>
-          {/* Header */}
+
+          {/* Nav header */}
           <div style={{background:T.navy,padding:"14px 16px",color:"#fff",borderRadius:"16px 16px 0 0"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <button onClick={prevMonth} style={{background:"rgba(255,255,255,.15)",border:"none",
-                color:"#fff",cursor:"pointer",fontSize:16,padding:"4px 12px",borderRadius:8,fontWeight:700}}>‹</button>
-              <div style={{fontWeight:800,fontSize:15}}>{months[month]} {year}</div>
-              <button onClick={nextMonth} style={{background:"rgba(255,255,255,.15)",border:"none",
-                color:"#fff",cursor:"pointer",fontSize:16,padding:"4px 12px",borderRadius:8,fontWeight:700}}>›</button>
+              <button onClick={()=>setViewDate(new Date(year,month-1,1))} style={{
+                background:"rgba(255,255,255,.15)",border:"none",color:"#fff",
+                cursor:"pointer",fontSize:18,padding:"4px 14px",borderRadius:8,fontWeight:700}}>‹</button>
+              <div>
+                <div style={{fontWeight:800,fontSize:15,textAlign:"center"}}>{MONTHS[month]} {year}</div>
+                <div style={{fontSize:10,opacity:.6,textAlign:"center",marginTop:1}}>Click a date to select</div>
+              </div>
+              <button onClick={()=>setViewDate(new Date(year,month+1,1))} style={{
+                background:"rgba(255,255,255,.15)",border:"none",color:"#fff",
+                cursor:"pointer",fontSize:18,padding:"4px 14px",borderRadius:8,fontWeight:700}}>›</button>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}}>
-              {days.map(d=>(
-                <div key={d} style={{fontSize:10,fontWeight:700,opacity:.8,
-                  color:d==="Su"?"#FCA5A5":"rgba(255,255,255,.8)",padding:"2px 0"}}>{d}</div>
+            {/* Day headers */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center"}}>
+              {DAYS.map(d=>(
+                <div key={d} style={{fontSize:10,fontWeight:700,
+                  color:d==="Su"?"#FCA5A5":"rgba(255,255,255,.7)",padding:"2px 0"}}>{d}</div>
               ))}
             </div>
           </div>
 
-          {/* Date grid */}
           <div style={{padding:"12px 14px"}}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:12}}>
+            {/* Date grid */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:14}}>
               {cells.map((d,i)=>{
                 if (!d) return <div key={i}/>;
-                const hol   = getHoliday(d);
-                const sun   = isSunday(d);
-                const tod2  = isToday(d);
+                const hol  = getHol(d);
+                const sun  = isSunday(d);
+                const now  = isToday(d);
+                const sel  = isSelected(d);
                 return (
-                  <div key={i} title={hol?hol.name:sun?"Sunday":""} style={{
+                  <button key={i} onClick={()=>{
+                    const ds = dateStr(d);
+                    setSelDate(p=>p===ds?null:ds);
+                    if (canManage) setNewHol(p=>({...p, date:dateStr(d)}));
+                  }} title={hol?hol.name:sun?"Sunday":""} style={{
                     textAlign:"center",padding:"6px 2px",borderRadius:8,fontSize:12,
-                    fontWeight:tod2?800:500,cursor:"default",
-                    background:tod2?T.amber:hol?"#FEE2E2":sun?"#FFF5F5":"transparent",
-                    color:tod2?"#fff":(sun||hol)?T.red:T.txt,
-                    border:tod2?"2px solid "+T.amberD:hol?"1px solid #FCA5A5":"1px solid transparent",
-                    position:"relative"
+                    fontWeight:now||sel?800:500,cursor:"pointer",fontFamily:"inherit",
+                    background:sel?"#1e3a5f":now?T.amber:hol?"#FEE2E2":sun?"#FFF5F5":"transparent",
+                    color:sel?"#fff":now?"#fff":(sun||hol)?T.red:T.txt,
+                    border:sel?"2px solid "+T.navy:now?"2px solid "+T.amberD:hol?"1px solid #FCA5A5":"1px solid transparent",
+                    outline:"none"
                   }}>
                     {d}
-                    {hol&&<div style={{width:4,height:4,background:T.red,borderRadius:"50%",margin:"1px auto 0"}}/>}
-                  </div>
+                    {hol&&<div style={{width:4,height:4,background:sel?"#fff":T.red,borderRadius:"50%",margin:"1px auto 0"}}/>}
+                  </button>
                 );
               })}
             </div>
 
-            {/* Holidays this month */}
+            {/* Selected date info */}
+            {selDate&&(
+              <div style={{marginBottom:12,padding:"8px 10px",background:T.navyXL,borderRadius:8,fontSize:12}}>
+                <div style={{fontWeight:700,color:T.navy,marginBottom:2}}>{fmtDate(selDate)}</div>
+                {selectedSun&&<div style={{color:T.red,fontSize:11}}>🔴 Sunday – Weekly Holiday</div>}
+                {selectedHol&&<div style={{color:T.red,fontSize:11}}>🔴 {selectedHol.name} ({selectedHol.type})</div>}
+                {!selectedSun&&!selectedHol&&<div style={{color:T.txt2,fontSize:11}}>Working day</div>}
+                {canManage&&selectedHol&&(
+                  <button onClick={()=>delHoliday(selectedHol)} style={{
+                    marginTop:6,padding:"3px 10px",borderRadius:6,border:"1px solid "+T.red,
+                    background:"#FEF2F2",color:T.red,fontSize:11,cursor:"pointer",fontFamily:"inherit"
+                  }}>Remove holiday</button>
+                )}
+              </div>
+            )}
+
+            {/* This month holidays */}
             {thisMonthHols.length>0&&(
               <div style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid "+T.bdr}}>
                 <div style={{fontSize:10,fontWeight:800,color:T.txt2,textTransform:"uppercase",marginBottom:6}}>Holidays this month</div>
                 {thisMonthHols.map(h=>(
                   <div key={h.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                    fontSize:12,marginBottom:4,padding:"3px 6px",background:"#FFF5F5",borderRadius:6}}>
-                    <span>🔴 <b>{fmtDate(h.date)}</b> — {h.name}</span>
-                    {canManage&&<button onClick={e=>{e.stopPropagation();deleteHoliday(h);}}
-                      style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14,padding:"0 4px"}}>×</button>}
+                    padding:"4px 8px",marginBottom:3,background:"#FFF5F5",borderRadius:6,fontSize:12}}>
+                    <span>🔴 <b>{fmtDate(h.date)}</b> · {h.name}</span>
+                    {canManage&&<button onClick={()=>delHoliday(h)} style={{
+                      background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14,padding:"0 2px"}}>×</button>}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Action buttons */}
-            <div style={{display:"flex",gap:8,marginBottom:mgmtOpen?10:0}}>
-              <button onClick={goToday} style={{
+            {/* Footer actions */}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{setViewDate(new Date());setSelDate(tod);}} style={{
                 flex:1,padding:"8px",borderRadius:8,border:"1px solid "+T.bdrS,
-                background:T.surf,fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.txt,fontWeight:600
+                background:T.surf,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:T.txt
               }}>📍 Today</button>
               {canManage&&(
-                <button onClick={toggleMgmt} style={{
+                <button onClick={()=>setMgmtOpen(p=>!p)} style={{
                   flex:1,padding:"8px",borderRadius:8,border:"none",
                   background:mgmtOpen?"#e5e7eb":T.navy,color:mgmtOpen?T.txt:"#fff",
                   fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700
@@ -7607,39 +7625,32 @@ function CompanyCalendar({ state, setState, user, toast }) {
             </div>
 
             {/* Add holiday form */}
-            {mgmtOpen&&canManage&&(
-              <div style={{background:T.navyXL,borderRadius:10,padding:12,marginTop:10}}>
-                <div style={{fontSize:11,fontWeight:800,color:T.navy,marginBottom:10,textTransform:"uppercase"}}>Add Company Holiday</div>
-                <div style={{marginBottom:6}}>
-                  <label style={{fontSize:10,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>DATE</label>
-                  <input type="date" value={newHol.date}
-                    onChange={e=>{e.stopPropagation();setNewHol(p=>({...p,date:e.target.value}));}}
-                    style={{width:"100%",padding:"7px 10px",border:"1px solid "+T.bdrS,borderRadius:7,
-                      fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-                </div>
-                <div style={{marginBottom:6}}>
-                  <label style={{fontSize:10,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>HOLIDAY NAME</label>
-                  <input value={newHol.name} placeholder="e.g. Diwali, Eid, Christmas"
-                    onChange={e=>{e.stopPropagation();setNewHol(p=>({...p,name:e.target.value}));}}
-                    style={{width:"100%",padding:"7px 10px",border:"1px solid "+T.bdrS,borderRadius:7,
-                      fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-                </div>
-                <div style={{marginBottom:10}}>
-                  <label style={{fontSize:10,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>TYPE</label>
-                  <select value={newHol.type}
-                    onChange={e=>{e.stopPropagation();setNewHol(p=>({...p,type:e.target.value}));}}
-                    style={{width:"100%",padding:"7px 10px",border:"1px solid "+T.bdrS,borderRadius:7,
-                      fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}>
-                    <option value="holiday">🔴 Public Holiday</option>
-                    <option value="company">🟠 Company Holiday</option>
-                    <option value="optional">🟡 Optional Holiday</option>
-                  </select>
-                </div>
-                <button onClick={e=>{e.stopPropagation();addHoliday();}} disabled={saving} style={{
+            {canManage&&mgmtOpen&&(
+              <div style={{marginTop:10,background:T.navyXL,borderRadius:10,padding:12}}>
+                <div style={{fontSize:11,fontWeight:800,color:T.navy,marginBottom:8,textTransform:"uppercase"}}>Add Holiday</div>
+                <label style={{fontSize:10,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>DATE</label>
+                <input type="date" value={newHol.date}
+                  onChange={e=>setNewHol(p=>({...p,date:e.target.value}))}
+                  style={{width:"100%",padding:"7px",border:"1px solid "+T.bdrS,borderRadius:7,
+                    fontSize:13,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+                <label style={{fontSize:10,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>HOLIDAY NAME</label>
+                <input value={newHol.name} placeholder="e.g. Diwali, Eid"
+                  onChange={e=>setNewHol(p=>({...p,name:e.target.value}))}
+                  style={{width:"100%",padding:"7px",border:"1px solid "+T.bdrS,borderRadius:7,
+                    fontSize:13,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+                <label style={{fontSize:10,fontWeight:700,color:T.txt2,display:"block",marginBottom:3}}>TYPE</label>
+                <select value={newHol.type} onChange={e=>setNewHol(p=>({...p,type:e.target.value}))}
+                  style={{width:"100%",padding:"7px",border:"1px solid "+T.bdrS,borderRadius:7,
+                    fontSize:13,fontFamily:"inherit",outline:"none",marginBottom:10,boxSizing:"border-box"}}>
+                  <option value="holiday">🔴 Public Holiday</option>
+                  <option value="company">🟠 Company Holiday</option>
+                  <option value="optional">🟡 Optional Holiday</option>
+                </select>
+                <button onClick={addHoliday} style={{
                   width:"100%",padding:"9px",borderRadius:8,border:"none",
-                  background:saving?"#9ca3af":T.amber,color:"#fff",fontWeight:800,
-                  fontSize:13,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"
-                }}>{saving?"Saving...":"💾 Save Holiday"}</button>
+                  background:T.amber,color:"#fff",fontWeight:800,fontSize:13,
+                  cursor:"pointer",fontFamily:"inherit"
+                }}>💾 Save Holiday</button>
               </div>
             )}
           </div>
