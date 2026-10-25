@@ -7815,11 +7815,7 @@ function HolidayManager({ state, setState, toast }) {
         <div style={{fontSize:12,color:T.txt2,marginBottom:10}}>
           Paste one holiday per line in format: <code style={{background:T.surf,padding:"1px 6px",borderRadius:4}}>YYYY-MM-DD, Name, Type</code>
           <br/>Type is optional (holiday/company/optional). Example:<br/>
-          <code style={{background:T.surf,padding:"4px 8px",borderRadius:4,display:"block",marginTop:4,fontSize:11}}>
-            2026-01-26, Republic Day, holiday{"
-"}2026-08-15, Independence Day{"
-"}2026-10-02, Gandhi Jayanti
-          </code>
+          <pre style={{background:T.surf,padding:"6px 10px",borderRadius:6,fontSize:11,marginTop:4,overflowX:"auto"}}>{"2026-01-26, Republic Day, holiday\n2026-08-15, Independence Day\n2026-10-02, Gandhi Jayanti"}</pre>
         </div>
         <BulkHolidayImport state={state} setState={setState} toast={toast}/>
       </Card>
