@@ -238,7 +238,9 @@ const DB = {
       status: u.status||null,
       resigned_on: u.resignedOn||null,
     }));
-    return supabase.from("app_users").upsert(rows);
+    const res = await supabase.from("app_users").upsert(rows);
+    console.log("📤 upsertUsers result:", res);
+    return res;
   },
   async getCounters() {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -301,7 +303,9 @@ const DB = {
   async upsertPasswords(passwords) {
     // passwords is an object {empId: pwd} — convert to rows
     const rows = Object.entries(passwords).map(([emp_id, pwd]) => ({ emp_id, pwd }));
-    return supabase.from("app_passwords").upsert(rows);
+    const res2 = await supabase.from("app_passwords").upsert(rows);
+    console.log("📤 upsertPasswords result:", res2);
+    return res2;
   },
   async seedUsersIfEmpty(users, passwords) {
     // Only seed if table is empty
