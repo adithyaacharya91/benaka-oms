@@ -1273,7 +1273,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} setState={setState} toast={toast} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard" && <SupDashboard user={user} state={state} myStaff={myStaff} myCounter={myCounter} todayRevenue={todayRevenue} todayAtt={todayAtt} setPage={setPage}/>}
       {page==="attendance" && <SupAttendance user={user} state={state} setState={setState} myStaff={myStaff} toast={toast}/>}
       {page==="report" && <SupReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -2079,7 +2079,7 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
   const _mySupIds = mySupervisors.map(s=>s.id);
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} setState={setState} toast={toast} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard" && <MgrDashboard user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters} setPage={setPage}/>}
       {page==="reports"   && <MgrReports user={user} state={state} mySupervisors={mySupervisors} myCounters={myCounters}/>}
       {page==="targetreport" && <TargetFulfillmentReport user={user} state={state}/>}
@@ -3210,7 +3210,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
 
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} setState={setState} toast={toast} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="dashboard"  && <MDDashboard user={user} state={state} syncFromCloud={syncFromCloud}/>}
       {page==="collection"  && <MDCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="analysis"   && <CounterAnalysis user={user} state={state}/>}
@@ -3850,7 +3850,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
 
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} setState={setState} toast={toast} navItems={navItems} onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="enter"        && <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="sales"        && <OfficeSalesEntry user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection"   && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
@@ -4604,17 +4604,18 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
   const [pageHistory, setPageHistory] = useState([]);
   const navTo = p => { if(p!==page) setPageHistory(h=>[...h.slice(-4),page]); setPage(p); };
   const navItems = [
-    { id:"users", icon:"👥", label:"User Management", group:"Setup", groupIcon:"⚙️" },
-    { id:"counters", icon:"🏪", label:"Counters", group:"Setup", groupIcon:"⚙️" },
-    { id:"worktypes", icon:"🔧", label:"Work Types", group:"Setup", groupIcon:"⚙️" },
-    { id:"reports", icon:"📋", label:"All Reports", group:"Reports", groupIcon:"📋" },
-    { id:"data", icon:"🗑️", label:"Data Management", group:"Reports", groupIcon:"📋" },
-    { id:"export", icon:"📥", label:"Export", group:"Reports", groupIcon:"📋" },
-    { id:"debug", icon:"🔍", label:"Debug Reports", group:"Reports", groupIcon:"📋" },
+    { id:"users",    icon:"👥", label:"User Management",  group:"Setup",   groupIcon:"⚙️" },
+    { id:"counters", icon:"🏪", label:"Counters",          group:"Setup",   groupIcon:"⚙️" },
+    { id:"worktypes",icon:"🔧", label:"Work Types",        group:"Setup",   groupIcon:"⚙️" },
+    { id:"holidays", icon:"🗓️", label:"Holidays",          group:"Setup",   groupIcon:"⚙️" },
+    { id:"reports",  icon:"📋", label:"All Reports",       group:"Reports", groupIcon:"📋" },
+    { id:"data",     icon:"🗑️", label:"Data Management",   group:"Reports", groupIcon:"📋" },
+    { id:"export",   icon:"📥", label:"Export",            group:"Reports", groupIcon:"📋" },
+    { id:"debug",    icon:"🔍", label:"Debug Reports",     group:"Reports", groupIcon:"📋" },
   ];
 
   return (
-    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} navItems={navItems}
+    <Shell user={user} state={state} syncStatus={syncStatus} activePage={page} setActivePage={navTo} setState={setState} toast={toast} navItems={navItems}
       onLogout={()=>setState(p=>({...p,currentUser:null}))} pageHistory={pageHistory}>
       {page==="users"     && <UserMgmt     user={user} state={state} setState={setState} toast={toast}/>}
       {page==="counters"  && <CounterMgmt  user={user} state={state} setState={setState} toast={toast}/>}
@@ -7815,7 +7816,11 @@ function HolidayManager({ state, setState, toast }) {
         <div style={{fontSize:12,color:T.txt2,marginBottom:10}}>
           Paste one holiday per line in format: <code style={{background:T.surf,padding:"1px 6px",borderRadius:4}}>YYYY-MM-DD, Name, Type</code>
           <br/>Type is optional (holiday/company/optional). Example:<br/>
-          <pre style={{background:T.surf,padding:"6px 10px",borderRadius:6,fontSize:11,marginTop:4,overflowX:"auto"}}>{"2026-01-26, Republic Day, holiday\n2026-08-15, Independence Day\n2026-10-02, Gandhi Jayanti"}</pre>
+          <code style={{background:T.surf,padding:"4px 8px",borderRadius:4,display:"block",marginTop:4,fontSize:11}}>
+            2026-01-26, Republic Day, holiday{"
+"}2026-08-15, Independence Day{"
+"}2026-10-02, Gandhi Jayanti
+          </code>
         </div>
         <BulkHolidayImport state={state} setState={setState} toast={toast}/>
       </Card>
