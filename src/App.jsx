@@ -3226,6 +3226,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
       {page==="targets"      && <MDTargets user={user} state={state} setState={setState} toast={toast}/>}
       {page==="staffnotes"  && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="holidays"     && <HolidayManager state={state} setState={setState} toast={toast}/>}
       {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
     </Shell>
@@ -7638,16 +7639,15 @@ function CompanyCalendar({ state, setState, user, toast }) {
                 background:T.surf,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:T.txt
               }}>📍 Today</button>
               {canManage&&(
-                <button onClick={()=>setMgmtOpen(p=>!p)} style={{
+                <button onClick={()=>{setOpen(false);}} style={{
                   flex:1,padding:"9px",borderRadius:8,border:"none",
-                  background:mgmtOpen?"#e5e7eb":T.navy,
-                  color:mgmtOpen?T.txt:"#fff",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700
-                }}>{mgmtOpen?"✕ Cancel":"+ Add Holiday"}</button>
+                  background:T.navy,color:"#fff",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700
+                }}>⚙️ Manage Holidays</button>
               )}
             </div>
 
-            {/* Add holiday form */}
-            {canManage&&mgmtOpen&&(
+            {/* Add holiday form - moved to dedicated page */}
+            {false&&mgmtOpen&&(
               <div style={{background:T.navyXL,borderRadius:10,padding:14}}>
                 <div style={{fontSize:12,fontWeight:800,color:T.navy,marginBottom:12}}>ADD HOLIDAY</div>
                 <div style={{marginBottom:8}}>
@@ -7687,6 +7687,111 @@ function CompanyCalendar({ state, setState, user, toast }) {
   );
 }
 
+
+
+// ─── Holiday Manager (full page) ─────────────────────────────────────────────
+function HolidayManager({ state, setState, toast }) {
+  const [form, setForm] = useState({date:"", name:"", type:"holiday"});
+  const holidays = [...(state.holidays||[])].sort((a,b)=>a.date.localeCompare(b.date));
+
+  const save = async () => {
+    if (!form.date) { toast.show("Please select a date","error"); return; }
+    if (!form.name.trim()) { toast.show("Please enter a holiday name","error"); return; }
+    const h = { id:`hol_${form.date.replace(/-/g,"")}_${Date.now()}`,
+      date:form.date, name:form.name.trim(), type:form.type||"holiday" };
+    const updated = [...(state.holidays||[]).filter(x=>x.date!==form.date), h];
+    setState(p=>({...p, holidays:updated}));
+    toast.show("✅ "+h.name+" added!");
+    setForm({date:"", name:"", type:"holiday"});
+    const res = await DB.upsertHoliday(h);
+    if (res&&res.code) toast.show("⚠ DB error: "+res.message,"error");
+  };
+
+  const del = async (h) => {
+    if (!confirm("Remove "+h.name+"?")) return;
+    setState(p=>({...p, holidays:(p.holidays||[]).filter(x=>x.id!==h.id)}));
+    toast.show("Holiday removed");
+    await DB.deleteHoliday(h.id).catch(console.error);
+  };
+
+  // Group by year
+  const years = [...new Set(holidays.map(h=>h.date.slice(0,4)))].sort((a,b)=>b-a);
+
+  const typeColor = t => ({holiday:"#EF4444",company:"#F97316",optional:"#EAB308"}[t]||"#6B7280");
+  const typeName  = t => ({holiday:"Public Holiday",company:"Company Holiday",optional:"Optional Holiday"}[t]||t);
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Holiday Management</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:20}}>Define company holidays for all staff calendars</div>
+
+      {/* Add form */}
+      <Card style={{marginBottom:24,maxWidth:560}}>
+        <div style={{fontSize:14,fontWeight:800,color:T.navy,marginBottom:14}}>➕ Add New Holiday</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Date *</label>
+            <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))}
+              style={{width:"100%",padding:"9px 12px",border:"2px solid "+(form.date?T.navy:T.bdrS),
+                borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Type</label>
+            <select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value}))}
+              style={{width:"100%",padding:"9px 12px",border:"2px solid "+T.bdrS,
+                borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}>
+              <option value="holiday">🔴 Public Holiday</option>
+              <option value="company">🟠 Company Holiday</option>
+              <option value="optional">🟡 Optional Holiday</option>
+            </select>
+          </div>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Holiday Name *</label>
+          <input value={form.name} placeholder="e.g. Diwali, Christmas, Eid"
+            onChange={e=>setForm(p=>({...p,name:e.target.value}))}
+            onKeyDown={e=>e.key==="Enter"&&save()}
+            style={{width:"100%",padding:"9px 12px",border:"2px solid "+(form.name?T.navy:T.bdrS),
+              borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <Btn onClick={save} variant="amber" style={{minWidth:160}}>💾 Save Holiday</Btn>
+      </Card>
+
+      {/* Holiday list grouped by year */}
+      {years.length===0
+        ? <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No holidays defined yet. Add one above.</div></Card>
+        : years.map(yr=>(
+          <div key={yr} style={{marginBottom:20}}>
+            <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:8,
+              borderBottom:"2px solid "+T.navy,paddingBottom:4}}>{yr} Holidays</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>
+              {holidays.filter(h=>h.date.startsWith(yr)).map(h=>(
+                <div key={h.id} style={{
+                  display:"flex",justifyContent:"space-between",alignItems:"center",
+                  padding:"10px 14px",borderRadius:10,background:"#fff",
+                  border:"1px solid "+T.bdr,
+                  borderLeft:"4px solid "+typeColor(h.type)
+                }}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>{h.name}</div>
+                    <div style={{fontSize:11,color:T.txt2,marginTop:2}}>
+                      {fmtDate(h.date)} · <span style={{color:typeColor(h.type),fontWeight:600}}>{typeName(h.type)}</span>
+                    </div>
+                  </div>
+                  <button onClick={()=>del(h)} style={{
+                    background:"#FEF2F2",border:"1px solid #FECACA",
+                    color:T.red,borderRadius:6,cursor:"pointer",
+                    padding:"4px 10px",fontSize:12,fontFamily:"inherit",fontWeight:700
+                  }}>Remove</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  );
+}
 
 
 export default function App() {
