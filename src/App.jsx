@@ -5713,7 +5713,10 @@ function OfficeOwnAttendance({ user, state, setState, toast }) {
             background:s.id===user.id?T.navyXL:"transparent",padding:"4px 8px",borderRadius:6}}>
             <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
             <div style={{display:"flex",gap:4}}>
-              {["present","absent","half_day"].map(status=>{ const active=st===status||(!st&&status==="present");
+              {["present","absent","half_day"].map(status=>{
+                const active      = st===status;
+                const explicit    = changedRef.current.has(s.id) && st===status;
+                const savedActive = active && !changedRef.current.has(s.id);
                 return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                   padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
                   border:"1px solid "+(active?(status==="present"?T.lime:status==="absent"?T.red:T.amber):T.bdrS),
