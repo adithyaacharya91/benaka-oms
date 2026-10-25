@@ -1208,10 +1208,7 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
               {syncStatus&&<div style={{fontSize:9,color:syncStatus==="synced"?"#86efac":"rgba(255,255,255,.4)",marginTop:2}}>{syncStatus==="synced"?"● Synced":"● Syncing..."}</div>}
             </div>
           )}
-          {/* Calendar icon in sidebar */}
-          <div style={{marginBottom:6}}>
-            <CompanyCalendar state={state} setState={setState} user={user} toast={toast||{show:()=>{}}}/>
-          </div>
+
           <button onClick={()=>setSideOpen(p=>!p)} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 8px",borderRadius:6,
             border:"none",background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.7)",
@@ -1228,8 +1225,18 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
       </div>
 
       {/* Main */}
-      <div style={{flex:1,overflow:"auto",padding:"0 0 40px 0"}}>
-        {children}
+      <div style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column"}}>
+        {/* Top bar */}
+        <div style={{
+          display:"flex",justifyContent:"flex-end",alignItems:"center",
+          padding:"10px 20px",background:"#fff",borderBottom:"1px solid "+T.bdr,
+          position:"sticky",top:0,zIndex:100,gap:12
+        }}>
+          <CompanyCalendar state={state} setState={setState} user={user} toast={toast||{show:()=>{}}}/>
+        </div>
+        <div style={{flex:1,padding:"0 0 40px 0"}}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -7487,11 +7494,15 @@ function CompanyCalendar({ state, setState, user, toast }) {
     <div style={{position:"relative",display:"inline-block"}}>
       {/* Calendar icon button */}
       <button onClick={()=>setOpen(p=>!p)} title="Company Calendar" style={{
-        background:"rgba(255,255,255,.12)",border:"none",cursor:"pointer",
-        padding:"7px 10px",borderRadius:8,color:"#fff",fontSize:18,
-        display:"flex",alignItems:"center",gap:6,fontFamily:"inherit"
+        background:T.navyXL,border:"1px solid "+T.bdr,cursor:"pointer",
+        padding:"8px 14px",borderRadius:10,color:T.navy,fontSize:22,
+        display:"flex",alignItems:"center",gap:8,fontFamily:"inherit",
+        boxShadow:"0 1px 3px rgba(0,0,0,.08)",transition:"all .15s"
       }}>
         📅
+        <span style={{fontSize:12,fontWeight:700,color:T.txt2}}>
+          {months[new Date().getMonth()]} {new Date().getDate()}
+        </span>
         {holidays.some(h=>h.date===tod) && (
           <span style={{background:T.red,color:"#fff",fontSize:9,borderRadius:10,padding:"1px 5px",fontWeight:700}}>HOL</span>
         )}
@@ -7503,9 +7514,11 @@ function CompanyCalendar({ state, setState, user, toast }) {
       )}
       {open && (
         <div style={{
-          position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:1000,
-          background:"#fff",borderRadius:16,boxShadow:"0 20px 60px rgba(0,0,0,.2)",
-          width:320,overflow:"hidden",border:"1px solid "+T.bdr
+          position:"fixed",top:"50%",left:"50%",
+          transform:"translate(-50%,-50%)",
+          zIndex:1000,background:"#fff",borderRadius:16,
+          boxShadow:"0 20px 60px rgba(0,0,0,.25)",
+          width:340,overflow:"hidden",border:"1px solid "+T.bdr
         }} onClick={e=>e.stopPropagation()}>
 
           {/* Header */}
