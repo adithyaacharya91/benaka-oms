@@ -1235,7 +1235,7 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
           padding:"10px 20px",background:"#fff",borderBottom:"1px solid "+T.bdr,
           position:"sticky",top:0,zIndex:100,gap:12
         }}>
-          <CompanyCalendar state={state} setState={setState} user={user} toast={typeof toast==="object"&&toast?toast:{show:(m,t)=>console.log(t,m)}}/>
+          <CompanyCalendar state={state} setState={setState} user={user} toast={typeof toast==="object"&&toast?toast:{show:(m,t)=>console.log(t,m)}} setPage={setActivePage}/>
         </div>
         <div style={{flex:1,padding:"0 0 40px 0"}}>
           {children}
@@ -7445,7 +7445,7 @@ function TargetFulfillmentReport({ user, state }) {
 
 
 // ─── Company Calendar ─────────────────────────────────────────────────────────
-function CompanyCalendar({ state, setState, user, toast }) {
+function CompanyCalendar({ state, setState, user, toast, setPage }) {
   const [open, setOpen]         = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
   const [mgmtOpen, setMgmtOpen] = useState(false);
@@ -7639,7 +7639,7 @@ function CompanyCalendar({ state, setState, user, toast }) {
                 background:T.surf,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:T.txt
               }}>📍 Today</button>
               {canManage&&(
-                <button onClick={()=>{setOpen(false);}} style={{
+                <button onClick={()=>{setOpen(false);setPage&&setPage("holidays");}} style={{
                   flex:1,padding:"9px",borderRadius:8,border:"none",
                   background:T.navy,color:"#fff",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700
                 }}>⚙️ Manage Holidays</button>
@@ -7690,6 +7690,90 @@ function CompanyCalendar({ state, setState, user, toast }) {
 
 
 // ─── Holiday Manager (full page) ─────────────────────────────────────────────
+// ─── Bulk Holiday Import ─────────────────────────────────────────────────────
+function BulkHolidayImport({ state, setState, toast }) {
+  const [text, setText]       = useState("");
+  const [preview, setPreview] = useState([]);
+  const [saving, setSaving]   = useState(false);
+
+  const parse = (raw) => {
+    const lines = raw.split("\n").map(l=>l.trim()).filter(Boolean);
+    return lines.map(line=>{
+      const parts = line.split(",").map(p=>p.trim());
+      const date  = parts[0]||"";
+      const name  = parts[1]||"";
+      const type  = (parts[2]||"holiday").toLowerCase().replace(/\s+/g,"");
+      const validType = ["holiday","company","optional"].includes(type)?"holiday":type;
+      const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && name.length>0;
+      return {date, name, type:validType, valid};
+    });
+  };
+
+  const handleChange = (val) => {
+    setText(val);
+    setPreview(parse(val));
+  };
+
+  const importAll = async () => {
+    const valid = preview.filter(p=>p.valid);
+    if (!valid.length) { toast.show("No valid holidays to import","error"); return; }
+    setSaving(true);
+    const existing = state.holidays||[];
+    const toAdd = valid.map(h=>({
+      id:`hol_${h.date.replace(/-/g,"")}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      date:h.date, name:h.name, type:h.type
+    }));
+    // Merge (newer overrides same date)
+    const merged = [...existing.filter(e=>!toAdd.find(n=>n.date===e.date)), ...toAdd]
+      .sort((a,b)=>a.date.localeCompare(b.date));
+    setState(p=>({...p, holidays:merged}));
+    // Save to DB
+    let errors = 0;
+    for (const h of toAdd) {
+      const res = await DB.upsertHoliday(h).catch(()=>null);
+      if (res&&res.code) errors++;
+    }
+    setSaving(false);
+    setText(""); setPreview([]);
+    if (errors) toast.show(`Imported ${toAdd.length-errors}/${toAdd.length} — ${errors} DB errors`,"error");
+    else toast.show(`✅ Imported ${toAdd.length} holiday${toAdd.length>1?"s":""}!`);
+  };
+
+  return (
+    <div>
+      <textarea value={text} onChange={e=>handleChange(e.target.value)}
+        placeholder={"2026-01-26, Republic Day, holiday\n2026-08-15, Independence Day\n2026-10-02, Gandhi Jayanti, holiday"}
+        rows={6} style={{width:"100%",padding:"10px 12px",border:"1px solid "+T.bdrS,borderRadius:8,
+          fontSize:12,fontFamily:"monospace",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+      {preview.length>0&&(
+        <div style={{marginTop:8,marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6}}>
+            PREVIEW — {preview.filter(p=>p.valid).length} valid, {preview.filter(p=>!p.valid).length} invalid
+          </div>
+          {preview.map((h,i)=>(
+            <div key={i} style={{
+              display:"flex",gap:8,alignItems:"center",fontSize:12,
+              padding:"3px 8px",borderRadius:6,marginBottom:2,
+              background:h.valid?"#F0FDF4":"#FEF2F2"
+            }}>
+              <span>{h.valid?"✅":"❌"}</span>
+              <span style={{minWidth:90,fontWeight:600}}>{h.date||"(no date)"}</span>
+              <span>{h.name||"(no name)"}</span>
+              <span style={{color:T.txt3,marginLeft:"auto"}}>{h.type}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {preview.filter(p=>p.valid).length>0&&(
+        <Btn onClick={importAll} variant="amber" disabled={saving}>
+          {saving?"Importing...":"📥 Import "+preview.filter(p=>p.valid).length+" Holidays"}
+        </Btn>
+      )}
+    </div>
+  );
+}
+
+
 function HolidayManager({ state, setState, toast }) {
   const [form, setForm] = useState({date:"", name:"", type:"holiday"});
   const holidays = [...(state.holidays||[])].sort((a,b)=>a.date.localeCompare(b.date));
@@ -7725,9 +7809,24 @@ function HolidayManager({ state, setState, toast }) {
       <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Holiday Management</div>
       <div style={{fontSize:13,color:T.txt2,marginBottom:20}}>Define company holidays for all staff calendars</div>
 
+      {/* Bulk import */}
+      <Card style={{marginBottom:16,maxWidth:560,borderLeft:"4px solid "+T.amber}}>
+        <div style={{fontSize:14,fontWeight:800,color:T.navy,marginBottom:8}}>📋 Bulk Import Holidays</div>
+        <div style={{fontSize:12,color:T.txt2,marginBottom:10}}>
+          Paste one holiday per line in format: <code style={{background:T.surf,padding:"1px 6px",borderRadius:4}}>YYYY-MM-DD, Name, Type</code>
+          <br/>Type is optional (holiday/company/optional). Example:<br/>
+          <code style={{background:T.surf,padding:"4px 8px",borderRadius:4,display:"block",marginTop:4,fontSize:11}}>
+            2026-01-26, Republic Day, holiday{"
+"}2026-08-15, Independence Day{"
+"}2026-10-02, Gandhi Jayanti
+          </code>
+        </div>
+        <BulkHolidayImport state={state} setState={setState} toast={toast}/>
+      </Card>
+
       {/* Add form */}
       <Card style={{marginBottom:24,maxWidth:560}}>
-        <div style={{fontSize:14,fontWeight:800,color:T.navy,marginBottom:14}}>➕ Add New Holiday</div>
+        <div style={{fontSize:14,fontWeight:800,color:T.navy,marginBottom:14}}>➕ Add Single Holiday</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
           <div>
             <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Date *</label>
