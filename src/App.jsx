@@ -1036,7 +1036,8 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
           dob: u.dob||"", joining: u.joining||"",
           weddingAnniversary: u.wedding_anniversary||u.weddingAnniversary||"",
           active: u.active !== false, managerId: u.manager_id||u.managerId||null,
-          counter: u.counter||""
+          counter: u.counter||"",
+          status: u.status||undefined, resignedOn: u.resigned_on||undefined,
         }));
         livePwds = Array.isArray(config.passwords)
           ? Object.fromEntries(config.passwords.map(r => [r.emp_id, r.pwd]))
@@ -4604,26 +4605,31 @@ function UserMgmt({ user, state, setState, toast }) {
   const openEdit = u => { setEditing(u); setForm({...u}); setNewPwd(""); };
   const openNew  = () => { setEditing({}); setForm({ role:"field_staff", active:true }); setNewPwd(""); };
 
-  const save = () => {
+  const save = async () => {
     if (!form.empId||!form.name) { toast.show("ID and Name required","error"); return; }
+    const empId = form.empId.trim().toUpperCase();
     if (editing?.id) {
-      const updated = state.users.map(u=>u.id===editing.id?{...u,...form}:u);
-      const pwds    = newPwd ? {...state.passwords,[form.empId]:newPwd} : state.passwords;
-      DB.upsertUsers(updated).catch(console.error);
-      DB.upsertPasswords(pwds).catch(console.error);
+      const updated = state.users.map(u=>u.id===editing.id?{...u,...form,empId}:u);
+      const pwds    = newPwd ? {...state.passwords,[empId]:newPwd} : state.passwords;
+      const res = await DB.upsertUsers(updated);
+      if (res&&res.code) { toast.show("DB error: "+res.message,"error"); return; }
+      if (newPwd) await DB.upsertPasswords(pwds);
       setState(p=>({...p,users:updated,passwords:pwds,_configVersion:(p._configVersion||0)+1}));
-      toast.show("User "+form.name+" saved ✅");
+      toast.show("User "+form.name+" updated ✅");
     } else {
-      if (state.users.find(u=>u.empId===form.empId)) { toast.show("Employee ID already exists","error"); return; }
-      const newUser = {...form, id:"u_"+Date.now(), active:true};
+      if (state.users.find(u=>u.empId===empId)) { toast.show("Employee ID already exists","error"); return; }
+      if (!newPwd) { toast.show("Password is required for new users","error"); return; }
+      const newUser = {...form, empId, id:"u_"+Date.now(), active:true};
       const updated = [...state.users, newUser];
-      const pwds    = newPwd ? {...state.passwords,[form.empId]:newPwd} : state.passwords;
-      DB.upsertUsers(updated).catch(console.error);
-      DB.upsertPasswords(pwds).catch(console.error);
+      const pwds    = {...state.passwords, [empId]: newPwd};
+      const res = await DB.upsertUsers(updated);
+      if (res&&res.code) { toast.show("DB error saving user: "+res.message,"error"); return; }
+      const res2 = await DB.upsertPasswords(pwds);
+      if (res2&&res2.code) { toast.show("User saved but password DB error: "+res2.message,"error"); }
       setState(p=>({...p,users:updated,passwords:pwds,_configVersion:(p._configVersion||0)+1}));
-      toast.show("User "+form.name+" added ✅");
+      toast.show("User "+form.name+" ("+empId+") created ✅ — they can now log in");
     }
-    setEditing(null);
+    setEditing(null); setNewPwd("");
   };
 
   const toggleActive = (r) => {
