@@ -4625,6 +4625,7 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="export"    && <OfficeExport state={state} toast={toast}/>}
       {page==="debug"     && <DebugReports state={state}/>}
       {page==="debug"     && <DebugReports state={state}/>}
+    {page==="holidays"  && <HolidayManager state={state} setState={setState} toast={toast}/>}
     </Shell>
   );
 }
