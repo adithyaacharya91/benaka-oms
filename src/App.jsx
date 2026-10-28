@@ -159,6 +159,31 @@ const DB = {
     // Fallback: just the base columns
     return supabase.from("collection_reports").upsert(row);
   },
+  // Targets
+  async getTargets() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_targets?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const d = await r.json(); return Array.isArray(d) ? d : [];
+  },
+  async upsertTargets(items) {
+    const rows = (Array.isArray(items)?items:[items]).map(t=>({
+      id: t.id,
+      supervisor_id: t.supervisorId||null,
+      counter_id: t.counterId||null,
+      period: t.period||"monthly",
+      period_ref: t.periodRef||"",
+      month: t.month||"",
+      daily: Number(t.daily)||0,
+      weekly: Number(t.weekly)||0,
+      monthly: Number(t.monthly)||0,
+      quarterly: Number(t.quarterly)||0,
+      yearly: Number(t.yearly)||0,
+      set_by: t.setBy||null,
+      set_at: t.setAt||null,
+    }));
+    const res = await supabase.from("app_targets").upsert(rows);
+    console.log("upsertTargets:", res);
+    return res;
+  },
   // Holidays
   async getHolidays() {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/holidays?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -348,10 +373,10 @@ function useSupabaseSync(localState, setLocalState) {
   const syncFromCloud = useCallback(async () => {
     setSyncStatus("syncing");
     try {
-      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves, dbInventory, dbStockTx, dbStockReqs, dbHolidays] = await Promise.all([
+      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves, dbInventory, dbStockTx, dbStockReqs, dbHolidays, dbTargets] = await Promise.all([
         DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(),
         DB.getSalaries(), DB.getCollectionReports(), DB.getConfig(),
-        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves(), DB.getInventory(), DB.getStockTransactions(), DB.getStockRequests(), DB.getHolidays()
+        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves(), DB.getInventory(), DB.getStockTransactions(), DB.getStockRequests(), DB.getHolidays(), DB.getTargets()
       ]);
 
       // Check if tables exist — Supabase returns {code:"42P01"} if table missing
@@ -460,6 +485,15 @@ function useSupabaseSync(localState, setLocalState) {
         holidays: Array.isArray(dbHolidays) && dbHolidays.length>0
           ? dbHolidays.map(h=>({id:h.id, date:h.date, name:h.name, type:h.type||"holiday"}))
           : p.holidays,
+        targets: Array.isArray(dbTargets) && dbTargets.length>0
+          ? dbTargets.map(t=>({
+              id:t.id, supervisorId:t.supervisor_id||null, counterId:t.counter_id||null,
+              period:t.period||"monthly", periodRef:t.period_ref||"", month:t.month||"",
+              daily:Number(t.daily)||0, weekly:Number(t.weekly)||0, monthly:Number(t.monthly)||0,
+              quarterly:Number(t.quarterly)||0, yearly:Number(t.yearly)||0,
+              setBy:t.set_by||null, setAt:t.set_at||null,
+            }))
+          : p.targets,
         stockRequests: Array.isArray(dbStockReqs) && dbStockReqs.length>0 ? dbStockReqs.map(r=>{
           let items=[]; try{items=JSON.parse(r.items||"[]");}catch(e){}
           return {
@@ -684,6 +718,7 @@ const INITIAL_STATE = {
   stockTransactions: [],
   stockRequests: [],
   holidays: [],        // [{id, date, name, type}] - company holidays
+  targets: [],         // [{id, supervisorId, counterId, period, periodRef, month, daily, weekly, monthly, quarterly, yearly}]
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -2725,7 +2760,7 @@ function MDTargets({ user, state, setState, toast }) {
     return reps.reduce((s,r)=>s+r.totalAmount,0);
   };
 
-  const save = (targetId, supervisorId, counterId) => {
+  const save = async (targetId, supervisorId, counterId) => {
     const tgt = {
       id: getTargetKey(targetId),
       counterId, supervisorId,
@@ -2736,8 +2771,9 @@ function MDTargets({ user, state, setState, toast }) {
     };
     const newTargets = [...(state.targets||[]).filter(t=>t.id!==tgt.id), tgt];
     setState(p=>({...p, targets:newTargets}));
-    DB.upsertTargets && DB.upsertTargets(newTargets).catch(console.error);
-    toast.show("Target saved ✅");
+    const res = await DB.upsertTargets([tgt]);
+    if (res&&res.code) { toast.show("DB Error: "+res.message,"error"); }
+    else { toast.show("Target saved ✅"); }
     setEditing(null);
   };
 
