@@ -7554,21 +7554,29 @@ function TargetFulfillmentReport({ user, state }) {
       .reduce((s,r)=>s+r.totalAmount,0);
   };
 
-  // Get target value for an id
-  // type-aware target lookup: "counter" matches counterId, others match supervisorId
+  // Get target value: find most relevant target for type+id+period
   const getTarget = (type, id) => {
-    const matches = (state.targets||[]).filter(t => {
-      if (t.targetType===type || !t.targetType) {
-        if (type==="counter")   return t.counterId===id;
-        if (type==="executive") return t.supervisorId===id;
-        if (type==="manager")   return t.supervisorId===id;
-      }
-      return false;
-    });
-    if (!matches.length) return 0;
-    const exact = matches.find(t=>t.period===period&&t.periodRef===selRef);
-    const tgt = exact||matches[matches.length-1];
-    return Number(tgt[period]||tgt.monthly||0);
+    const all = (state.targets||[]);
+    // First try exact: same type, id, period, and periodRef
+    const deriveType = t => t.targetType || (t.id.includes("_counter_")?"counter":t.id.includes("_executive_")?"executive":t.id.includes("_manager_")?"manager":null);
+    const matchId = (t, type, id) => {
+      const tt = deriveType(t);
+      if (tt && tt !== type) return false;
+      if (type==="counter")   return t.counterId===id;
+      return t.supervisorId===id || t.targetId===id;
+    };
+    const candidates = all.filter(t => matchId(t, type, id));
+    if (!candidates.length) return 0;
+    // Prefer exact period+ref match
+    const exact = candidates.find(t => t.period===period && t.periodRef===selRef);
+    if (exact) return Number(exact[period]||0);
+    // Fall back: find any with this period set
+    const samePeriod = candidates.filter(t => t.period===period && Number(t[period]||0)>0);
+    if (samePeriod.length) return Number(samePeriod[samePeriod.length-1][period]||0);
+    // Last resort: any target with value for this period
+    const anyWithValue = candidates.filter(t => Number(t[period]||0)>0);
+    if (anyWithValue.length) return Number(anyWithValue[anyWithValue.length-1][period]||0);
+    return 0;
   };
 
   // Build rows
