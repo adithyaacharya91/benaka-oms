@@ -167,6 +167,8 @@ const DB = {
   async upsertTargets(items) {
     const rows = (Array.isArray(items)?items:[items]).map(t=>({
       id: t.id,
+      target_type: t.targetType||null,
+      target_id: t.targetId||null,
       supervisor_id: t.supervisorId||null,
       counter_id: t.counterId||null,
       period: t.period||"monthly",
@@ -510,7 +512,8 @@ function useSupabaseSync(localState, setLocalState) {
           : p.holidays,
         targets: Array.isArray(dbTargets) && dbTargets.length>0
           ? dbTargets.map(t=>({
-              id:t.id, supervisorId:t.supervisor_id||null, counterId:t.counter_id||null,
+              id:t.id, targetType:t.target_type||null, targetId:t.target_id||null,
+              supervisorId:t.supervisor_id||null, counterId:t.counter_id||null,
               period:t.period||"monthly", periodRef:t.period_ref||"", month:t.month||"",
               daily:Number(t.daily)||0, weekly:Number(t.weekly)||0, monthly:Number(t.monthly)||0,
               quarterly:Number(t.quarterly)||0, yearly:Number(t.yearly)||0,
@@ -2761,173 +2764,281 @@ function MgrPeople({ user, state, setState, toast }) {
 function MDTargets({ user, state, setState, toast, syncFromCloud }) {
   const [selPeriod, setSelPeriod] = useState("monthly");
   const [selRef,    setSelRef]    = useState(today().slice(0,7));
-  const [viewMode,  setViewMode]  = useState("counter"); // counter | executive | manager
+  const [viewMode,  setViewMode]  = useState("counter");
   const [editing,   setEditing]   = useState(null);
-  const [form,      setForm]      = useState({ daily:"", weekly:"", monthly:"", quarterly:"", yearly:"" });
+  const [showHist,  setShowHist]  = useState(false);
+  const [form,      setForm]      = useState({daily:"",weekly:"",monthly:"",quarterly:"",yearly:""});
 
   const periods = [
-    { id:"daily",     label:"Daily",     inputType:"date"  },
-    { id:"weekly",    label:"Weekly",    inputType:"week"  },
-    { id:"monthly",   label:"Monthly",   inputType:"month" },
-    { id:"quarterly", label:"Quarterly", inputType:"month" },
-    { id:"yearly",    label:"Yearly",    inputType:"number"},
+    {id:"daily",label:"Daily",inputType:"date"},
+    {id:"weekly",label:"Weekly",inputType:"week"},
+    {id:"monthly",label:"Monthly",inputType:"month"},
+    {id:"quarterly",label:"Quarterly",inputType:"month"},
+    {id:"yearly",label:"Yearly",inputType:"number"},
   ];
 
-  const getTargetKey = (id) => `tgt_${id}_${selPeriod}_${selRef}`;
-  const getActual = (supId) => {
-    const reps = (state.serviceReports||[]).filter(r=>{
-      if (selPeriod==="monthly") return r.date.startsWith(selRef) && r.supervisorId===supId;
-      if (selPeriod==="daily")   return r.date===selRef && r.supervisorId===supId;
-      return r.supervisorId===supId;
-    });
-    return reps.reduce((s,r)=>s+r.totalAmount,0);
+  // ── Key helpers ──────────────────────────────────────────────────────────────
+  // Counter target key uses counterId; executive uses supervisorId; manager uses managerId
+  const getKey = (type, id) => `tgt_${type}_${id}_${selPeriod}_${selRef}`;
+
+  // Revenue for a counter = sum of all its execs' reports
+  const getCounterRevenue = (counter) => {
+    const execIds = state.users
+      .filter(u=>u.role==="supervisor" && (counter.supervisorId===u.id||(counter.supervisorIds||[]).includes(u.id)))
+      .map(u=>u.id);
+    return (state.serviceReports||[]).filter(r=>{
+      if (!execIds.includes(r.supervisorId)) return false;
+      if (selPeriod==="monthly") return r.date.startsWith(selRef);
+      if (selPeriod==="daily")   return r.date===selRef;
+      return r.date.startsWith(selRef.slice(0,4));
+    }).reduce((s,r)=>s+r.totalAmount,0);
   };
 
-  const save = async (targetId, supervisorId, counterId) => {
+  // Revenue for an executive = only their own reports
+  const getExecRevenue = (supId) => {
+    return (state.serviceReports||[]).filter(r=>{
+      if (r.supervisorId!==supId) return false;
+      if (selPeriod==="monthly") return r.date.startsWith(selRef);
+      if (selPeriod==="daily")   return r.date===selRef;
+      return r.date.startsWith(selRef.slice(0,4));
+    }).reduce((s,r)=>s+r.totalAmount,0);
+  };
+
+  // Get target for a specific type+id+period+ref (exact match only)
+  const getExistingTarget = (type, id) => {
+    const key = getKey(type, id);
+    return (state.targets||[]).find(t=>t.id===key);
+  };
+
+  const openEdit = (type, id, existing) => {
+    setEditing(`${type}_${id}`);
+    setForm({
+      daily:   String(existing?.daily||""),
+      weekly:  String(existing?.weekly||""),
+      monthly: String(existing?.monthly||""),
+      quarterly:String(existing?.quarterly||""),
+      yearly:  String(existing?.yearly||""),
+    });
+  };
+
+  const save = async (type, id, supervisorId, counterId) => {
+    const key = getKey(type, id);
     const tgt = {
-      id: getTargetKey(targetId),
-      counterId, supervisorId,
-      period:selPeriod, periodRef:selRef,
-      month: selPeriod==="monthly"?selRef:today().slice(0,7),
-      ...form,
+      id: key,
+      targetType: type,          // "counter" | "executive" | "manager"
+      targetId: id,              // the primary ID (counterId for counter, userId for exec/mgr)
+      counterId:  type==="counter"   ? id : counterId||null,
+      supervisorId: type!=="counter" ? id : supervisorId||null,
+      period: selPeriod, periodRef: selRef,
+      month:  selPeriod==="monthly"?selRef:today().slice(0,7),
+      daily:    Number(form.daily)||0,
+      weekly:   Number(form.weekly)||0,
+      monthly:  Number(form.monthly)||0,
+      quarterly:Number(form.quarterly)||0,
+      yearly:   Number(form.yearly)||0,
       setBy: user.id, setAt: new Date().toISOString(),
     };
-    const newTargets = [...(state.targets||[]).filter(t=>t.id!==tgt.id), tgt];
+    const newTargets = [...(state.targets||[]).filter(t=>t.id!==key), tgt];
     setState(p=>({...p, targets:newTargets}));
     const res = await DB.upsertTargets([tgt]);
-    console.log("Target save response:", JSON.stringify(res));
     if (Array.isArray(res)) {
-      toast.show("✅ Target saved — ₹"+Number(tgt[selPeriod]||tgt.monthly||0).toLocaleString()+" "+selPeriod);
-      if (syncFromCloud) setTimeout(syncFromCloud, 500);
+      toast.show(`✅ ${type} target saved — ₹${Number(tgt[selPeriod]||tgt.monthly||0).toLocaleString()} ${selPeriod}`);
+      if (syncFromCloud) setTimeout(syncFromCloud,500);
     } else if (res&&res.code) {
       toast.show("DB Error "+res.code+": "+res.message,"error");
-      console.error("Target save failed:", res);
     } else {
       toast.show("✅ Target saved");
-      if (syncFromCloud) setTimeout(syncFromCloud, 500);
+      if (syncFromCloud) setTimeout(syncFromCloud,500);
     }
     setEditing(null);
   };
 
-  const openEdit = (id, existing) => {
-    setEditing(id);
-    setForm({ daily:existing?.daily||"", weekly:existing?.weekly||"",
-      monthly:existing?.monthly||"", quarterly:existing?.quarterly||"", yearly:existing?.yearly||"" });
+  const deleteTarget = async (tgt) => {
+    if (!confirm("Remove this target?")) return;
+    setState(p=>({...p, targets:(p.targets||[]).filter(t=>t.id!==tgt.id)}));
+    await fetch(`${SUPABASE_URL}/rest/v1/app_targets?id=eq.${tgt.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}});
+    toast.show("Target removed");
   };
 
-  // Build target subjects based on viewMode
-  const subjects = viewMode==="counter"
-    ? state.counters.filter(c=>c.name!=="OFFICE").map(c=>{
-        const execs = state.users.filter(u=>u.supervisorId===c.id||(c.supervisorIds||[]).includes(u.id)||c.supervisorId===u.id);
-        return { id:c.id, name:c.name, subtitle:execs.map(e=>e.name).join(", ")||"No exec", supervisorId:c.supervisorId||"", counterId:c.id };
-      })
-    : viewMode==="executive"
-    ? state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u=>{
-        const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
-        return { id:u.id, name:u.name, subtitle:ctr?.name||"No counter", supervisorId:u.id, counterId:ctr?.id||"" };
-      })
-    : state.users.filter(u=>u.role==="manager"&&u.active!==false).map(u=>{
-        const execs = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
-        return { id:u.id, name:u.name, subtitle:`${execs.length} executives`, supervisorId:u.id, counterId:"" };
-      });
+  // Build subjects list
+  const counterSubjects = state.counters.filter(c=>c.name!=="OFFICE").map(c=>{
+    const execs = state.users.filter(u=>u.role==="supervisor"&&(c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id)));
+    const existing = getExistingTarget("counter", c.id);
+    const revenue  = getCounterRevenue(c);
+    const targetVal= Number(existing?.[selPeriod]||existing?.monthly||0);
+    const pct      = targetVal>0?Math.round(revenue/targetVal*100):null;
+    return {type:"counter",id:c.id,name:c.name,subtitle:execs.map(e=>e.name).join(", ")||"No exec",
+      supervisorId:null, counterId:c.id, existing, revenue, targetVal, pct};
+  });
+
+  const execSubjects = state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u=>{
+    const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const existing = getExistingTarget("executive", u.id);
+    const revenue  = getExecRevenue(u.id);
+    const targetVal= Number(existing?.[selPeriod]||existing?.monthly||0);
+    const pct      = targetVal>0?Math.round(revenue/targetVal*100):null;
+    return {type:"executive",id:u.id,name:u.name,subtitle:ctr?.name||"No counter",
+      supervisorId:u.id, counterId:ctr?.id||"", existing, revenue, targetVal, pct};
+  });
+
+  const mgrSubjects = state.users.filter(u=>u.role==="manager"&&u.active!==false).map(u=>{
+    const myExecs = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
+    const existing = getExistingTarget("manager", u.id);
+    const revenue  = myExecs.reduce((s,e)=>s+getExecRevenue(e.id),0);
+    const targetVal= Number(existing?.[selPeriod]||existing?.monthly||0);
+    const pct      = targetVal>0?Math.round(revenue/targetVal*100):null;
+    return {type:"manager",id:u.id,name:u.name,subtitle:`${myExecs.length} executives`,
+      supervisorId:u.id, counterId:"", existing, revenue, targetVal, pct};
+  });
+
+  const subjects = viewMode==="counter"?counterSubjects:viewMode==="executive"?execSubjects:mgrSubjects;
+
+  // History: all targets ever set
+  const allHistory = [...(state.targets||[])].sort((a,b)=>b.setAt?.localeCompare(a.setAt||"")||0);
+
+  const PctBar = ({pct}) => {
+    if (pct===null) return <span style={{fontSize:11,color:T.txt3}}>No target</span>;
+    const col = pct>=100?T.grn:pct>=75?T.amber:T.red;
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:8,minWidth:160}}>
+        <div style={{flex:1,height:6,background:T.surf,borderRadius:3}}>
+          <div style={{height:6,borderRadius:3,width:Math.min(pct,100)+"%",background:col}}/>
+        </div>
+        <span style={{fontWeight:800,color:col,minWidth:38,fontSize:13}}>{pct}%</span>
+      </div>
+    );
+  };
+
+  const EditForm = ({sub}) => (
+    <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12,marginTop:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:12}}>
+        {periods.map(p=>(
+          <div key={p.id}>
+            <label style={{display:"block",fontSize:10,fontWeight:700,color:T.txt2,marginBottom:3,textTransform:"uppercase"}}>
+              {p.label} ₹{selPeriod===p.id?" ◀":""}
+            </label>
+            <input type="number" value={form[p.id]||""} placeholder="0"
+              onChange={e=>setForm(f=>({...f,[p.id]:e.target.value}))}
+              style={{width:"100%",padding:"7px 8px",border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
+                borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",
+                background:selPeriod===p.id?T.amberL:"#fff"}}/>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn onClick={()=>save(sub.type, sub.id, sub.supervisorId, sub.counterId)} variant="amber">💾 Save</Btn>
+        <Btn onClick={()=>setEditing(null)} variant="ghost" size="sm">Cancel</Btn>
+        {sub.existing && <Btn onClick={()=>deleteTarget(sub.existing)} variant="danger" size="sm">🗑 Remove</Btn>}
+      </div>
+    </div>
+  );
 
   return (
     <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Set Targets</div>
-
-      {/* View mode toggle */}
-      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-        {[["counter","🏪 By Counter"],["executive","👤 By Executive"],["manager","👔 By Manager"]].map(([id,label])=>(
-          <button key={id} onClick={()=>{setViewMode(id);setEditing(null);}} style={{
-            padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-            border:"1px solid "+(viewMode===id?T.navy:T.bdrS),
-            background:viewMode===id?T.navy:"transparent",color:viewMode===id?"#fff":T.txt2
-          }}>{label}</button>
-        ))}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <div style={{fontSize:18,fontWeight:800}}>Set Targets</div>
+        <Btn onClick={()=>setShowHist(p=>!p)} variant="outline" size="sm">{showHist?"◀ Targets":"🕘 History"}</Btn>
       </div>
 
-      {/* Period selector */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-        {periods.map(p=>(
-          <button key={p.id} onClick={()=>setSelPeriod(p.id)} style={{
-            padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
-            border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
-            background:selPeriod===p.id?T.amber:"transparent",color:selPeriod===p.id?"#fff":T.txt2
-          }}>{p.label}</button>
-        ))}
-      </div>
+      {/* History view */}
+      {showHist ? (
+        <div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:T.navy}}>Target History ({allHistory.length})</div>
+          {allHistory.length===0
+            ? <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No targets set yet</div></Card>
+            : (
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead><tr style={{background:T.navy,color:"#fff"}}>
+                    {["Type","Name","Period","Ref","Monthly","Daily","Set On",""].map(h=>(
+                      <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:700}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {allHistory.map((t,i)=>{
+                      const name = t.targetType==="counter"
+                        ? state.counters.find(c=>c.id===t.counterId)?.name||t.counterId
+                        : state.users.find(u=>u.id===(t.supervisorId||t.targetId))?.name||t.targetId;
+                      return (
+                        <tr key={t.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                          <td style={{padding:"7px 12px"}}><Badge color={{counter:T.navy,executive:T.grn,manager:T.amber}[t.targetType]||T.txt2}>{t.targetType||"—"}</Badge></td>
+                          <td style={{padding:"7px 12px",fontWeight:600}}>{name}</td>
+                          <td style={{padding:"7px 12px",color:T.txt2}}>{t.period}</td>
+                          <td style={{padding:"7px 12px",color:T.txt2}}>{t.periodRef}</td>
+                          <td style={{padding:"7px 12px",textAlign:"right",fontWeight:700}}>{fmtCurr(t.monthly||0)}</td>
+                          <td style={{padding:"7px 12px",textAlign:"right"}}>{t.daily?fmtCurr(t.daily):"—"}</td>
+                          <td style={{padding:"7px 12px",fontSize:11,color:T.txt2}}>{t.setAt?fmtDate(t.setAt.slice(0,10)):"—"}</td>
+                          <td style={{padding:"7px 12px"}}>
+                            <button onClick={()=>deleteTarget(t)} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:14}}>🗑</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          }
+        </div>
+      ) : (
+        <>
+          {/* View mode + period + ref */}
+          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+            {[["counter","🏪 Counter"],["executive","👤 Executive"],["manager","👔 Manager"]].map(([id,lbl])=>(
+              <button key={id} onClick={()=>{setViewMode(id);setEditing(null);}} style={{
+                padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                border:"1px solid "+(viewMode===id?T.navy:T.bdrS),background:viewMode===id?T.navy:"transparent",
+                color:viewMode===id?"#fff":T.txt2
+              }}>{lbl}</button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+            {periods.map(p=>(
+              <button key={p.id} onClick={()=>setSelPeriod(p.id)} style={{
+                padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),background:selPeriod===p.id?T.amber:"transparent",
+                color:selPeriod===p.id?"#fff":T.txt2
+              }}>{p.label}</button>
+            ))}
+            <input type={periods.find(p=>p.id===selPeriod)?.inputType||"month"} value={selRef}
+              onChange={e=>setSelRef(e.target.value)}
+              style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+          </div>
 
-      {/* Reference period input */}
-      <div style={{marginBottom:16}}>
-        <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>
-          {selPeriod==="yearly"?"Year":"Period Reference"}
-        </label>
-        <input type={periods.find(p=>p.id===selPeriod)?.inputType||"month"}
-          value={selRef} onChange={e=>setSelRef(e.target.value)}
-          style={{padding:"7px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
-      </div>
-
-      {/* Target cards */}
-      {subjects.map(sub => {
-        const existing = (state.targets||[]).find(t=>
-          t.id===getTargetKey(sub.id) ||
-          ((t.supervisorId===sub.supervisorId||t.counterId===sub.id) && t.period===selPeriod && t.periodRef===selRef)
-        );
-        const targetVal = Number(existing?.[selPeriod]||existing?.monthly||0);
-        const actual    = getActual(sub.supervisorId);
-        const pct       = targetVal>0 ? Math.round(actual/targetVal*100) : 0;
-        const isEditing = editing===sub.id;
-
-        return (
-          <Card key={sub.id} style={{marginBottom:10,borderLeft:`3px solid ${pct>=100?T.grn:pct>=75?T.amber:targetVal?T.red:T.bdrS}`}}>
-            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:isEditing?14:0}}>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:800,fontSize:14}}>{sub.name}</div>
-                <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{sub.subtitle}</div>
-                {targetVal>0 && (
-                  <div style={{marginTop:6}}>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
-                      <span>{fmtCurr(actual)} actual</span>
-                      <span style={{fontWeight:700,color:pct>=100?T.grn:pct>=75?T.amber:T.red}}>{pct}%</span>
-                    </div>
-                    <div style={{height:6,background:T.surf,borderRadius:3}}>
-                      <div style={{height:6,borderRadius:3,width:Math.min(pct,100)+"%",
-                        background:pct>=100?T.grn:pct>=75?T.amber:T.red,transition:"width .3s"}}/>
-                    </div>
-                    <div style={{fontSize:11,color:T.txt2,marginTop:2}}>Target: {fmtCurr(targetVal)}</div>
+          {/* Cards */}
+          {subjects.map(sub=>{
+            const isEditing = editing===`${sub.type}_${sub.id}`;
+            return (
+              <Card key={sub.id} style={{marginBottom:10,
+                borderLeft:`3px solid ${sub.pct>=100?T.grn:sub.pct>=75?T.amber:sub.targetVal?T.red:T.bdrS}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:800,fontSize:14}}>{sub.name}</div>
+                    <div style={{fontSize:12,color:T.txt2,marginTop:1}}>{sub.subtitle}</div>
+                    {sub.targetVal>0 && (
+                      <div style={{marginTop:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                          <span>{fmtCurr(sub.revenue)} actual</span>
+                          <span style={{color:T.txt2}}>Target: {fmtCurr(sub.targetVal)}</span>
+                        </div>
+                        <PctBar pct={sub.pct}/>
+                      </div>
+                    )}
+                    {!sub.targetVal && <div style={{fontSize:11,color:T.txt3,marginTop:4}}>No target set for this period</div>}
                   </div>
-                )}
-                {!targetVal && <div style={{fontSize:11,color:T.txt3,marginTop:4}}>No target set</div>}
-              </div>
-              <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-                <Btn onClick={()=>isEditing?setEditing(null):openEdit(sub.id,existing)} size="sm" variant={isEditing?"ghost":"outline"}>
-                  {isEditing?"Cancel":"✏️ Set Target"}
-                </Btn>
-              </div>
-            </div>
-
-            {isEditing && (
-              <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12}}>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:12}}>
-                  {periods.map(p=>(
-                    <div key={p.id}>
-                      <label style={{display:"block",fontSize:10,fontWeight:700,color:T.txt2,marginBottom:4,textTransform:"uppercase"}}>{p.label} Target (₹)</label>
-                      <input type="number" value={form[p.id]||""} onChange={e=>setForm(f=>({...f,[p.id]:e.target.value}))}
-                        placeholder="0"
-                        style={{width:"100%",padding:"6px 8px",border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
-                          borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",
-                          background:selPeriod===p.id?T.amberL:"transparent"}}/>
-                    </div>
-                  ))}
+                  <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+                    <Btn onClick={()=>isEditing?setEditing(null):openEdit(sub.type, sub.id, sub.existing)} size="sm" variant={isEditing?"ghost":"outline"}>
+                      {isEditing?"Cancel":(sub.existing?"✏️ Edit":"✏️ Set")}
+                    </Btn>
+                  </div>
                 </div>
-                <Btn onClick={()=>save(sub.id, sub.supervisorId, sub.counterId)} variant="amber">💾 Save Target</Btn>
-              </div>
-            )}
-          </Card>
-        );
-      })}
-
-      {subjects.length===0 && <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No {viewMode}s found</div></Card>}
+                {isEditing && <EditForm sub={sub}/>}
+              </Card>
+            );
+          })}
+          {subjects.length===0 && <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No {viewMode}s found</div></Card>}
+        </>
+      )}
     </div>
   );
 }
@@ -7341,43 +7452,47 @@ function TargetFulfillmentReport({ user, state }) {
   };
 
   // Get target value for an id
-  const getTarget = (id) => {
-    // Find most recent target for this id matching selected period+ref
-    const matches = (state.targets||[]).filter(t =>
-      t.supervisorId===id || t.counterId===id
-    );
+  // type-aware target lookup: "counter" matches counterId, others match supervisorId
+  const getTarget = (type, id) => {
+    const matches = (state.targets||[]).filter(t => {
+      if (t.targetType===type || !t.targetType) {
+        if (type==="counter")   return t.counterId===id;
+        if (type==="executive") return t.supervisorId===id;
+        if (type==="manager")   return t.supervisorId===id;
+      }
+      return false;
+    });
     if (!matches.length) return 0;
-    // Prefer exact period+ref match, fall back to any match
-    const exact = matches.find(t=>t.period===period && t.periodRef===selRef);
-    const tgt = exact || matches[matches.length-1];
+    const exact = matches.find(t=>t.period===period&&t.periodRef===selRef);
+    const tgt = exact||matches[matches.length-1];
     return Number(tgt[period]||tgt.monthly||0);
   };
 
   // Build rows
   const counterRows = state.counters.filter(c=>c.name!=="OFFICE").map(c => {
-    const execs   = state.users.filter(u=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const execs   = state.users.filter(u=>u.role==="supervisor"&&(c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id)));
     const revenue = execs.reduce((s,e)=>s+getRevenue(e.id),0);
-    const target  = getTarget(c.id) || execs.reduce((s,e)=>s+getTarget(e.id),0);
+    const target  = getTarget("counter", c.id);
     const pct     = target>0 ? Math.round(revenue/target*100) : null;
     return {id:c.id, name:c.name, subtitle:execs.map(e=>e.name).join(", ")||"—",
       revenue, target, pct, execs};
   }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
 
   const execRows = state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u => {
-    const ctr     = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
-    const mgr     = state.users.find(m=>m.id===u.managerId);
+    const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const mgr = state.users.find(m=>m.id===u.managerId);
     const revenue = getRevenue(u.id);
-    const target  = getTarget(u.id) || getTarget(ctr?.id||"");
+    const target  = getTarget("executive", u.id);
     const pct     = target>0 ? Math.round(revenue/target*100) : null;
     return {id:u.id, name:u.name, subtitle:(ctr?.name||"No counter")+(mgr?" · "+mgr.name:""),
       revenue, target, pct};
   }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
 
   const mgrRows = state.users.filter(u=>u.role==="manager"&&u.active!==false).map(u => {
-    const myExecs  = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
-    const revenue  = myExecs.reduce((s,e)=>s+getRevenue(e.id),0);
-    const target   = getTarget(u.id) || myExecs.reduce((s,e)=>s+getTarget(e.id),0);
-    const pct      = target>0 ? Math.round(revenue/target*100) : null;
+    const myExecs = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
+    const revenue = myExecs.reduce((s,e)=>s+getRevenue(e.id),0);
+    const target  = getTarget("manager", u.id);
+    const pct     = target>0 ? Math.round(revenue/target*100) : null;
     return {id:u.id, name:u.name, subtitle:myExecs.length+" executives",
       revenue, target, pct, execs:myExecs};
   }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
