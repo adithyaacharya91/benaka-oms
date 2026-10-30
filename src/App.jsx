@@ -7633,6 +7633,21 @@ function TargetFulfillmentReport({ user, state }) {
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Target Fulfillment Report</div>
 
+      {/* Debug panel */}
+      {(()=>{
+        const dbgTargets = state.targets||[];
+        const dbgReports = state.serviceReports||[];
+        return (
+          <div style={{background:"#FEF3C7",border:"1px solid #F59E0B",borderRadius:8,padding:12,marginBottom:16,fontSize:12}}>
+            <b>Debug:</b> {dbgTargets.length} targets · {dbgReports.length} service reports · 
+            Period: {period} · Ref: {selRef} · View: {view}<br/>
+            Counters: {state.counters?.length||0} · Execs: {state.users?.filter(u=>u.role==="supervisor").length||0}<br/>
+            Targets: {dbgTargets.map(t=>`${t.id}→m:${t.monthly}`).slice(0,3).join(" | ")||"none"}<br/>
+            counterRows: {counterRows.length} total, {counterRows.filter(r=>r.target>0).length} with target, revenues: {counterRows.slice(0,3).map(r=>`${r.name}:rev${r.revenue}/tgt${r.target}`).join(" | ")}
+          </div>
+        );
+      })()}
+
       {/* Summary cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
         <Card style={{textAlign:"center",padding:12}}>
