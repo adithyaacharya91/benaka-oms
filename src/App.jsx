@@ -2162,8 +2162,8 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="colldash"   && <CollectionDashboard state={state} user={user} isAdmin/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
-      {page==="myattendance" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="myattendance" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="financial"   && <MDFinancial  state={state}/>}
       {page==="operations"  && <MDOperations state={state}/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
@@ -7634,13 +7634,6 @@ function TargetFulfillmentReport({ user, state }) {
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Target Fulfillment Report</div>
 
-      {/* Debug info - remove after testing */}
-      <div style={{background:"#FEF3C7",border:"1px solid #F59E0B",borderRadius:8,padding:12,marginBottom:16,fontSize:12}}>
-        <b>Debug:</b> {(state.targets||[]).length} targets · {(state.serviceReports||[]).length} reports · period:{period} ref:{selRef}<br/>
-        Counters with target: {counterRows.filter(r=>r.target>0).length}/{counterRows.length} · 
-        Sample: {counterRows.slice(0,2).map(r=>r.name+":rev"+r.revenue+"/tgt"+r.target).join(" | ")||"no counters"}
-      </div>
-
       {/* Summary cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
         <Card style={{textAlign:"center",padding:12}}>
@@ -8197,6 +8190,110 @@ function HolidayManager({ state, setState, toast }) {
           </div>
         ))
       }
+    </div>
+  );
+}
+
+
+// ─── Self Attendance (for MD, Manager, Supervisor) ───────────────────────────
+function SelfAttendance({ user, state, setState, toast }) {
+  const [date, setDate]   = useState(today());
+  const [status, setStatus] = useState("");
+  const [reason, setReason] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // Load existing record for this date
+  React.useEffect(()=>{
+    const rec = (state.attendance||[]).find(a=>a.staffId===user.id && a.date===date);
+    setStatus(rec?.status||"");
+    setReason(rec?.reason||"");
+    setSaved(false);
+  }, [date, state.attendance]);
+
+  const save = async () => {
+    if (!status) { toast.show("Please select a status","error"); return; }
+    const rec = {
+      id: `att_self_${user.id}_${date}`,
+      date, staffId:user.id, supervisorId:user.id,
+      managerId:user.managerId||null, status, reason,
+      markedBy:user.id, markedAt:new Date().toISOString(),
+    };
+    const updated = [...(state.attendance||[]).filter(a=>!(a.staffId===user.id&&a.date===date)), rec];
+    setState(p=>({...p, attendance:updated}));
+    await DB.upsertAttendance([rec]).catch(console.error);
+    setSaved(true);
+    toast.show("✅ Attendance marked: "+status);
+  };
+
+  const statusBtn = (s, label, color, bg) => (
+    <button onClick={()=>{setStatus(s);setSaved(false);}} style={{
+      padding:"10px 20px", borderRadius:8, border:"2px solid "+(status===s?color:T.bdrS),
+      background:status===s?color:"transparent", color:status===s?"#fff":T.txt,
+      fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all .15s"
+    }}>{label}</button>
+  );
+
+  // History
+  const history = (state.attendance||[])
+    .filter(a=>a.staffId===user.id)
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .slice(0,30);
+
+  const statusColor = s => ({present:T.lime,absent:T.red,half_day:T.amber,on_leave:"#7C3AED"}[s]||T.txt2);
+  const statusLabel = s => ({present:"Present",absent:"Absent",half_day:"Half Day",on_leave:"On Leave"}[s]||s);
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>My Attendance</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:20}}>{user.name} · {ROLE_LABELS[user.role]||user.role}</div>
+
+      <Card style={{marginBottom:20,maxWidth:480}}>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Date</label>
+          <input type="date" value={date} onChange={e=>{setDate(e.target.value);setSaved(false);}}
+            style={{padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:8,textTransform:"uppercase"}}>Status</label>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {statusBtn("present","✅ Present",T.lime,"#84CC16")}
+            {statusBtn("absent","❌ Absent",T.red,"#DC2626")}
+            {statusBtn("half_day","◑ Half Day",T.amber,"#E8A020")}
+            {statusBtn("on_leave","🌿 On Leave","#7C3AED","#7C3AED")}
+          </div>
+        </div>
+
+        {(status==="absent"||status==="half_day")&&(
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason (optional)</label>
+            <input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Enter reason..."
+              style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,
+                fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+        )}
+
+        <Btn onClick={save} variant="amber" style={{minWidth:160}}>
+          {saved?"✅ Saved":"💾 Mark Attendance"}
+        </Btn>
+      </Card>
+
+      {/* History */}
+      {history.length>0&&(
+        <div>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:T.navy}}>My Attendance History</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+            {history.map(a=>(
+              <div key={a.id} style={{padding:"8px 12px",borderRadius:8,border:"1px solid "+T.bdr,
+                borderLeft:"4px solid "+statusColor(a.status),background:"#fff"}}>
+                <div style={{fontWeight:700,fontSize:13}}>{fmtDate(a.date)}</div>
+                <div style={{fontSize:12,color:statusColor(a.status),fontWeight:600,marginTop:2}}>{statusLabel(a.status)}</div>
+                {a.reason&&<div style={{fontSize:11,color:T.txt2,marginTop:1}}>{a.reason}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
