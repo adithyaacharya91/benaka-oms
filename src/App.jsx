@@ -2118,7 +2118,8 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
     { id:"financial", icon:"💹", label:"Financial Trends", group:"Reports", groupIcon:"📋" },
     { id:"operations", icon:"🏪", label:"Operations", group:"Reports", groupIcon:"📋" },
     { id:"analysis", icon:"📈", label:"Counter Analysis", group:"Reports", groupIcon:"📋" },
-    { id:"attendance", icon:"🗓️", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"attendance", icon:"🗓️", label:"All Attendance",   group:"Attendance", groupIcon:"🗓️" },
+    { id:"myattendance",icon:"✅", label:"My Attendance",     group:"Attendance", groupIcon:"🗓️" },
     { id:"leaves", icon:"✅", label:"Leave Approvals", group:"Attendance", groupIcon:"🗓️" },
     { id:"myleaves", icon:"🌿", label:"My Leave", group:"Attendance", groupIcon:"🗓️" },
     { id:"stockcheckin", icon:"🏭", label:"Godown Check-in", group:"Inventory", groupIcon:"📦" },
@@ -2161,6 +2162,8 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="colldash"   && <CollectionDashboard state={state} user={user} isAdmin/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
+      {page==="myattendance" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="myattendance" && <OfficeOwnAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="financial"   && <MDFinancial  state={state}/>}
       {page==="operations"  && <MDOperations state={state}/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
@@ -2455,6 +2458,16 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
             {key:"submittedAt",label:"Submitted"},
             {key:"status",label:"Status",render:r=><Badge color={T.grn}>{r.status||"submitted"}</Badge>},
           ]} rows={dailyReports} emptyMsg="No reports for selected range"/>
+          {editingReport && (
+            <Card style={{marginTop:16,borderLeft:"4px solid "+T.amber}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontWeight:800,fontSize:14}}>✏️ Editing: {getCounterName(editingReport)} — {fmtDate(editingReport.date)}</div>
+                <Btn onClick={()=>setEditingReport(null)} variant="ghost" size="sm">✕ Close</Btn>
+              </div>
+              <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}
+                prefillDate={editingReport.date} prefillSupervisorId={editingReport.supervisorId}/>
+            </Card>
+          )}
         </div>
       )}
 
@@ -3434,7 +3447,8 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
     { id:"operations", icon:"🏪", label:"Operations", group:"Reports", groupIcon:"📋" },
     { id:"analysis", icon:"📈", label:"Counter Analysis", group:"Reports", groupIcon:"📋" },
     { id:"salary", icon:"💳", label:"Salary & P&L", group:"Reports", groupIcon:"📋" },
-    { id:"attendance", icon:"🗓️", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"attendance",   icon:"🗓️", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
+    { id:"myattendance", icon:"✅", label:"My Attendance",   group:"Attendance", groupIcon:"🗓️" },
     { id:"leaves", icon:"✅", label:"Leave Approvals", group:"Attendance", groupIcon:"🗓️" },
     { id:"inventory", icon:"📊", label:"Inventory", group:"Inventory", groupIcon:"📦" },
     { id:"people", icon:"👥", label:"Full Org", group:"Team", groupIcon:"👥" },
@@ -4110,9 +4124,9 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
 
 
 // ─── Office: Enter Report (mirrors SupReport but for office staff) ─────────────
-function OfficeEnterReport({ user, state, setState, toast }) {
-  const [date, setDate] = useState(today());
-  const [selSupervisor, setSelSupervisor] = useState("");
+function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillSupervisorId }) {
+  const [date, setDate] = useState(prefillDate||today());
+  const [selSupervisor, setSelSupervisor] = useState(prefillSupervisorId||"");
   const [reportCounters, setReportCounters] = useState([]);
   const [notes, setNotes] = useState("");
 
@@ -7482,15 +7496,25 @@ function InventoryDashboard({ user, state, setState, toast }) {
 }
 
 function TargetFulfillmentReport({ user, state }) {
-  const [view, setView]   = useState("counter");  // counter | executive | manager
+  const [view, setView]   = useState("counter");
   const [period, setPeriod] = useState("monthly");
   const [selRef, setSelRef] = useState(today().slice(0,7));
   const [expanded, setExpanded] = useState(null);
 
   const periods = [
-    {id:"daily",label:"Daily"},{id:"weekly",label:"Weekly"},
-    {id:"monthly",label:"Monthly"},{id:"quarterly",label:"Quarterly"},{id:"yearly",label:"Yearly"}
+    {id:"daily",label:"Daily",inputType:"date"},
+    {id:"weekly",label:"Weekly",inputType:"week"},
+    {id:"monthly",label:"Monthly",inputType:"month"},
+    {id:"quarterly",label:"Quarterly",inputType:"month"},
+    {id:"yearly",label:"Yearly",inputType:"number"},
   ];
+
+  const getDefRef = (p) => {
+    if (p==="weekly"){const d=new Date();const yr=d.getFullYear();const jan4=new Date(yr,0,4);const dow=(jan4.getDay()+6)%7;const wk=Math.ceil(((d-jan4)/86400000+dow+1)/7);return yr+"-W"+String(wk).padStart(2,"0");}
+    if (p==="yearly") return String(new Date().getFullYear());
+    if (p==="daily")  return today();
+    return today().slice(0,7);
+  };
 
   // Get revenue for a supervisor in period
   // Safe date range for TFR
@@ -7633,12 +7657,13 @@ function TargetFulfillmentReport({ user, state }) {
         ))}
         <div style={{width:1,height:20,background:T.bdr}}/>
         {periods.map(p=>(
-          <button key={p.id} onClick={()=>setPeriod(p.id)} style={{
+          <button key={p.id} onClick={()=>{setPeriod(p.id);setSelRef(getDefRef(p.id));}} style={{
             padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
             border:"1px solid "+(period===p.id?T.amber:T.bdrS),background:period===p.id?T.amber:"transparent",color:period===p.id?"#fff":T.txt2
           }}>{p.label}</button>
         ))}
-        <input type={period==="yearly"?"number":"month"} value={selRef} onChange={e=>setSelRef(e.target.value)}
+        <input type={periods.find(p=>p.id===period)?.inputType||"month"} value={selRef}
+          onChange={e=>setSelRef(e.target.value)}
           style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
       </div>
 
