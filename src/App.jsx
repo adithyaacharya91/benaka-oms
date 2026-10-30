@@ -180,9 +180,21 @@ const DB = {
       set_by: t.setBy||null,
       set_at: t.setAt||null,
     }));
-    const res = await supabase.from("app_targets").upsert(rows);
-    console.log("upsertTargets:", res);
-    return res;
+    // Use direct fetch - bypass supabase helper to ensure correct upsert
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_targets`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify(rows)
+    });
+    const data = await res.json();
+    console.log("upsertTargets response:", res.status, data);
+    if (!res.ok) return data; // returns error object with .code
+    return Array.isArray(data) ? data : [data];
   },
   // Holidays
   async getHolidays() {
@@ -192,9 +204,20 @@ const DB = {
   },
   async upsertHoliday(h) {
     const row = {id:h.id, date:h.date, name:h.name, type:h.type||"holiday"};
-    const res = await supabase.from("holidays").upsert(row);
-    console.log("upsertHoliday response:", JSON.stringify(res));
-    return res;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/holidays`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify(row)
+    });
+    const data = await res.json();
+    console.log("upsertHoliday response:", res.status, data);
+    if (!res.ok) return data;
+    return Array.isArray(data) ? data : [data];
   },
   async deleteHoliday(id) {
     return supabase.from("holidays").delete().eq("id", id);
@@ -2735,7 +2758,7 @@ function MgrPeople({ user, state, setState, toast }) {
   );
 }
 
-function MDTargets({ user, state, setState, toast }) {
+function MDTargets({ user, state, setState, toast, syncFromCloud }) {
   const [selPeriod, setSelPeriod] = useState("monthly");
   const [selRef,    setSelRef]    = useState(today().slice(0,7));
   const [viewMode,  setViewMode]  = useState("counter"); // counter | executive | manager
@@ -2772,8 +2795,17 @@ function MDTargets({ user, state, setState, toast }) {
     const newTargets = [...(state.targets||[]).filter(t=>t.id!==tgt.id), tgt];
     setState(p=>({...p, targets:newTargets}));
     const res = await DB.upsertTargets([tgt]);
-    if (res&&res.code) { toast.show("DB Error: "+res.message,"error"); }
-    else { toast.show("Target saved ✅"); }
+    console.log("Target save response:", JSON.stringify(res));
+    if (Array.isArray(res)) {
+      toast.show("✅ Target saved — ₹"+Number(tgt[selPeriod]||tgt.monthly||0).toLocaleString()+" "+selPeriod);
+      if (syncFromCloud) setTimeout(syncFromCloud, 500);
+    } else if (res&&res.code) {
+      toast.show("DB Error "+res.code+": "+res.message,"error");
+      console.error("Target save failed:", res);
+    } else {
+      toast.show("✅ Target saved");
+      if (syncFromCloud) setTimeout(syncFromCloud, 500);
+    }
     setEditing(null);
   };
 
@@ -2837,7 +2869,10 @@ function MDTargets({ user, state, setState, toast }) {
 
       {/* Target cards */}
       {subjects.map(sub => {
-        const existing = (state.targets||[]).find(t=>t.id===getTargetKey(sub.id));
+        const existing = (state.targets||[]).find(t=>
+          t.id===getTargetKey(sub.id) ||
+          ((t.supervisorId===sub.supervisorId||t.counterId===sub.id) && t.period===selPeriod && t.periodRef===selRef)
+        );
         const targetVal = Number(existing?.[selPeriod]||existing?.monthly||0);
         const actual    = getActual(sub.supervisorId);
         const pct       = targetVal>0 ? Math.round(actual/targetVal*100) : 0;
@@ -3260,7 +3295,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="reports"     && <AllReports state={state}/>}
       {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
-      {page==="targets"      && <MDTargets user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="targets"      && <MDTargets user={user} state={state} setState={setState} toast={toast} syncFromCloud={syncFromCloud}/>}
       {page==="staffnotes"  && <StaffNotesViewer user={user} state={state} setState={setState} toast={toast}/>}
       {page==="holidays"     && <HolidayManager state={state} setState={setState} toast={toast}/>}
       {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
@@ -7307,10 +7342,15 @@ function TargetFulfillmentReport({ user, state }) {
 
   // Get target value for an id
   const getTarget = (id) => {
-    const tgt = (state.targets||[]).find(t =>
+    // Find most recent target for this id matching selected period+ref
+    const matches = (state.targets||[]).filter(t =>
       t.supervisorId===id || t.counterId===id
     );
-    return tgt ? Number(tgt[period]||tgt.monthly||0) : 0;
+    if (!matches.length) return 0;
+    // Prefer exact period+ref match, fall back to any match
+    const exact = matches.find(t=>t.period===period && t.periodRef===selRef);
+    const tgt = exact || matches[matches.length-1];
+    return Number(tgt[period]||tgt.monthly||0);
   };
 
   // Build rows
