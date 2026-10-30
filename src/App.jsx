@@ -2167,6 +2167,7 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="financial"   && <MDFinancial  state={state}/>}
       {page==="operations"  && <MDOperations state={state}/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
@@ -3484,6 +3485,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="holidays"     && <HolidayManager state={state} setState={setState} toast={toast}/>}
       {page==="inventory"     && <InventoryDashboard user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
+      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
     </Shell>
   );
 }
@@ -5567,7 +5569,7 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
 }
 
 // ─── All Reports (MD + IT Admin) ───────────────────────────────────────────────
-function AllReports({ state }) {
+function AllReports({ state, setState, toast, user }) {
   const dr = useDateRange("today");
   const [expanded, setExpanded] = useState(null);
   const reports = state.serviceReports
@@ -5630,6 +5632,21 @@ function AllReports({ state }) {
                   </>}
                 </>;
               })()}
+            </div>
+          )}
+          {/* Edit form */}
+          {editingRep===r.id && setState && (
+            <div style={{borderTop:"2px solid "+T.amber,marginTop:12,paddingTop:12}}>
+              <div style={{fontSize:13,fontWeight:800,color:T.amberD,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+                <span>✏️ Edit: {fmtDate(r.date)} · {r.counterName||""}</span>
+                <button onClick={()=>setEditingRep(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.txt2,fontSize:18}}>×</button>
+              </div>
+              <OfficeEnterReport
+                user={user||{id:"admin",role:"it_admin",name:"Admin"}}
+                state={state} setState={setState}
+                toast={toast||{show:()=>{}}}
+                prefillDate={r.date}
+                prefillSupervisorId={r.supervisorId}/>
             </div>
           )}
         </Card>
