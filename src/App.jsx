@@ -1669,6 +1669,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
 
 function SupReport({ user, state, setState, toast }) {
   const [date, setDate] = useState(today());
+  const hasExistingReport = (d) => (state.serviceReports||[]).some(r=>r.date===d && r.supervisorId===user.id);
   // Each counter gets its own tab
   const myCounters = state.counters.filter(c => c.supervisorId === user.id);
   const [activeCounter, setActiveCounter] = useState(myCounters[0]?.id || "");
@@ -2162,6 +2163,8 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="colldash"   && <CollectionDashboard state={state} user={user} isAdmin/>}
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
+      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
+      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="financial"   && <MDFinancial  state={state}/>}
@@ -3472,7 +3475,7 @@ function MDPortal({ user, state, setState, toast, syncFromCloud, syncStatus="" }
       {page==="directory"   && <StaffDirectory state={state}/>}
       {page==="leaves"     && <MgrLeaves user={user} state={state} setState={setState} toast={toast} syncFromCloud={syncFromCloud}/>}
       {page==="people"     && <MDPeople state={state} setState={setState} toast={toast}/>}
-      {page==="reports"     && <AllReports state={state}/>}
+      {page==="reports"     && <AllReports state={state} setState={setState} toast={toast} user={user}/>}
       {page==="execreport"  && <ExecutiveReportGenerator state={state}/>}
       {page==="feedback"    && <MDFeedbackAll state={state}/>}
       {page==="targets"      && <MDTargets user={user} state={state} setState={setState} toast={toast} syncFromCloud={syncFromCloud}/>}
@@ -4107,7 +4110,7 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="sales"        && <OfficeSalesEntry user={user} state={state} setState={setState} toast={toast}/>}
       {page==="collection"   && <OfficeCollectionReport user={user} state={state} setState={setState} toast={toast}/>}
       {page==="attendance"   && <OfficeCombinedAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="reports"      && <OfficeReports state={state}/>}
+      {page==="reports"      && <OfficeReports state={state} setState={setState} toast={toast} user={user}/>}
       {page==="viewatt"      && <OfficeAttendanceView state={state}/>}
       {page==="myleaves"     && <LeavePortal user={user} state={state} setState={setState} toast={toast}/>}
       {page==="counternotes" && <DailyNotePortal user={user} state={state} setState={setState} toast={toast}/>}
@@ -5591,6 +5594,16 @@ function AllReports({ state }) {
               <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)?.name||"—"} · {r.submittedAt||""}</div>
               {r.submittedBy && <div style={{ fontSize:11, color:T.txt2 }}>Entered by: {state.users.find(u=>u.id===r.submittedBy)?.name||"Office"}</div>}
             </div>
+            <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+              <button onClick={()=>setEditingRep(editingRep===r.id?null:r.id)} style={{
+                padding:"4px 10px",borderRadius:6,border:"1px solid "+T.bdrS,background:"#fff",
+                fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.navy,fontWeight:600
+              }}>✏️ Edit</button>
+              <button onClick={()=>setExpanded(expanded===r.id?null:r.id)} style={{
+                padding:"4px 10px",borderRadius:6,border:"1px solid "+T.bdrS,background:"#fff",
+                fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.txt2
+              }}>{expanded===r.id?"▲":"▼"}</button>
+            </div>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
               <Badge color={T.grn}>submitted</Badge>
@@ -5818,7 +5831,7 @@ function MDFeedbackAll({ state }) {
 }
 
 // ─── Office: View Reports ──────────────────────────────────────────────────────
-function OfficeReports({ state }) {
+function OfficeReports({ state, setState, toast, user }) {
   const dr = useDateRange("today");
   const [expanded, setExpanded] = useState(null);
   const reports = state.serviceReports
