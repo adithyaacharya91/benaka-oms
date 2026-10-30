@@ -7433,7 +7433,35 @@ function InventoryDashboard({ user, state, setState, toast }) {
                     {Object.entries(monthPending).map(([name,d],i)=>{
                       const pct = d.requested>0?Math.round(d.released/d.requested*100):0;
                       return (
-                        <tr key={name} style={{background:i%2===0?"#fff":T.sfunction TargetFulfillmentReport({ user, state }) {
+                          <tr key={name} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                            <td style={{padding:"8px 12px",fontWeight:600}}>{name}</td>
+                            <td style={{padding:"8px 12px",textAlign:"right"}}>{d.requested}</td>
+                            <td style={{padding:"8px 12px",textAlign:"right",color:T.grn,fontWeight:700}}>{d.released}</td>
+                            <td style={{padding:"8px 12px",textAlign:"right",color:d.pending>0?T.red:T.grn,fontWeight:700}}>{d.pending}</td>
+                            <td style={{padding:"8px 12px"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <div style={{flex:1,height:6,background:T.surf,borderRadius:3}}>
+                                  <div style={{height:6,borderRadius:3,width:pct+"%",background:pct>=80?T.grn:pct>=50?T.amber:T.red}}/>
+                                </div>
+                                <span style={{fontWeight:700,color:pct>=80?T.grn:pct>=50?T.amber:T.red,minWidth:36}}>{pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function TargetFulfillmentReport({ user, state }) {
   const [view, setView]   = useState("counter");  // counter | executive | manager
   const [period, setPeriod] = useState("monthly");
   const [selRef, setSelRef] = useState(today().slice(0,7));
