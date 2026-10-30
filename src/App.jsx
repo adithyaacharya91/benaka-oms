@@ -167,8 +167,6 @@ const DB = {
   async upsertTargets(items) {
     const rows = (Array.isArray(items)?items:[items]).map(t=>({
       id: t.id,
-      target_type: t.targetType||null,
-      target_id: t.targetId||null,
       supervisor_id: t.supervisorId||null,
       counter_id: t.counterId||null,
       period: t.period||"monthly",
@@ -512,7 +510,9 @@ function useSupabaseSync(localState, setLocalState) {
           : p.holidays,
         targets: Array.isArray(dbTargets) && dbTargets.length>0
           ? dbTargets.map(t=>({
-              id:t.id, targetType:t.target_type||null, targetId:t.target_id||null,
+              id:t.id,
+              // Derive targetType from id prefix (tgt_counter_/tgt_executive_/tgt_manager_)
+              targetType: t.id.includes("_counter_")?"counter":t.id.includes("_executive_")?"executive":t.id.includes("_manager_")?"manager":null,
               supervisorId:t.supervisor_id||null, counterId:t.counter_id||null,
               period:t.period||"monthly", periodRef:t.period_ref||"", month:t.month||"",
               daily:Number(t.daily)||0, weekly:Number(t.weekly)||0, monthly:Number(t.monthly)||0,
@@ -2909,29 +2909,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
     );
   };
 
-  const EditForm = ({sub}) => (
-    <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12,marginTop:8}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:12}}>
-        {periods.map(p=>(
-          <div key={p.id}>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:T.txt2,marginBottom:3,textTransform:"uppercase"}}>
-              {p.label} ₹{selPeriod===p.id?" ◀":""}
-            </label>
-            <input type="number" value={form[p.id]||""} placeholder="0"
-              onChange={e=>setForm(f=>({...f,[p.id]:e.target.value}))}
-              style={{width:"100%",padding:"7px 8px",border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
-                borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",
-                background:selPeriod===p.id?T.amberL:"#fff"}}/>
-          </div>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:8}}>
-        <Btn onClick={()=>save(sub.type, sub.id, sub.supervisorId, sub.counterId)} variant="amber">💾 Save</Btn>
-        <Btn onClick={()=>setEditing(null)} variant="ghost" size="sm">Cancel</Btn>
-        {sub.existing && <Btn onClick={()=>deleteTarget(sub.existing)} variant="danger" size="sm">🗑 Remove</Btn>}
-      </div>
-    </div>
-  );
+  // EditForm is rendered inline (not as sub-component) to avoid remount on keystroke
 
   return (
     <div>
@@ -3032,7 +3010,29 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
                     </Btn>
                   </div>
                 </div>
-                {isEditing && <EditForm sub={sub}/>}
+                {isEditing && (
+                  <div style={{borderTop:"1px solid "+T.bdr,paddingTop:12,marginTop:8}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:12}}>
+                      {periods.map(p=>(
+                        <div key={p.id}>
+                          <label style={{display:"block",fontSize:10,fontWeight:700,color:T.txt2,marginBottom:3,textTransform:"uppercase"}}>
+                            {p.label} ₹{selPeriod===p.id?" ◀":""}
+                          </label>
+                          <input type="number" value={form[p.id]||""} placeholder="0"
+                            onChange={e=>{ const v=e.target.value; setForm(f=>({...f,[p.id]:v})); }}
+                            style={{width:"100%",padding:"7px 8px",border:"1px solid "+(selPeriod===p.id?T.amber:T.bdrS),
+                              borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",
+                              background:selPeriod===p.id?T.amberL:"#fff"}}/>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={()=>save(sub.type,sub.id,sub.supervisorId,sub.counterId)} variant="amber">💾 Save</Btn>
+                      <Btn onClick={()=>setEditing(null)} variant="ghost" size="sm">Cancel</Btn>
+                      {sub.existing&&<Btn onClick={()=>deleteTarget(sub.existing)} variant="danger" size="sm">🗑 Remove</Btn>}
+                    </div>
+                  </div>
+                )}
               </Card>
             );
           })}
