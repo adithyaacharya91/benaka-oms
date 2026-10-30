@@ -2763,7 +2763,18 @@ function MgrPeople({ user, state, setState, toast }) {
 
 function MDTargets({ user, state, setState, toast, syncFromCloud }) {
   const [selPeriod, setSelPeriod] = useState("monthly");
-  const [selRef,    setSelRef]    = useState(today().slice(0,7));
+  const getDefaultRef = (p) => {
+    if (p==="weekly") {
+      const d=new Date(); const yr=d.getFullYear();
+      const jan4=new Date(yr,0,4); const dow=(jan4.getDay()+6)%7;
+      const wk=Math.ceil(((d-jan4)/86400000+dow+1)/7);
+      return yr+"-W"+String(wk).padStart(2,"0");
+    }
+    if (p==="yearly") return String(new Date().getFullYear());
+    if (p==="daily")  return today();
+    return today().slice(0,7);
+  };
+  const [selRef,    setSelRef]    = useState(()=>getDefaultRef("monthly"));
   const [viewMode,  setViewMode]  = useState("counter");
   const [editing,   setEditing]   = useState(null);
   const [showHist,  setShowHist]  = useState(false);
@@ -2788,19 +2799,29 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
     if (selPeriod==="monthly") return {from:selRef+"-01", to:selRef+"-31"};
     if (selPeriod==="yearly")  return {from:selRef+"-01-01", to:selRef+"-12-31"};
     if (selPeriod==="weekly") {
-      // selRef = "2026-W44" → find Mon-Sun
-      const [yr, wk] = selRef.split("-W");
-      const jan4 = new Date(Number(yr), 0, 4);
-      const dayOfWeek = jan4.getDay()||7;
-      const monday = new Date(jan4);
-      monday.setDate(jan4.getDate() - dayOfWeek + 1 + (Number(wk)-1)*7);
-      const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-      const fmt = d => d.toISOString().split("T")[0];
-      return {from:fmt(monday), to:fmt(sunday)};
+      try {
+        // selRef = "2026-W44" → find Mon-Sun of that ISO week
+        const parts = selRef.split("-W");
+        const yr = Number(parts[0])||new Date().getFullYear();
+        const wk = Number(parts[1])||1;
+        // ISO week: find Jan 4 (always in week 1), then offset
+        const jan4 = new Date(yr, 0, 4);
+        const dow = (jan4.getDay()+6)%7; // Mon=0..Sun=6
+        const monday = new Date(jan4);
+        monday.setDate(jan4.getDate() - dow + (wk-1)*7);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate()+6);
+        const fmt = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+        return {from:fmt(monday), to:fmt(sunday)};
+      } catch(e) {
+        const yr = selRef.slice(0,4)||String(new Date().getFullYear());
+        return {from:yr+"-01-01", to:yr+"-12-31"};
+      }
     }
     if (selPeriod==="quarterly") {
-      // selRef = "2026-10" → find quarter
-      const [yr, mo] = selRef.split("-").map(Number);
+      const parts = selRef.split("-");
+      const yr = Number(parts[0])||new Date().getFullYear();
+      const mo = Number(parts[1])||1;
       const qStart = Math.floor((mo-1)/3)*3+1;
       const qEnd   = qStart+2;
       const pad = n=>String(n).padStart(2,"0");
@@ -7472,15 +7493,41 @@ function TargetFulfillmentReport({ user, state }) {
   ];
 
   // Get revenue for a supervisor in period
+  // Safe date range for TFR
+  const getTFRRange = () => {
+    try {
+      if (period==="daily")   return {from:selRef, to:selRef};
+      if (period==="monthly") return {from:selRef+"-01", to:selRef+"-31"};
+      if (period==="yearly")  return {from:selRef+"-01-01", to:selRef+"-12-31"};
+      if (period==="weekly") {
+        const parts=selRef.split("-W");
+        const yr=Number(parts[0])||new Date().getFullYear();
+        const wk=Number(parts[1])||1;
+        const jan4=new Date(yr,0,4);
+        const dow=(jan4.getDay()+6)%7;
+        const mon=new Date(jan4); mon.setDate(jan4.getDate()-dow+(wk-1)*7);
+        const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+        const fmt=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+        return {from:fmt(mon),to:fmt(sun)};
+      }
+      if (period==="quarterly") {
+        const parts=selRef.split("-");
+        const yr=Number(parts[0])||new Date().getFullYear();
+        const mo=Number(parts[1])||1;
+        const qs=Math.floor((mo-1)/3)*3+1;
+        const pad=n=>String(n).padStart(2,"0");
+        return {from:`${yr}-${pad(qs)}-01`,to:`${yr}-${pad(qs+2)}-31`};
+      }
+    } catch(e) {}
+    return {from:"", to:"9999"};
+  };
+
   const getRevenue = (supId) => {
-    return (state.serviceReports||[]).filter(r => {
-      if (!supId) return false;
-      if (r.supervisorId !== supId) return false;
-      if (period==="daily")   return r.date===selRef;
-      if (period==="monthly") return r.date.startsWith(selRef);
-      if (period==="yearly")  return r.date.startsWith(selRef);
-      return r.date.startsWith(selRef.slice(0,7));
-    }).reduce((s,r)=>s+r.totalAmount,0);
+    if (!supId) return 0;
+    const {from, to} = getTFRRange();
+    return (state.serviceReports||[])
+      .filter(r=>r.supervisorId===supId && r.date>=from && r.date<=to)
+      .reduce((s,r)=>s+r.totalAmount,0);
   };
 
   // Get target value for an id
