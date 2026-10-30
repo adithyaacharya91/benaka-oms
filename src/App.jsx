@@ -5589,20 +5589,20 @@ function AllReports({ state, setState, toast, user }) {
         <StatCard label="Counters" value={new Set(reports.map(r=>r.counterName||r.counterId)).size} color={T.grn}/>
       </div>
       {reports.map(r => (
-        <Card key={r.id} style={{ marginBottom:10, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
+        <Card key={r.id} style={{ marginBottom:10 }}>
           <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-            <div>
+            <div style={{cursor:"pointer",flex:1}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
               <div style={{ fontWeight:700 }}>{r.counterName || (r.counters||[])[0]?.counterName || "—"}</div>
               <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)?.name||"—"} · {r.submittedAt||""}</div>
               {r.submittedBy && <div style={{ fontSize:11, color:T.txt2 }}>Entered by: {state.users.find(u=>u.id===r.submittedBy)?.name||"Office"}</div>}
             </div>
             <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-              <button onClick={()=>setEditingRep(editingRep===r.id?null:r.id)} style={{
-                padding:"4px 10px",borderRadius:6,border:"1px solid "+T.bdrS,background:"#fff",
-                fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.navy,fontWeight:600
+              <button onClick={e=>{e.stopPropagation();setEditingRep(editingRep===r.id?null:r.id);}} style={{
+                padding:"5px 12px",borderRadius:6,border:"1px solid "+T.amber,background:T.amberL,
+                fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.amberD,fontWeight:700
               }}>✏️ Edit</button>
-              <button onClick={()=>setExpanded(expanded===r.id?null:r.id)} style={{
-                padding:"4px 10px",borderRadius:6,border:"1px solid "+T.bdrS,background:"#fff",
+              <button onClick={e=>{e.stopPropagation();setExpanded(expanded===r.id?null:r.id);}} style={{
+                padding:"5px 12px",borderRadius:6,border:"1px solid "+T.bdrS,background:"#fff",
                 fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.txt2
               }}>{expanded===r.id?"▲":"▼"}</button>
             </div>
