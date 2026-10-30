@@ -1273,6 +1273,10 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
             </div>
           )}
 
+          {/* Calendar in sidebar */}
+          <div style={{marginBottom:8}}>
+            <CompanyCalendar state={state} setState={setState} user={user} toast={typeof toast==="object"&&toast?toast:{show:(m,t)=>console.log(t,m)}} setPage={setActivePage}/>
+          </div>
           <button onClick={()=>setSideOpen(p=>!p)} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 8px",borderRadius:6,
             border:"none",background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.7)",
@@ -1289,18 +1293,8 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
       </div>
 
       {/* Main */}
-      <div style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column"}}>
-        {/* Top bar */}
-        <div style={{
-          display:"flex",justifyContent:"flex-end",alignItems:"center",
-          padding:"10px 20px",background:"#fff",borderBottom:"1px solid "+T.bdr,
-          position:"sticky",top:0,zIndex:100,gap:12
-        }}>
-          <CompanyCalendar state={state} setState={setState} user={user} toast={typeof toast==="object"&&toast?toast:{show:(m,t)=>console.log(t,m)}} setPage={setActivePage}/>
-        </div>
-        <div style={{flex:1,padding:"0 0 40px 0"}}>
-          {children}
-        </div>
+      <div style={{flex:1,overflow:"auto",padding:"0 0 40px 0"}}>
+        {children}
       </div>
     </div>
   );
@@ -5572,91 +5566,104 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
 function AllReports({ state, setState, toast, user }) {
   const dr = useDateRange("today");
   const [expanded, setExpanded] = useState(null);
-  const reports = state.serviceReports
-    .filter(r => r.date>=dr.from && r.date<=dr.to)
-    .sort((a,b) => b.date.localeCompare(a.date));
-  const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
+  const [editingRep, setEditingRep] = useState(null);
+
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
   const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
 
+  const reports = (state.serviceReports||[])
+    .filter(r => r.date>=dr.from && r.date<=dr.to)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
+
   return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>All Service Reports</div>
+    <div style={{padding:"20px"}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:12}}>All Service Reports</div>
       <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14, marginBottom:20 }}>
-        <StatCard label="Total Revenue" value={fmtCurr(totalRev)} color={T.amber}/>
-        <StatCard label="Reports" value={reports.length} color={T.navy}/>
-        <StatCard label="Counters" value={new Set(reports.map(r=>r.counterName||r.counterId)).size} color={T.grn}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,margin:"14px 0"}}>
+        <Card style={{padding:12,textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.amber}}>{fmtCurr(totalRev)}</div><div style={{fontSize:11,color:T.txt2}}>Total Revenue</div></Card>
+        <Card style={{padding:12,textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.navy}}>{reports.length}</div><div style={{fontSize:11,color:T.txt2}}>Reports</div></Card>
       </div>
-      {reports.map(r => (
-        <Card key={r.id} style={{ marginBottom:10 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-            <div style={{cursor:"pointer",flex:1}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
-              <div style={{ fontWeight:700 }}>{r.counterName || (r.counters||[])[0]?.counterName || "—"}</div>
-              <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)?.name||"—"} · {r.submittedAt||""}</div>
-              {r.submittedBy && <div style={{ fontSize:11, color:T.txt2 }}>Entered by: {state.users.find(u=>u.id===r.submittedBy)?.name||"Office"}</div>}
-            </div>
-            <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-              <button onClick={e=>{e.stopPropagation();setEditingRep(editingRep===r.id?null:r.id);}} style={{
-                padding:"5px 12px",borderRadius:6,border:"1px solid "+T.amber,background:T.amberL,
-                fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.amberD,fontWeight:700
-              }}>✏️ Edit</button>
-              <button onClick={e=>{e.stopPropagation();setExpanded(expanded===r.id?null:r.id);}} style={{
-                padding:"5px 12px",borderRadius:6,border:"1px solid "+T.bdrS,background:"#fff",
-                fontSize:12,cursor:"pointer",fontFamily:"inherit",color:T.txt2
-              }}>{expanded===r.id?"▲":"▼"}</button>
-            </div>
-            <div style={{ textAlign:"right" }}>
-              <div style={{ fontSize:18, fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</div>
-              <Badge color={T.grn}>submitted</Badge>
-            </div>
-          </div>
-          {expanded===r.id && (
-            <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid "+T.bdr }}>
-              {(() => {
-                const allE = getE(r);
-                const svcE = allE.filter(e=>!SALES_WTS.includes(e.workTypeName)&&e.type!=="sales"&&(e.vehicles>0||e.amount>0));
-                const salE = allE.filter(e=>(SALES_WTS.includes(e.workTypeName)||e.type==="sales")&&e.amount>0);
-                return <>
-                  {svcE.length>0 && <Table cols={[
-                    {key:"workTypeName",label:"Work"},
-                    {key:"vehicles",label:"Veh"},
-                    {key:"amount",label:"Amount",render:e=><b style={{color:T.navy}}>{fmtCurr(e.amount)}</b>},
-                  ]} rows={svcE}/>}
-                  {salE.length>0 && <>
-                    <div style={{fontSize:11,fontWeight:700,color:T.grn,margin:"8px 0 4px"}}>SALES</div>
-                    <Table cols={[
-                      {key:"workTypeName",label:"Product"},
-                      {key:"amount",label:"Amount",render:e=><b style={{color:T.grn}}>{fmtCurr(e.amount)}</b>},
-                    ]} rows={salE}/>
-                  </>}
-                </>;
-              })()}
-            </div>
-          )}
-          {/* Edit form */}
-          {editingRep===r.id && setState && (
-            <div style={{borderTop:"2px solid "+T.amber,marginTop:12,paddingTop:12}}>
-              <div style={{fontSize:13,fontWeight:800,color:T.amberD,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
-                <span>✏️ Edit: {fmtDate(r.date)} · {r.counterName||""}</span>
-                <button onClick={()=>setEditingRep(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.txt2,fontSize:18}}>×</button>
+
+      {reports.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No reports for {dr.label}</div></Card>}
+
+      {reports.map(r => {
+        const entries = getE(r);
+        const svcEntries = entries.filter(e=>!SALES_WTS.includes(e.workTypeName));
+        const salEntries = entries.filter(e=>SALES_WTS.includes(e.workTypeName));
+        const isExpanded = expanded===r.id;
+        const isEditing  = editingRep===r.id;
+
+        return (
+          <div key={r.id} style={{marginBottom:10,border:"1px solid "+(isEditing?T.amber:T.bdr),borderRadius:10,background:"#fff",overflow:"hidden"}}>
+            {/* Header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",gap:10,flexWrap:"wrap"}}>
+              <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExpanded?null:r.id)}>
+                <div style={{fontWeight:800,fontSize:14}}>{r.counterName||(r.counters||[])[0]?.counterName||"—"}</div>
+                <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                  {fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)?.name||"—"}
+                  {r.submittedBy&&<span style={{color:T.txt3}}> · by {state.users.find(u=>u.id===r.submittedBy)?.name||"Office"}</span>}
+                </div>
               </div>
-              <OfficeEnterReport
-                user={user||{id:"admin",role:"it_admin",name:"Admin"}}
-                state={state} setState={setState}
-                toast={toast||{show:()=>{}}}
-                prefillDate={r.date}
-                prefillSupervisorId={r.supervisorId}/>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontWeight:800,fontSize:15,color:T.navy}}>{fmtCurr(r.totalAmount)}</div>
+                </div>
+                <button onClick={()=>setEditingRep(isEditing?null:r.id)} style={{
+                  padding:"7px 16px",borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontWeight:800,fontSize:13,
+                  border:"2px solid "+T.amber,background:isEditing?T.amber:T.amberL,color:isEditing?"#fff":T.amberD
+                }}>✏️ {isEditing?"Close":"Edit"}</button>
+                <button onClick={()=>setExpanded(isExpanded?null:r.id)} style={{
+                  padding:"7px 12px",borderRadius:8,cursor:"pointer",fontFamily:"inherit",
+                  border:"1px solid "+T.bdrS,background:T.surf,fontSize:13,color:T.txt2
+                }}>{isExpanded?"▲":"▼"}</button>
+              </div>
             </div>
-          )}
-        </Card>
-      ))}
-      {reports.length===0 && <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No reports for {dr.label}</div></Card>}
+
+            {/* Edit form */}
+            {isEditing && setState && (
+              <div style={{borderTop:"2px solid "+T.amber,padding:"14px 16px",background:T.amberL}}>
+                <div style={{fontSize:12,color:T.amberD,fontWeight:700,marginBottom:10}}>
+                  Editing report for {fmtDate(r.date)} — changes will overwrite the existing report
+                </div>
+                <OfficeEnterReport
+                  user={user||{id:"admin",role:"it_admin",name:"Admin"}}
+                  state={state} setState={setState}
+                  toast={toast||{show:()=>{}}}
+                  prefillDate={r.date}
+                  prefillSupervisorId={r.supervisorId}/>
+              </div>
+            )}
+
+            {/* Expanded entries */}
+            {isExpanded && !isEditing && entries.length>0 && (
+              <div style={{borderTop:"1px solid "+T.bdr,padding:"12px 16px"}}>
+                {svcEntries.length>0&&<>
+                  <div style={{fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase",marginBottom:6}}>Service</div>
+                  <Table cols={[
+                    {key:"workTypeName",label:"Service",render:r=><span>{r.workTypeName}</span>},
+                    {key:"vehicles",label:"Vehicles",render:r=><span>{r.vehicles}</span>},
+                    {key:"amount",label:"Amount",render:r=><b style={{color:T.navy}}>{fmtCurr(r.amount)}</b>},
+                  ]} rows={svcEntries}/>
+                </>}
+                {salEntries.length>0&&<>
+                  <div style={{fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase",marginTop:10,marginBottom:6}}>Sales</div>
+                  <Table cols={[
+                    {key:"workTypeName",label:"Item",render:r=><span>{r.workTypeName}</span>},
+                    {key:"amount",label:"Amount",render:r=><b style={{color:T.grn}}>{fmtCurr(r.amount)}</b>},
+                  ]} rows={salEntries}/>
+                </>}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ─── Staff Directory ───────────────────────────────────────────────────────────
+
 function StaffDirectory({ state }) {
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
