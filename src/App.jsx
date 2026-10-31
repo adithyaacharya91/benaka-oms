@@ -773,11 +773,18 @@ const reportHasCounterId = (r, cid, countersArr) => {
 function useLocalStorage(key, init) {
   const [val, setVal] = useState(() => {
     try {
+      // Version check — clear stale cache when app updates
+      const APP_VERSION = "2026.10.31.v2";
+      const storedVersion = localStorage.getItem("__app_version__");
+      if (storedVersion !== APP_VERSION) {
+        localStorage.removeItem(key);
+        localStorage.setItem("__app_version__", APP_VERSION);
+        return init;
+      }
       const s = localStorage.getItem(key);
       if (!s) return init;
       const cached = JSON.parse(s);
       // Start with INITIAL_STATE users/passwords as fallback until DB syncs
-      // DB sync will overwrite these with the live values within seconds of load
       return {
         ...cached,
         users:     cached.users?.length     ? cached.users     : INITIAL_STATE.users,
@@ -1171,7 +1178,7 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
             {loading ? "Checking..." : "Sign in →"}
           </Btn>
           <div style={{ textAlign:"center", marginTop:14 }}>
-            <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
+            <button onClick={()=>{ localStorage.clear(); sessionStorage.clear(); window.location.reload(); }}
               style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:T.txt3, textDecoration:"underline" }}>
               Having trouble? Clear cache & reload
             </button>
@@ -1554,6 +1561,13 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
 
   const save = () => {
     const d = workingDate.current;
+    // Check if attendance already fully submitted for this date by this supervisor
+    const alreadySubmitted = (state.attendance||[]).filter(a=>a.supervisorId===user.id&&a.date===d);
+    const changedIds = [...changedRef.current];
+    if (alreadySubmitted.length > 0 && changedIds.length === 0) {
+      toast.show("No changes to save — attendance already submitted for "+fmtDate(d),"error");
+      return;
+    }
     const newAtts = allToMark.map(s => ({
       id: `att_${user.id}_${s.id}_${d}`,
       date: d, supervisorId: user.id, staffId: s.id,
@@ -2462,7 +2476,15 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
             <Card style={{marginTop:16,borderLeft:"4px solid "+T.amber}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div style={{fontWeight:800,fontSize:14}}>✏️ Editing: {getCounterName(editingReport)} — {fmtDate(editingReport.date)}</div>
-                <Btn onClick={()=>setEditingReport(null)} variant="ghost" size="sm">✕ Close</Btn>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{
+                    if(!confirm("Delete this report permanently?")) return;
+                    setState(p=>({...p,serviceReports:(p.serviceReports||[]).filter(x=>x.id!==editingReport.id)}));
+                    supabase.from("service_reports").delete().eq("id",editingReport.id).catch(console.error);
+                    toast.show("Report deleted"); setEditingReport(null);
+                  }} style={{padding:"5px 12px",borderRadius:6,border:"1px solid "+T.red,background:"#FEF2F2",color:T.red,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>🗑 Delete</button>
+                  <Btn onClick={()=>setEditingReport(null)} variant="ghost" size="sm">✕ Close</Btn>
+                </div>
               </div>
               <OfficeEnterReport user={user} state={state} setState={setState} toast={toast}
                 prefillDate={editingReport.date} prefillSupervisorId={editingReport.supervisorId}/>
@@ -2866,8 +2888,29 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
 
   // Get target for a specific type+id+period+ref (exact match only)
   const getExistingTarget = (type, id) => {
-    const key = getKey(type, id);
-    return (state.targets||[]).find(t=>t.id===key);
+    const all = state.targets||[];
+    // 1. Exact key match
+    const exactKey = getKey(type, id);
+    const exact = all.find(t=>t.id===exactKey);
+    if (exact) return exact;
+    // 2. Match by type+id+period+periodRef (handles DB-loaded targets with same logic)
+    const deriveType = t => t.targetType || (t.id.includes("_counter_")?"counter":t.id.includes("_executive_")?"executive":t.id.includes("_manager_")?"manager":null);
+    const candidates = all.filter(t=>{
+      const tt = deriveType(t);
+      if (tt && tt!==type) return false;
+      if (type==="counter")   return t.counterId===id||t.id.includes(`_counter_${id}_`);
+      return t.supervisorId===id||t.id.includes(`_${type}_${id}_`);
+    });
+    if (!candidates.length) return undefined;
+    // Prefer matching period+ref
+    const periodMatch = candidates.find(t=>t.period===selPeriod&&t.periodRef===selRef);
+    if (periodMatch) return periodMatch;
+    // Same period any ref
+    const samePeriod = candidates.filter(t=>t.period===selPeriod&&Number(t[selPeriod]||0)>0);
+    if (samePeriod.length) return samePeriod[samePeriod.length-1];
+    // Any with value for this period
+    const anyVal = candidates.filter(t=>Number(t[selPeriod]||0)>0);
+    return anyVal.length ? anyVal[anyVal.length-1] : candidates[candidates.length-1];
   };
 
   const openEdit = (type, id, existing) => {
@@ -2925,7 +2968,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
     const execs = state.users.filter(u=>u.role==="supervisor"&&(c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id)));
     const existing = getExistingTarget("counter", c.id);
     const revenue  = getCounterRevenue(c);
-    const targetVal= Number(existing?.[selPeriod]||0);
+    const targetVal= existing ? Number(existing[selPeriod]||0) : 0;
     const pct      = targetVal>0?Math.round(revenue/targetVal*100):null;
     return {type:"counter",id:c.id,name:c.name,subtitle:execs.map(e=>e.name).join(", ")||"No exec",
       supervisorId:null, counterId:c.id, existing, revenue, targetVal, pct};
@@ -2935,7 +2978,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
     const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
     const existing = getExistingTarget("executive", u.id);
     const revenue  = getExecRevenue(u.id);
-    const targetVal= Number(existing?.[selPeriod]||0);
+    const targetVal= existing ? Number(existing[selPeriod]||0) : 0;
     const pct      = targetVal>0?Math.round(revenue/targetVal*100):null;
     return {type:"executive",id:u.id,name:u.name,subtitle:ctr?.name||"No counter",
       supervisorId:u.id, counterId:ctr?.id||"", existing, revenue, targetVal, pct};
@@ -2945,7 +2988,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
     const myExecs = state.users.filter(e=>e.role==="supervisor"&&e.managerId===u.id);
     const existing = getExistingTarget("manager", u.id);
     const revenue  = myExecs.reduce((s,e)=>s+getExecRevenue(e.id),0);
-    const targetVal= Number(existing?.[selPeriod]||0);
+    const targetVal= existing ? Number(existing[selPeriod]||0) : 0;
     const pct      = targetVal>0?Math.round(revenue/targetVal*100):null;
     return {type:"manager",id:u.id,name:u.name,subtitle:`${myExecs.length} executives`,
       supervisorId:u.id, counterId:"", existing, revenue, targetVal, pct};
@@ -4151,12 +4194,31 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
     if (!selSupervisor) return;
     const existing = state.serviceReports.find(r => r.supervisorId === selSupervisor && r.date === date);
     if (existing) {
-      // Restore existing report — ensure salesEntries are split out
-      const restoredCounters = (existing.counters || []).map(c => ({
-        ...c,
-        entries: (c.entries||[]).filter(e => !["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) && e.type!=="sales"),
-        salesEntries: (c.entries||[]).filter(e => ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"].includes(e.workTypeName) || e.type==="sales"),
-      }));
+      const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
+      const isSales = e => SALES_WTS.includes(e.workTypeName)||e.type==="sales";
+      // Support both formats: counters[] array OR flat entries[]
+      let restoredCounters;
+      if (existing.counters && existing.counters.length > 0) {
+        restoredCounters = existing.counters.map(c => ({
+          ...c,
+          entries: (c.entries||[]).filter(e=>!isSales(e)),
+          salesEntries: (c.entries||[]).filter(e=>isSales(e)),
+        }));
+      } else {
+        // Flat format: single counter report
+        const allEntries = existing.entries || [];
+        const ctr = state.counters.find(c=>c.supervisorId===selSupervisor||(c.supervisorIds||[]).includes(selSupervisor));
+        restoredCounters = [{
+          counterName: existing.counterName || ctr?.name || "",
+          counterId:   existing.counterId   || ctr?.id   || "",
+          entries:     allEntries.filter(e=>!isSales(e)),
+          salesEntries:allEntries.filter(e=>isSales(e)),
+        }];
+      }
+      if (restoredCounters.length === 0) {
+        const myCtrs = state.counters.filter(c=>c.supervisorId===selSupervisor||(c.supervisorIds||[]).includes(selSupervisor));
+        restoredCounters = myCtrs.map(c=>({counterName:c.name,entries:blankServiceRows()}));
+      }
       setReportCounters(restoredCounters);
       setNotes(existing.notes || "");
     } else {
@@ -5569,6 +5631,8 @@ function AllReports({ state, setState, toast, user }) {
   const dr = useDateRange("today");
   const [expanded, setExpanded] = useState(null);
   const [editingRep, setEditingRep] = useState(null);
+  const [pendingEdit, setPendingEdit] = useState(null); // report waiting for edit reason
+  const [editReasons, setEditReasons] = useState({}); // reportId → reason
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
   const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
   const reports = (state.serviceReports||[]).filter(r=>r.date>=dr.from&&r.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
@@ -5583,6 +5647,7 @@ function AllReports({ state, setState, toast, user }) {
         <StatCard label="Total Revenue" value={fmtCurr(totalRev)} color={T.amber}/>
       </div>
       {reports.length===0&&<Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No reports for {dr.label}</div></Card>}
+      {pendingEdit&&<EditReasonModal report={pendingEdit} onConfirm={reason=>{setEditReasons(p=>({...p,[pendingEdit.id]:reason}));setEditingRep(pendingEdit.id);setPendingEdit(null);}} onCancel={()=>setPendingEdit(null)}/>}
       {reports.map(r=>{
         const entries=getE(r);
         const svcE=entries.filter(e=>!SALES_WTS.includes(e.workTypeName));
@@ -5599,7 +5664,7 @@ function AllReports({ state, setState, toast, user }) {
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
                 <div style={{fontWeight:800,fontSize:16,color:T.navy}}>{fmtCurr(r.totalAmount)}</div>
-                <button onClick={()=>setEditingRep(isEdit?null:r.id)} style={{
+                <button onClick={()=>isEdit?setEditingRep(null):setPendingEdit(r)} style={{
                   padding:"7px 16px",borderRadius:8,border:"2px solid "+T.amber,fontWeight:800,fontSize:13,
                   background:isEdit?T.amber:T.amberL,color:isEdit?"#fff":T.amberD,cursor:"pointer",fontFamily:"inherit"
                 }}>✏️ {isEdit?"Close":"Edit"}</button>
@@ -5610,7 +5675,17 @@ function AllReports({ state, setState, toast, user }) {
             </div>
             {isEdit&&setState&&(
               <div style={{borderTop:"2px solid "+T.amber,padding:"14px 16px",background:"#FFFBEB"}}>
-                <div style={{fontSize:12,color:T.amberD,fontWeight:700,marginBottom:10}}>✏️ Editing: {fmtDate(r.date)} — {r.counterName}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{fontSize:12,color:T.amberD,fontWeight:700}}>✏️ Editing: {fmtDate(r.date)} — {r.counterName}</div>
+                  <button onClick={()=>{
+                    if(!confirm("Delete this report permanently? This cannot be undone.")) return;
+                    setState(p=>({...p,serviceReports:(p.serviceReports||[]).filter(x=>x.id!==r.id)}));
+                    supabase.from("service_reports").delete().eq("id",r.id).catch(console.error);
+                    toast.show("Report deleted");
+                    setEditingRep(null);
+                  }} style={{padding:"5px 12px",borderRadius:6,border:"1px solid "+T.red,background:"#FEF2F2",color:T.red,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>🗑 Delete Report</button>
+                </div>
+                {editReasons[r.id]&&<div style={{fontSize:11,background:T.amber,color:"#fff",padding:"4px 10px",borderRadius:6,marginBottom:10,display:"inline-block"}}>Reason: {editReasons[r.id]}</div>}
                 <OfficeEnterReport user={user||{id:"admin",role:"it_admin",name:"Admin"}} state={state} setState={setState}
                   toast={toast||{show:()=>{}}} prefillDate={r.date} prefillSupervisorId={r.supervisorId}/>
               </div>
@@ -5826,6 +5901,8 @@ function OfficeReports({ state, setState, toast, user }) {
   const dr = useDateRange("today");
   const [expanded, setExpanded] = useState(null);
   const [editingRep, setEditingRep] = useState(null);
+  const [pendingEdit, setPendingEdit] = useState(null);
+  const [editReasons, setEditReasons] = useState({});
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
   const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
   const reports = (state.serviceReports||[]).filter(r=>r.date>=dr.from&&r.date<=dr.to).sort((a,b)=>b.date.localeCompare(a.date));
@@ -5837,6 +5914,7 @@ function OfficeReports({ state, setState, toast, user }) {
       <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
       {reports.length>0&&<div style={{margin:"12px 0"}}><StatCard label={"Reports ("+dr.label+")"} value={reports.length+" reports"} sub={"Total: "+fmtCurr(totalRev)} color={T.amber}/></div>}
       {reports.length===0&&<Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No reports for {dr.label}</div></Card>}
+      {pendingEdit&&<EditReasonModal report={pendingEdit} onConfirm={reason=>{setEditReasons(p=>({...p,[pendingEdit.id]:reason}));setEditingRep(pendingEdit.id);setPendingEdit(null);}} onCancel={()=>setPendingEdit(null)}/>}
       {reports.map(r=>{
         const entries=getE(r);
         const svcE=entries.filter(e=>!SALES_WTS.includes(e.workTypeName));
@@ -5852,7 +5930,7 @@ function OfficeReports({ state, setState, toast, user }) {
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
                 <div style={{fontWeight:800,fontSize:16,color:T.amber}}>{fmtCurr(r.totalAmount)}</div>
-                <button onClick={()=>setEditingRep(isEdit?null:r.id)} style={{
+                <button onClick={()=>isEdit?setEditingRep(null):setPendingEdit(r)} style={{
                   padding:"7px 16px",borderRadius:8,border:"2px solid "+T.amber,fontWeight:800,fontSize:13,
                   background:isEdit?T.amber:T.amberL,color:isEdit?"#fff":T.amberD,cursor:"pointer",fontFamily:"inherit"
                 }}>✏️ {isEdit?"Close":"Edit"}</button>
@@ -7594,9 +7672,25 @@ function TargetFulfillmentReport({ user, state }) {
   };
 
   // Build rows
+  const getCounterRevenue = (c) => {
+    const {from, to} = getTFRRange();
+    const norm = s => (s||"").trim().toLowerCase().replace(/\s+/g," ");
+    const cName = norm(c.name);
+    return (state.serviceReports||[]).filter(r=>{
+      if (r.date<from||r.date>to) return false;
+      // Match by counterId
+      if (r.counterId && r.counterId===c.id) return true;
+      // Match by counterName (normalised)
+      if (r.counterName && norm(r.counterName)===cName) return true;
+      // Match by counters array in report (older format)
+      if ((r.counters||[]).some(rc=>norm(rc.counterName)===cName||rc.counterId===c.id)) return true;
+      return false;
+    }).reduce((s,r)=>s+r.totalAmount,0);
+  };
+
   const counterRows = state.counters.filter(c=>c.name!=="OFFICE").map(c => {
     const execs   = state.users.filter(u=>u.role==="supervisor"&&(c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id)));
-    const revenue = execs.reduce((s,e)=>s+getRevenue(e.id),0);
+    const revenue = getCounterRevenue(c);
     const target  = getTarget("counter", c.id);
     const pct     = target>0 ? Math.round(revenue/target*100) : null;
     return {id:c.id, name:c.name, subtitle:execs.map(e=>e.name).join(", ")||"—",
@@ -8289,6 +8383,11 @@ function SelfAttendance({ user, state, setState, toast }) {
         <Btn onClick={save} variant="amber" style={{minWidth:160}}>
           {saved?"✅ Saved":"💾 Mark Attendance"}
         </Btn>
+        {(state.attendance||[]).some(a=>a.staffId===user.id&&a.date===date)&&!saved&&(
+          <div style={{fontSize:11,color:T.amber,marginTop:8,fontWeight:600}}>
+            ⚠ Attendance already marked for this date — saving will update the existing record
+          </div>
+        )}
       </Card>
 
       {/* History */}
@@ -8307,6 +8406,42 @@ function SelfAttendance({ user, state, setState, toast }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ─── Edit Reason Modal ────────────────────────────────────────────────────────
+function EditReasonModal({ report, onConfirm, onCancel }) {
+  const [reason, setReason] = useState("");
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:14,padding:28,width:420,maxWidth:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>✏️ Edit Submitted Report</div>
+        <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
+          <b>{report.counterName}</b> · {fmtDate(report.date)}<br/>
+          This report has already been submitted. Please provide a reason for editing.
+        </div>
+        <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:6,textTransform:"uppercase"}}>Reason for Edit *</label>
+        <textarea value={reason} onChange={e=>setReason(e.target.value)}
+          placeholder="e.g. Wrong vehicle count entered, correcting service amount..."
+          rows={3} autoFocus
+          style={{width:"100%",padding:"10px 12px",border:"2px solid "+(reason.trim().length>=5?T.navy:T.bdrS),
+            borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
+        <div style={{fontSize:11,color:T.txt3,marginBottom:16}}>Minimum 5 characters required. This reason will be logged.</div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>reason.trim().length>=5&&onConfirm(reason.trim())} style={{
+            flex:1,padding:"10px",borderRadius:8,border:"none",
+            background:reason.trim().length>=5?T.amber:"#e5e7eb",
+            color:reason.trim().length>=5?"#fff":T.txt3,
+            fontWeight:800,fontSize:14,cursor:reason.trim().length>=5?"pointer":"not-allowed",fontFamily:"inherit"
+          }}>Proceed to Edit</button>
+          <button onClick={onCancel} style={{
+            flex:1,padding:"10px",borderRadius:8,border:"1px solid "+T.bdrS,
+            background:"#fff",color:T.txt,fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit"
+          }}>Cancel</button>
+        </div>
+      </div>
     </div>
   );
 }
