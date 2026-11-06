@@ -6948,8 +6948,17 @@ function StockCheckin({ user, state, setState, toast }) {
                {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
           ).map(s=>{
             const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-            const qty=inv?Number(inv.currentStock||0):0;
-            return <option key={s.id||s.name} value={s.name} label={`${s.name} (${qty} ${s.unit||"pcs"})`}/>;
+            const total=inv?Number(inv.currentStock||0):0;
+            const livePend=(state.stockRequests||[])
+              .filter(r=>r.status==="pending")
+              .reduce((sum,r)=>sum+(r.items||[])
+                .filter(it=>it.productName===s.name)
+                .reduce((a,it)=>a+Number(it.qty||0),0),0);
+            const avail=Math.max(0,total-livePend);
+            const label=livePend>0
+              ? `${s.name} — Available: ${avail} (${livePend} pending)`
+              : `${s.name} — Stock: ${avail} ${s.unit||"pcs"}`;
+            return <option key={s.id||s.name} value={s.name} label={label}/>;
           })}
           {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
             .map(i=><option key={i.id} value={i.productName}/>)}
@@ -7159,10 +7168,30 @@ function StockRequest({ user, state, setState, toast }) {
             {rows.map((row,i)=>(
               <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
                 <td style={{padding:"5px 6px"}}>
-                  <input list="req-products" value={row.productName}
-                    onChange={e=>upRow(i,"productName",e.target.value)}
-                    placeholder="Product name"
-                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+                  <select value={row.productName} onChange={e=>upRow(i,"productName",e.target.value)}
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,
+                      fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:"#fff"}}>
+                  <option value="">— Select product —</option>
+                  {(state.salesItems&&state.salesItems.length>0
+                    ? state.salesItems.filter(s=>s.active!==false)
+                    : [{name:"JOPASU",unit:"pcs"},{name:"SHAMPOO",unit:"ltr"},{name:"POLISH LIQUID",unit:"ltr"},
+                       {name:"MICROFIBER CLOTH",unit:"pcs"},{name:"AIR FRESHENER",unit:"pcs"},
+                       {name:"TYRE SHINE",unit:"ltr"},{name:"BARDAHL",unit:"ltr"},{name:"OTHER SALES",unit:"pcs"}]
+                  ).map(s=>{
+                    const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                    const total=inv?Number(inv.currentStock||0):0;
+                    const livePend=(state.stockRequests||[])
+                      .filter(r=>r.status==="pending")
+                      .reduce((sum,r)=>sum+(r.items||[])
+                        .filter(it=>it.productName===s.name)
+                        .reduce((a,it)=>a+Number(it.qty||0),0),0);
+                    const avail=Math.max(0,total-livePend);
+                    const label=livePend>0
+                      ? `${s.name} — Avail: ${avail} ${s.unit||"pcs"} (${livePend} pending)`
+                      : `${s.name} — Stock: ${avail} ${s.unit||"pcs"}`;
+                    return <option key={s.id||s.name} value={s.name}>{label}</option>;
+                  })}
+                </select>
                 </td>
                 <td style={{padding:"5px 6px",width:80}}>
                   <input type="number" value={row.qty} min="1"
@@ -7182,17 +7211,7 @@ function StockRequest({ user, state, setState, toast }) {
             ))}
           </tbody>
         </table>
-        <datalist id="req-products">
-          {(state.salesItems&&state.salesItems.length>0
-            ? state.salesItems.filter(s=>s.active!==false)
-            : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
-               {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
-          ).map(s=>{
-            const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-            const qty=inv?Number(inv.currentStock||0):0;
-            return <option key={s.id||s.name} value={s.name} label={`Stock: ${qty} ${s.unit||"pcs"}`}/>;
-          })}
-        </datalist>
+
 
         <div style={{display:"flex",gap:8,marginTop:4}}>
           <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
