@@ -7621,7 +7621,22 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                         <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
                           padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",
                           fontFamily:"inherit",border:"1px solid "+statusColor(s),
-                          backgroundfunction InventoryDashboard({ user, state, setState, toast }) {
+                          background:(req.stockStatus===s)?statusColor(s):"transparent",
+                          color:(req.stockStatus===s)?"#fff":statusColor(s)
+                        }}>{statusIcon(s)} {s}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
   const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
