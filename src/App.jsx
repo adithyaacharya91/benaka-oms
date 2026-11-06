@@ -222,6 +222,21 @@ const DB = {
   async deleteHoliday(id) {
     return supabase.from("holidays").delete().eq("id", id);
   },
+  // Sales Items Master
+  async getSalesItems() {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/sales_items?select=*&order=name`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const d = await r.json(); return Array.isArray(d) ? d : [];
+  },
+  async upsertSalesItem(item) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/sales_items`, {
+      method:"POST", headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+      body:JSON.stringify({id:item.id,name:item.name.trim(),unit:item.unit||"pcs",category:item.category||"general",active:item.active!==false})
+    });
+    const d = await res.json(); return res.ok ? d : d;
+  },
+  async deleteSalesItem(id) {
+    return fetch(`${SUPABASE_URL}/rest/v1/sales_items?id=eq.${id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}});
+  },
   // Inventory
   async getInventory() {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -261,7 +276,8 @@ const DB = {
       counter_name: req.counterName||"", requested_by: req.requestedBy||"",
       requested_by_name: req.requestedByName||"",
       items: JSON.stringify(req.items||[]),
-      status: req.status||"pending", notes: req.notes||"",
+      status: req.status||"requested",
+      stock_status: req.stockStatus||"requested", notes: req.notes||"",
       approved_by: req.approvedBy||null, approved_at: req.approvedAt||null,
     };
     const res = await supabase.from("stock_requests").upsert(row);
@@ -396,10 +412,10 @@ function useSupabaseSync(localState, setLocalState) {
   const syncFromCloud = useCallback(async () => {
     setSyncStatus("syncing");
     try {
-      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves, dbInventory, dbStockTx, dbStockReqs, dbHolidays, dbTargets] = await Promise.all([
+      const [reports, attendance, leaves, feedback, salaries, collReports, config, dbCounters, dbWorkTypes, plannedLeaves, dbInventory, dbStockTx, dbStockReqs, dbHolidays, dbTargets, dbSalesItems] = await Promise.all([
         DB.getReports(), DB.getAttendance(), DB.getLeaves(), DB.getFeedback(),
         DB.getSalaries(), DB.getCollectionReports(), DB.getConfig(),
-        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves(), DB.getInventory(), DB.getStockTransactions(), DB.getStockRequests(), DB.getHolidays(), DB.getTargets()
+        DB.getCounters(), DB.getWorkTypes(), DB.getPlannedLeaves(), DB.getInventory(), DB.getStockTransactions(), DB.getStockRequests(), DB.getHolidays(), DB.getTargets(), DB.getSalesItems()
       ]);
 
       // Check if tables exist — Supabase returns {code:"42P01"} if table missing
@@ -508,6 +524,9 @@ function useSupabaseSync(localState, setLocalState) {
         holidays: Array.isArray(dbHolidays) && dbHolidays.length>0
           ? dbHolidays.map(h=>({id:h.id, date:h.date, name:h.name, type:h.type||"holiday"}))
           : p.holidays,
+        salesItems: Array.isArray(dbSalesItems) && dbSalesItems.length>0
+          ? dbSalesItems.map(s=>({id:s.id,name:s.name,unit:s.unit||"pcs",category:s.category||"general",active:s.active!==false}))
+          : p.salesItems,
         targets: Array.isArray(dbTargets) && dbTargets.length>0
           ? dbTargets.map(t=>({
               id:t.id,
@@ -740,6 +759,7 @@ const INITIAL_STATE = {
   collectionReports: [],
   // Planned leaves (staff → executive approval flow)
   plannedLeaves: [],
+  salesItems: [],       // [{id, name, unit, category, active}] - master product list
   inventory: [],
   stockTransactions: [],
   stockRequests: [],
@@ -4922,7 +4942,8 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"users",    icon:"👥", label:"User Management",  group:"Setup",   groupIcon:"⚙️" },
     { id:"counters", icon:"🏪", label:"Counters",          group:"Setup",   groupIcon:"⚙️" },
     { id:"worktypes",icon:"🔧", label:"Work Types",        group:"Setup",   groupIcon:"⚙️" },
-    { id:"holidays", icon:"🗓️", label:"Holidays",          group:"Setup",   groupIcon:"⚙️" },
+    { id:"holidays",   icon:"🗓️", label:"Holidays",          group:"Setup",   groupIcon:"⚙️" },
+    { id:"salesitems", icon:"🏷️", label:"Sales Items",        group:"Setup",   groupIcon:"⚙️" },
     { id:"reports",  icon:"📋", label:"All Reports",       group:"Reports", groupIcon:"📋" },
     { id:"data",     icon:"🗑️", label:"Data Management",   group:"Reports", groupIcon:"📋" },
     { id:"export",   icon:"📥", label:"Export",            group:"Reports", groupIcon:"📋" },
@@ -4941,6 +4962,7 @@ function ITAdminPortal({ user, state, setState, toast, syncStatus="" }) {
       {page==="debug"     && <DebugReports state={state}/>}
       {page==="debug"     && <DebugReports state={state}/>}
     {page==="holidays"  && <HolidayManager state={state} setState={setState} toast={toast}/>}
+      {page==="salesitems" && <SalesItemsMaster state={state} setState={setState} toast={toast}/>}
     </Shell>
   );
 }
@@ -7311,8 +7333,24 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     </div>
                   )}
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                    <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                  </div>
+                  {/* Stock status progression buttons - only for approved/partial */}
+                  {(req.status==="approved"||req.status==="partial")&&(
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                      {["invoiced","dispatched","delivered"].map(s=>(
+                        <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
+                          padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",
+                          fontFamily:"inherit",border:"1px solid "+statusColor(s),
+                          background:(req.stockStatus===s)?statusColor(s):"transparent",
+                          color:(req.stockStatus===s)?"#fff":statusColor(s)
+                        }}>{statusIcon(s)} {s}</button>
+                      ))}
+                    </div>
+                  )}
                   {req.status==="rejected"&&(
                     <Btn onClick={()=>{
                       const r2={...req,status:"pending",approvedBy:null,approvedAt:null,
@@ -7340,6 +7378,8 @@ function StockRequestsApproval({ user, state, setState, toast }) {
 
 
 function InventoryDashboard({ user, state, setState, toast }) {
+  const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
+  const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
   const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
   const [search, setSearch] = useState("");
   const dr = useDateRange("month");
@@ -8441,6 +8481,132 @@ function EditReasonModal({ report, onConfirm, onCancel }) {
             background:"#fff",color:T.txt,fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit"
           }}>Cancel</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Sales Items Master ───────────────────────────────────────────────────────
+const DEFAULT_SALES_ITEMS = [
+  {id:"si_jopasu",   name:"JOPASU",         unit:"pcs", category:"wash"},
+  {id:"si_shampoo",  name:"SHAMPOO",        unit:"ltr", category:"wash"},
+  {id:"si_polish",   name:"POLISH LIQUID",  unit:"ltr", category:"wash"},
+  {id:"si_micro",    name:"MICROFIBER CLOTH",unit:"pcs",category:"wash"},
+  {id:"si_airfresh", name:"AIR FRESHENER",  unit:"pcs", category:"wash"},
+  {id:"si_tyre",     name:"TYRE SHINE",     unit:"ltr", category:"wash"},
+  {id:"si_bardahl",  name:"BARDAHL",        unit:"ltr", category:"lubricant"},
+  {id:"si_other",    name:"OTHER SALES",    unit:"pcs", category:"general"},
+];
+
+function SalesItemsMaster({ state, setState, toast }) {
+  const items = state.salesItems && state.salesItems.length > 0
+    ? state.salesItems
+    : DEFAULT_SALES_ITEMS;
+
+  const [form, setForm] = useState({name:"", unit:"pcs", category:"general"});
+  const [editId, setEditId] = useState(null);
+  const categories = ["wash","lubricant","accessories","general"];
+
+  const seedDefaults = async () => {
+    const existing = state.salesItems||[];
+    const toAdd = DEFAULT_SALES_ITEMS.filter(d=>!existing.find(e=>e.id===d.id));
+    if (!toAdd.length) { toast.show("All default items already exist"); return; }
+    const updated = [...existing, ...toAdd];
+    setState(p=>({...p, salesItems:updated}));
+    for (const item of toAdd) await DB.upsertSalesItem(item);
+    toast.show(`✅ Added ${toAdd.length} default items`);
+  };
+
+  const save = async () => {
+    if (!form.name.trim()) { toast.show("Name is required","error"); return; }
+    const id = editId || `si_${Date.now()}`;
+    const item = {id, name:form.name.trim(), unit:form.unit||"pcs", category:form.category||"general", active:true};
+    setState(p=>({...p, salesItems:[...(p.salesItems||[]).filter(x=>x.id!==id), item]}));
+    await DB.upsertSalesItem(item);
+    toast.show(`✅ ${form.name} saved`);
+    setForm({name:"", unit:"pcs", category:"general"}); setEditId(null);
+  };
+
+  const del = async (item) => {
+    if (!confirm(`Remove "${item.name}"?`)) return;
+    setState(p=>({...p, salesItems:(p.salesItems||[]).filter(x=>x.id!==item.id)}));
+    await DB.deleteSalesItem(item.id);
+    toast.show("Item removed");
+  };
+
+  const startEdit = (item) => {
+    setEditId(item.id);
+    setForm({name:item.name, unit:item.unit, category:item.category||"general"});
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Sales Items Master</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Define products available for sales entry in daily reports</div>
+
+      {/* Seed button */}
+      {(!state.salesItems||state.salesItems.length===0) && (
+        <div style={{background:T.amberL,border:"1px solid "+T.amber,borderRadius:8,padding:12,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:13,color:T.amberD}}>No items defined yet. Load the default items to get started.</div>
+          <Btn onClick={seedDefaults} variant="amber" size="sm">Load Defaults</Btn>
+        </div>
+      )}
+
+      {/* Add / Edit form */}
+      <Card style={{marginBottom:20,maxWidth:520}}>
+        <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:12}}>{editId?"✏️ Edit Item":"➕ Add Item"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:12}}>
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Product Name *</label>
+            <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}
+              placeholder="e.g. SHAMPOO" onKeyDown={e=>e.key==="Enter"&&save()}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Unit</label>
+            <select value={form.unit} onChange={e=>setForm(p=>({...p,unit:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}>
+              <option value="pcs">pcs</option>
+              <option value="ltr">ltr</option>
+              <option value="kg">kg</option>
+              <option value="box">box</option>
+              <option value="set">set</option>
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Category</label>
+            <select value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}>
+              {categories.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={save} variant="amber">{editId?"💾 Update":"➕ Add Item"}</Btn>
+          {editId && <Btn onClick={()=>{setEditId(null);setForm({name:"",unit:"pcs",category:"general"});}} variant="ghost" size="sm">Cancel</Btn>}
+        </div>
+      </Card>
+
+      {/* Items list */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
+        {items.map(item=>(
+          <div key={item.id} style={{
+            padding:"10px 14px",borderRadius:10,background:"#fff",
+            border:"1px solid "+(editId===item.id?T.amber:T.bdr),
+            borderLeft:"4px solid "+({wash:T.navy,lubricant:T.grn,accessories:T.amber,general:T.txt2}[item.category]||T.bdrS),
+            display:"flex",justifyContent:"space-between",alignItems:"center"
+          }}>
+            <div>
+              <div style={{fontWeight:700,fontSize:13}}>{item.name}</div>
+              <div style={{fontSize:11,color:T.txt2,marginTop:2}}>{item.unit} · {item.category}</div>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>startEdit(item)} style={{background:"none",border:"1px solid "+T.bdrS,borderRadius:5,cursor:"pointer",fontSize:12,padding:"3px 8px",color:T.navy}}>✏️</button>
+              <button onClick={()=>del(item)} style={{background:"none",border:"1px solid "+T.red,borderRadius:5,cursor:"pointer",fontSize:12,padding:"3px 8px",color:T.red}}>🗑</button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
