@@ -7628,6 +7628,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     </div>
                   )}
                 </div>
+              </div>
               </Card>
             ))}
           </div>
