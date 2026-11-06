@@ -7075,12 +7075,53 @@ function StockRequest({ user, state, setState, toast }) {
   };
 
   // Cancel a pending request
+
+  // Restore inventory when a dispatched request is cancelled/deleted
+  const restoreInventory = async (req) => {
+    if (req.stockStatus!=="dispatched"&&req.stockStatus!=="delivered") return;
+    const approvedItems = (req.items||[]).filter(it=>Number(it.approvedQty)>0);
+    if (!approvedItems.length) return;
+    let restoredItems = [];
+    setState(p=>{
+      const newInv = p.inventory.map(inv=>{
+        const item = approvedItems.find(it=>it.productName===inv.productName);
+        if (!item) return inv;
+        const restored = {...inv,
+          currentStock: Number(inv.currentStock||0) + Number(item.approvedQty),
+          lastUpdated: today(), updatedBy: user.id
+        };
+        restoredItems.push(restored);
+        return restored;
+      });
+      return {...p, inventory: newInv};
+    });
+    // Persist to DB
+    setTimeout(async ()=>{
+      for (const item of restoredItems) {
+        await fetch(`${SUPABASE_URL}/rest/v1/inventory`,{
+          method:"POST",
+          headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+          body:JSON.stringify({id:item.id,product_id:item.productId||item.id,product_name:item.productName||item.name,unit:item.unit||"pcs",current_stock:Number(item.currentStock)||0,pending_qty:0,min_stock:Number(item.minStock)||0,last_updated:today(),updated_by:user.id})
+        }).catch(console.error);
+      }
+      // Create restore transaction
+      for (const it of approvedItems) {
+        const tx = {id:`tx_restore_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:`Restored — request cancelled`,doneBy:user.id};
+        setState(p=>({...p,stockTransactions:[...(p.stockTransactions||[]),tx]}));
+        await DB.upsertStockTransaction(tx).catch(console.error);
+      }
+    }, 100);
+  };
   const cancelReq = async (req) => {
     if (!confirm("Cancel this request?")) return;
     const updated = {...req, status:"cancelled"};
     setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
     await DB.upsertStockRequest(updated).catch(console.error);
-    toast.show("Request cancelled");
+    await restoreInventory(req);
+    const restored = req.stockStatus==="dispatched"||req.stockStatus==="delivered";
+    toast.show(restored
+      ? "Request cancelled — stock restored to godown"
+      : "Request cancelled");
   };
 
   // My requests
@@ -7295,9 +7336,11 @@ function StockRequest({ user, state, setState, toast }) {
                     }
                   </div>
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                   <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                  <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                  {req.stockStatus&&req.stockStatus!==req.status&&(
+                    <Badge color={statusColor(req.stockStatus)}>{statusIcon(req.stockStatus)} {req.stockStatus}</Badge>
+                  )}
                 </div>
               </div>
             </Card>
@@ -7334,7 +7377,25 @@ function StockRequestsApproval({ user, state, setState, toast }) {
       const updated = {...req, status:"rejected", approvedBy:user.id, approvedAt:new Date().toISOString()};
       setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
       await DB.upsertStockRequest(updated).catch(console.error);
-      toast.show("❌ Request rejected");
+      // Restore inventory if already dispatched
+      if (req.stockStatus==="dispatched"||req.stockStatus==="delivered") {
+        const approvedItems = (req.items||[]).filter(it=>Number(it.approvedQty)>0);
+        setState(p=>({...p, inventory: p.inventory.map(inv=>{
+          const item = approvedItems.find(it=>it.productName===inv.productName);
+          if (!item) return inv;
+          return {...inv, currentStock:Number(inv.currentStock||0)+Number(item.approvedQty), lastUpdated:today()};
+        })}));
+        setTimeout(async ()=>{
+          for (const item of approvedItems) {
+            const inv = sra_old.inventory?.find(i=>i.productName===item.productName);
+            if (!inv) continue;
+            await fetch(`${SUPABASE_URL}/rest/v1/inventory`,{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:inv.id,product_id:inv.productId||inv.id,product_name:inv.productName,unit:inv.unit||"pcs",current_stock:Number(inv.currentStock||0)+Number(item.approvedQty),pending_qty:0,min_stock:Number(inv.minStock||0),last_updated:today(),updated_by:user.id})}).catch(console.error);
+          }
+        },100);
+        toast.show("❌ Rejected — stock restored");
+      } else {
+        toast.show("❌ Request rejected");
+      }
       setExpanded(null);
       return;
     }
@@ -7422,6 +7483,26 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         return;
       }
     }
+    // On DELIVERED: create delivery confirmation transaction
+    if (newStatus==="delivered") {
+      const approvedItems = req.items.filter(it=>Number(it.approvedQty)>0);
+      if (approvedItems.length>0) {
+        const txs = approvedItems.map(it=>({
+          id:`tx_del_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
+          date:today(), type:"delivered",
+          productName:it.productName, qty:it.approvedQty,
+          counterId:req.counterId, counterName:req.counterName||"Direct",
+          requestId:req.id,
+          notes:`Delivered to ${req.counterName||"Direct"} — confirmed by ${user.name}`,
+          doneBy:user.id,
+        }));
+        setState(p=>({...p, stockTransactions:[...(p.stockTransactions||[]),...txs]}));
+        for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
+        toast.show(`📦 Delivered — ${approvedItems.reduce((s,i)=>s+Number(i.approvedQty),0)} units confirmed received by ${req.counterName||"Direct"}`);
+        return;
+      }
+    }
+
     toast.show(`${statusIcon(newStatus)} Status updated: ${newStatus}`);
   };
 
@@ -7540,39 +7621,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                         <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
                           padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",
                           fontFamily:"inherit",border:"1px solid "+statusColor(s),
-                          background:(req.stockStatus===s)?statusColor(s):"transparent",
-                          color:(req.stockStatus===s)?"#fff":statusColor(s)
-                        }}>{statusIcon(s)} {s}</button>
-                      ))}
-                    </div>
-                  )}
-                  {req.status==="rejected"&&(
-                    <Btn onClick={()=>{
-                      const r2={...req,status:"pending",approvedBy:null,approvedAt:null,
-                        items:req.items.map(it=>({...it,approvedQty:null}))};
-                      setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?r2:r)}));
-                      DB.upsertStockRequest(r2).catch(console.error);
-                      toast.show("Request reopened");
-                    }} size="sm" variant="outline">↩ Reopen</Btn>
-                  )}
-                  <Btn onClick={()=>{
-                    if(!confirm("Delete this request record?")) return;
-                    setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
-                    supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
-                    toast.show("Request deleted");
-                  }} size="sm" variant="danger">🗑</Btn>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-function InventoryDashboard({ user, state, setState, toast }) {
+                          backgroundfunction InventoryDashboard({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
   const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
@@ -7717,9 +7766,31 @@ function InventoryDashboard({ user, state, setState, toast }) {
                       <td style={{padding:"8px 12px",textAlign:"center"}}>
                         <button onClick={()=>{
                           if(!confirm("Delete this request record?")) return;
-                          setState(p=>({...p,stockRequests:p.stockRequests.filter(x=>x.id!==req.id)}));
-                          supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
-                          toast.show("Request deleted");
+                          // Restore inventory if dispatched
+                          if (req.stockStatus==="dispatched"||req.stockStatus==="delivered") {
+                            const approvedItems=(req.items||[]).filter(it=>Number(it.approvedQty)>0);
+                            setState(p=>({...p,
+                              stockRequests:p.stockRequests.filter(x=>x.id!==req.id),
+                              inventory:p.inventory.map(inv=>{
+                                const item=approvedItems.find(it=>it.productName===inv.productName);
+                                if(!item) return inv;
+                                return {...inv,currentStock:Number(inv.currentStock||0)+Number(item.approvedQty),lastUpdated:today()};
+                              })
+                            }));
+                            // Persist restored inventory to DB
+                            setTimeout(async()=>{
+                              for(const item of approvedItems){
+                                const inv=state.inventory.find(i=>i.productName===item.productName);
+                                if(!inv) continue;
+                                await fetch(`${SUPABASE_URL}/rest/v1/inventory`,{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:inv.id,product_id:inv.productId||inv.id,product_name:inv.productName,unit:inv.unit||"pcs",current_stock:Number(inv.currentStock||0)+Number(item.approvedQty),pending_qty:0,min_stock:Number(inv.minStock||0),last_updated:today(),updated_by:user.id})}).catch(console.error);
+                              }
+                            },100);
+                            toast.show("Deleted — stock restored to godown");
+                          } else {
+                            setState(p=>({...p,stockRequests:p.stockRequests.filter(x=>x.id!==req.id)}));
+                            toast.show("Request deleted");
+                          }
+                          fetch(`${SUPABASE_URL}/rest/v1/stock_requests?id=eq.${req.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}}).catch(console.error);
                         }} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15,padding:"2px 6px"}}>🗑</button>
                       </td>
                     </tr>
@@ -7747,7 +7818,9 @@ function InventoryDashboard({ user, state, setState, toast }) {
                     <tr key={tx.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
                       <td style={{padding:"8px 12px",whiteSpace:"nowrap"}}>{fmtDate(tx.date)}</td>
                       <td style={{padding:"8px 12px"}}>
-                        <Badge color={tx.type==="checkin"?T.grn:tx.type==="release"?T.amber:T.navy}>{tx.type}</Badge>
+                        <Badge color={tx.type==="checkin"?T.grn:tx.type==="dispatch"?T.navy:tx.type==="delivered"?T.lime:tx.type==="restored"?T.amber:tx.type==="release"?T.amber:T.txt2}>{
+                        tx.type==="checkin"?"📥 Checkin":tx.type==="dispatch"?"🚚 Dispatch":tx.type==="delivered"?"📦 Delivered":tx.type==="restored"?"↩️ Restored":tx.type==="release"?"📤 Release":tx.type
+                      }</Badge>
                       </td>
                       <td style={{padding:"8px 12px",fontWeight:600}}>{tx.productName}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:tx.type==="checkin"?T.grn:T.red}}>
@@ -7796,6 +7869,32 @@ function InventoryDashboard({ user, state, setState, toast }) {
                       const pct = d.requested>0?Math.round(d.released/d.requested*100):0;
                       return (
                         <tr key={name} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                          <td style={{padding:"8px 12px",fontWeight:600}}>{name}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right"}}>{d.requested}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:T.grn,fontWeight:700}}>{d.released}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:d.pending>0?T.red:T.grn,fontWeight:700}}>{d.pending}</td>
+                          <td style={{padding:"8px 12px"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <div style={{flex:1,height:6,background:"#e5e7eb",borderRadius:3}}>
+                                <div style={{height:6,borderRadius:3,width:pct+"%",background:pct>=80?T.grn:pct>=50?T.amber:T.red}}/>
+                              </div>
+                              <span style={{fontWeight:700,color:pct>=80?T.grn:pct>=50?T.amber:T.red,minWidth:36}}>{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+ key={name} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
                           <td style={{padding:"8px 12px",fontWeight:600}}>{name}</td>
                           <td style={{padding:"8px 12px",textAlign:"right"}}>{d.requested}</td>
                           <td style={{padding:"8px 12px",textAlign:"right",color:T.grn,fontWeight:700}}>{d.released}</td>
