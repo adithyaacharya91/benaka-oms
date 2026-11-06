@@ -7637,6 +7637,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   );
 }
 
+function InventoryDashboard({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
   const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
