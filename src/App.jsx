@@ -6972,10 +6972,14 @@ function StockCheckin({ user, state, setState, toast }) {
 function StockRequest({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
-  const myCounter = state.counters.find(c=>
-    c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)||
-    (user.role==="office"&&c.name==="OFFICE")
+  const isStaff = user.role==="office"||user.role==="manager"||user.role==="md";
+  const autoCounter = state.counters.find(c=>
+    c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)
   );
+  const [selCounterId, setSelCounterId] = useState(autoCounter?.id||"");
+  const myCounter = isStaff
+    ? state.counters.find(c=>c.id===selCounterId)
+    : autoCounter;
   const [rows, setRows]       = useState([{productName:"",qty:"",notes:""}]);
   const [urgency, setUrgency] = useState("normal");
   const [saving, setSaving]   = useState(false);
@@ -7033,11 +7037,27 @@ function StockRequest({ user, state, setState, toast }) {
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Request Stock</div>
-      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
-        Request products for <b>{myCounter?.name||"your counter"}</b>
-      </div>
-      {!myCounter && <Card><div style={{color:T.red,padding:12}}>⚠ No counter assigned. Contact IT Admin.</div></Card>}
-      {myCounter && (
+      {/* Counter selector for office/manager */}
+      {isStaff ? (
+        <div style={{marginBottom:16}}>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:6,textTransform:"uppercase"}}>Select Counter *</label>
+          <select value={selCounterId} onChange={e=>setSelCounterId(e.target.value)}
+            style={{padding:"9px 12px",border:"2px solid "+(selCounterId?T.navy:T.bdrS),borderRadius:8,
+              fontSize:13,fontFamily:"inherit",outline:"none",minWidth:220}}>
+            <option value="">— Choose counter —</option>
+            {state.counters.filter(c=>c.name!=="OFFICE").sort((a,b)=>a.name.localeCompare(b.name)).map(c=>(
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
+          Request products for <b>{myCounter?.name||"your counter"}</b>
+        </div>
+      )}
+      {isStaff && !selCounterId && <Card><div style={{color:T.amber,padding:12}}>👆 Please select a counter above to request stock.</div></Card>}
+      {!isStaff && !myCounter && <Card><div style={{color:T.red,padding:12}}>⚠ No counter assigned. Contact IT Admin.</div></Card>}
+      {(myCounter || (isStaff && selCounterId)) && (
         <Card style={{marginBottom:20}}>
           <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
             <span style={{fontSize:13,fontWeight:700,color:T.navy}}>📍 {myCounter.name}</span>
