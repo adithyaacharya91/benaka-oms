@@ -6864,6 +6864,34 @@ function StockCheckin({ user, state, setState, toast }) {
           </div>
         )}
 
+        {/* Quick Select from Sales Items */}
+        {(state.salesItems&&state.salesItems.length>0)&&(
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Quick Add Product</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {state.salesItems.filter(s=>s.active!==false).map(s=>{
+                const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                const qty=inv?Number(inv.currentStock||0):0;
+                const added=rows.some(r=>r.productName===s.name);
+                return (
+                  <button key={s.id} onClick={()=>{
+                    if(added){toast.show(s.name+" already added","error");return;}
+                    setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",unit:s.unit||"pcs",notes:""}]);
+                  }} style={{
+                    padding:"5px 12px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",
+                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:T.bdrS),
+                    background:added?T.navy:"#fff",color:added?"#fff":T.txt,transition:"all .15s"
+                  }}>
+                    {s.name}
+                    <span style={{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(qty>0?T.grn:T.red)}}>
+                      {qty}{s.unit||"pcs"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12,minWidth:500}}>
           <thead>
             <tr style={{background:T.navyXL}}>
@@ -6905,8 +6933,17 @@ function StockCheckin({ user, state, setState, toast }) {
           </tbody>
         </table>
         <datalist id="ci-products">
-          {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
-          {(state.inventory||[]).map(i=><option key={i.id} value={i.productName}/>)}
+          {(state.salesItems&&state.salesItems.length>0
+            ? state.salesItems.filter(s=>s.active!==false)
+            : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
+               {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
+          ).map(s=>{
+            const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+            const qty=inv?Number(inv.currentStock||0):0;
+            return <option key={s.id||s.name} value={s.name} label={`${s.name} (${qty} ${s.unit||"pcs"})`}/>;
+          })}
+          {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
+            .map(i=><option key={i.id} value={i.productName}/>)}
         </datalist>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
@@ -7021,6 +7058,37 @@ function StockRequest({ user, state, setState, toast }) {
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
               ))}
                                   </tr></thead>
+            </thead>
+          </table>
+          {/* Quick Add from Sales Items */}
+          {(state.salesItems&&state.salesItems.length>0)&&(
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Quick Add Product</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {state.salesItems.filter(s=>s.active!==false).map(s=>{
+                  const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                  const qty=inv?Number(inv.currentStock||0):0;
+                  const added=rows.some(r=>r.productName===s.name);
+                  return (
+                    <button key={s.id} onClick={()=>{
+                      if(added){toast.show(s.name+" already added","error");return;}
+                      setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",notes:""}]);
+                    }} style={{
+                      padding:"4px 10px",borderRadius:14,fontSize:11,fontWeight:600,cursor:"pointer",
+                      fontFamily:"inherit",border:"1px solid "+(added?T.navy:qty>0?T.grn:T.bdrS),
+                      background:added?T.navy:"#fff",color:added?"#fff":T.txt
+                    }}>
+                      {s.name}<span style={{marginLeft:3,fontSize:10,opacity:.7}}>{qty}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
+            <thead><tr style={{background:T.navyXL}}>{["Product","Qty","Notes",""].map(h=>(
+              <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+            ))}</tr></thead>
             <tbody>
               {rows.map((row,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
@@ -7049,8 +7117,17 @@ function StockRequest({ user, state, setState, toast }) {
             </tbody>
           </table>
           <datalist id="req-products">
-            {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
-            {(state.inventory||[]).map(i=><option key={i.id} value={i.productName}/>)}
+            {(state.salesItems&&state.salesItems.length>0
+              ? state.salesItems.filter(s=>s.active!==false)
+              : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
+                 {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
+            ).map(s=>{
+              const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+              const qty=inv?Number(inv.currentStock||0):0;
+              return <option key={s.id||s.name} value={s.name} label={`Stock: ${qty} ${s.unit||"pcs"}`}/>;
+            })}
+            {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
+              .map(i=><option key={i.id} value={i.productName}/>)}
           </datalist>
           <div style={{display:"flex",gap:8}}>
             <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
@@ -8597,9 +8674,10 @@ function SalesItemsMaster({ state, setState, toast }) {
           </div>
           <div>
             <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Rate (₹)</label>
-            <input type="number" value={form.rate} onChange={e=>setForm(p=>({...p,rate:e.target.value}))}
-              placeholder="0.00" min="0"
-              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+            <input type="number" value={form.rate===undefined||form.rate===null?"":form.rate}
+              onChange={e=>setForm(p=>({...p,rate:e.target.value}))}
+              placeholder="Enter rate" min="0" step="0.01"
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+(form.rate?"#1e3a5f":T.bdrS),borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
