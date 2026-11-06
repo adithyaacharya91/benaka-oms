@@ -7338,37 +7338,11 @@ function StockRequestsApproval({ user, state, setState, toast }) {
     const updatedReq = {...req, items:approvedItems, status:finalStatus,
       approvedBy:user.id, approvedAt:new Date().toISOString()};
 
-    // Deduct from inventory — build completely new array with new objects
-    const newInventory = (state.inventory||[]).map(inv=>{
-      const released = approvedItems.find(it=>it.productName===inv.productName);
-      if (!released || !released.approvedQty) return inv;
-      return {
-        ...inv,
-        currentStock: Math.max(0, Number(inv.currentStock||0) - Number(released.approvedQty)),
-        lastUpdated: today(),
-        updatedBy: user.id,
-      };
-    });
-
-    // Create release transactions
-    const txs = approvedItems
-      .filter(it=>it.approvedQty>0)
-      .map(it=>({
-        id:`tx_rel_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
-        date:today(), type:"release", productName:it.productName, qty:it.approvedQty,
-        counterId:req.counterId, counterName:req.counterName,
-        requestId:req.id, notes:`Released by ${user.name}`, doneBy:user.id,
-      }));
-
+    // On approval: just mark the request approved (stock deducted on DISPATCH)
     setState(p=>({
       ...p,
-      inventory: newInventory,
       stockRequests: p.stockRequests.map(r=>r.id===req.id?updatedReq:r),
-      stockTransactions: [...(p.stockTransactions||[]), ...txs],
     }));
-
-    await DB.upsertInventory(newInventory).catch(console.error);
-    for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
     await DB.upsertStockRequest(updatedReq).catch(console.error);
 
     toast.show(finalStatus==="approved"
@@ -7386,7 +7360,44 @@ function StockRequestsApproval({ user, state, setState, toast }) {
     const updated = {...req, stockStatus:newStatus, statusUpdatedAt:new Date().toISOString(), statusUpdatedBy:user.id};
     setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
     await DB.upsertStockRequest(updated).catch(console.error);
-    toast.show(`${statusIcon(newStatus)} Status: ${newStatus}`);
+
+    // On DISPATCH: deduct approved quantities from inventory
+    if (newStatus==="dispatched" && req.stockStatus!=="dispatched") {
+      const approvedItems = req.items.filter(it=>Number(it.approvedQty)>0);
+      if (approvedItems.length>0) {
+        // Build updated inventory
+        const newInv = (state.inventory||[]).map(inv=>{
+          const item = approvedItems.find(it=>it.productName===inv.productName);
+          if (!item) return inv;
+          return {...inv,
+            currentStock: Math.max(0, Number(inv.currentStock||0) - Number(item.approvedQty)),
+            pendingQty: Math.max(0, Number(inv.pendingQty||0)),
+            lastUpdated: today(), updatedBy: user.id
+          };
+        });
+        setState(p=>({...p, inventory: newInv}));
+        // Persist to DB using direct fetch
+        for (const item of newInv.filter(inv=>approvedItems.find(it=>it.productName===inv.productName))) {
+          await fetch(`${SUPABASE_URL}/rest/v1/inventory`, {
+            method:"POST",
+            headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+            body:JSON.stringify({id:item.id,product_id:item.productId||item.id,product_name:item.productName,unit:item.unit||"pcs",current_stock:Number(item.currentStock)||0,pending_qty:Number(item.pendingQty)||0,min_stock:Number(item.minStock)||0,last_updated:today(),updated_by:user.id})
+          }).catch(console.error);
+        }
+        // Create dispatch transactions
+        const txs = approvedItems.map(it=>({
+          id:`tx_disp_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
+          date:today(), type:"dispatch", productName:it.productName, qty:it.approvedQty,
+          counterId:req.counterId, counterName:req.counterName,
+          requestId:req.id, notes:`Dispatched by ${user.name}`, doneBy:user.id,
+        }));
+        setState(p=>({...p, stockTransactions:[...(p.stockTransactions||[]),...txs]}));
+        for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
+        toast.show(`🚚 Dispatched — deducted ${approvedItems.reduce((s,i)=>s+Number(i.approvedQty),0)} units from godown`);
+        return;
+      }
+    }
+    toast.show(`${statusIcon(newStatus)} Status updated: ${newStatus}`);
   };
 
   return (
