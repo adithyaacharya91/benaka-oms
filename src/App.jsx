@@ -246,6 +246,7 @@ const DB = {
     const rows = (Array.isArray(items)?items:[items]).map(i=>({
       id: i.id, product_id: i.productId||i.id, product_name: i.productName||i.name||"",
       unit: i.unit||"pcs", current_stock: Number(i.currentStock)||0,
+      pending_qty: Number(i.pendingQty)||0,
       min_stock: Number(i.minStock)||0, last_updated: i.lastUpdated||today(),
       updated_by: i.updatedBy||"",
     }));
@@ -6885,9 +6886,15 @@ function StockCheckin({ user, state, setState, toast }) {
                     background:added?T.navy:"#fff",color:added?"#fff":T.txt,transition:"all .15s"
                   }}>
                     {s.name}
-                    <span style={{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(qty>0?T.grn:T.red)}}>
-                      {qty}{s.unit||"pcs"}
-                    </span>
+                    {(()=>{
+                      const livePend=(state.stockRequests||[])
+                        .filter(r=>r.status==="pending")
+                        .reduce((sum,r)=>sum+(r.items||[]).filter(it=>it.productName===s.name).reduce((s2,it)=>s2+Number(it.qty||0),0),0);
+                      const avail=Math.max(0,qty-livePend);
+                      return <span style={{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(avail>0?T.grn:T.red),fontWeight:700}}>
+                        {avail}{s.unit||"pcs"}{livePend>0?` (${livePend} pend)`:""}
+                      </span>;
+                    })()}
                   </button>
                 );
               })}
@@ -6997,12 +7004,12 @@ function StockRequest({ user, state, setState, toast }) {
     const valid = rows.filter(r=>r.productName.trim()&&Number(r.qty)>0);
     if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
     setSaving(true);
-    const counter = selCounterId ? state.counters.find(c=>c.id===selCounterId) : null;
+    const counter = (requestType==="counter"&&selCounterId) ? state.counters.find(c=>c.id===selCounterId) : null;
     const req = {
       id: `req_${user.id}_${Date.now()}`,
       date: today(),
       counterId:   counter?.id||"",
-      counterName: counter?.name||(requestType==="direct"?"Direct Sales":""),
+      counterName: requestType==="direct" ? "Direct Sales" : (counter?.name||""),
       requestedBy: user.id,
       requestedByName: user.name,
       requestType: requestType,
@@ -7011,11 +7018,32 @@ function StockRequest({ user, state, setState, toast }) {
       status:"pending", stockStatus:"requested",
       notes:"", approvedBy:null, approvedAt:null,
     };
-    setState(p=>({...p, stockRequests:[...(p.stockRequests||[]), req]}));
+    // Block requested qty in inventory (shown as "pending" deduction)
+    const updatedInv = [...(state.stockRequests||[])]; // track after adding
+    setState(p=>{
+      // Mark inventory items as having pending requests
+      const newInv = (p.inventory||[]).map(inv=>{
+        const reqQty = valid.filter(r=>r.productName===inv.productName).reduce((s,r)=>s+Number(r.qty),0);
+        if (!reqQty) return inv;
+        return {...inv, pendingQty:(Number(inv.pendingQty)||0)+reqQty};
+      });
+      return {...p, stockRequests:[...(p.stockRequests||[]), req], inventory:newInv};
+    });
     const res = await DB.upsertStockRequest(req);
+    // Persist updated pendingQty to DB
+    const affectedItems = (state.inventory||[]).filter(inv=>
+      valid.some(r=>r.productName===inv.productName)
+    );
+    for (const item of affectedItems) {
+      const addedPending = valid.filter(r=>r.productName===item.productName).reduce((s,r)=>s+Number(r.qty),0);
+      await DB.upsertInventory({...item, pendingQty:(Number(item.pendingQty)||0)+addedPending}).catch(console.error);
+    }
     setSaving(false);
     if (res&&res.code) toast.show("DB error: "+res.message,"error");
-    else { toast.show("✅ Stock request submitted!"); setRows([{productName:"",qty:"",notes:""}]); }
+    else {
+      toast.show("✅ Request submitted! "+valid.map(r=>`${r.productName} ×${r.qty}`).join(", ")+" blocked.");
+      setRows([{productName:"",qty:"",notes:""}]);
+    }
   };
 
   // Cancel a pending request
@@ -7044,7 +7072,7 @@ function StockRequest({ user, state, setState, toast }) {
         {/* Request type */}
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           {[["counter","🏪 Counter Request"],["direct","🚗 Direct / Non-Counter"]].map(([type,label])=>(
-            <button key={type} onClick={()=>setRequestType(type)} style={{
+            <button key={type} onClick={()=>{setRequestType(type);if(type==="direct")setSelCounterId("");}} style={{
               padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",
               fontFamily:"inherit",border:"2px solid "+(requestType===type?T.navy:T.bdrS),
               background:requestType===type?T.navy:"#fff",color:requestType===type?"#fff":T.txt
@@ -7091,7 +7119,12 @@ function StockRequest({ user, state, setState, toast }) {
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
               {state.salesItems.filter(s=>s.active!==false).map(s=>{
                 const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-                const qty=inv?Number(inv.currentStock||0):0;
+                const totalStock=inv?Number(inv.currentStock||0):0;
+                // Compute live pending from all pending stock requests
+                const livePending=(state.stockRequests||[])
+                  .filter(r=>r.status==="pending")
+                  .reduce((sum,r)=>sum+(r.items||[]).filter(it=>it.productName===s.name).reduce((s,it)=>s+Number(it.qty||0),0),0);
+                const available=Math.max(0,totalStock-livePending);
                 const added=rows.some(r=>r.productName===s.name);
                 return (
                   <button key={s.id} onClick={()=>{
@@ -7099,10 +7132,15 @@ function StockRequest({ user, state, setState, toast }) {
                     setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",notes:""}]);
                   }} style={{
                     padding:"4px 10px",borderRadius:14,fontSize:11,fontWeight:600,cursor:"pointer",
-                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:qty>0?T.grn:T.bdrS),
-                    background:added?T.navy:"#fff",color:added?"#fff":T.txt
+                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:available>0?T.grn:T.red),
+                    background:added?T.navy:available>0?"#F0FDF4":"#FEF2F2",
+                    color:added?"#fff":available>0?T.grn:T.red
                   }}>
-                    {s.name}<span style={{marginLeft:3,fontSize:10,opacity:.7}}>{qty}</span>
+                    {s.name}
+                    <span style={{marginLeft:3,fontSize:10,fontWeight:800}}>
+                      {available}
+                      {livePending>0&&<span style={{opacity:.6}}> ({livePending} pending)</span>}
+                    </span>
                   </button>
                 );
               })}
@@ -7173,12 +7211,20 @@ function StockRequest({ user, state, setState, toast }) {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                 <div>
                   <div style={{fontWeight:700,fontSize:13}}>
-                    {req.counterName||"Direct Request"} · {fmtDate(req.date)}
+                    {req.requestType==="direct"
+                      ? <span style={{color:"#7C3AED"}}>🚗 Direct Sales</span>
+                      : <span>{req.counterName||"No counter"}</span>
+                    } · {fmtDate(req.date)}
                     {req.urgency==="urgent"&&<span style={{marginLeft:6,color:T.red,fontSize:11,fontWeight:800}}>🔴 URGENT</span>}
                   </div>
                   <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                    {req.items.map(it=>`${it.productName} ×${it.qty}`).join(", ")}
+                    {req.items.map(it=>it.productName+" ×"+it.qty).join(", ")}
                   </div>
+                  {req.items.some(it=>it.notes)&&(
+                    <div style={{fontSize:11,color:T.txt3,marginTop:2}}>
+                      Notes: {req.items.filter(it=>it.notes).map(it=>it.productName+": "+it.notes).join(" · ")}
+                    </div>
+                  )}
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
@@ -7199,7 +7245,10 @@ function StockRequest({ user, state, setState, toast }) {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
                 <div>
                   <div style={{fontWeight:600,fontSize:13}}>
-                    {req.counterName||"Direct"} · {fmtDate(req.date)}
+                    {req.requestType==="direct"
+                      ? <span style={{color:"#7C3AED"}}>🚗 Direct</span>
+                      : req.counterName||"No counter"
+                    } · {fmtDate(req.date)}
                   </div>
                   <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
                     {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
