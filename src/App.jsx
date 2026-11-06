@@ -1296,7 +1296,8 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
             <div style={{marginBottom:8}}>
               <div style={{fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
               <div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>{ROLE_LABELS[user.role]||user.role} · {user.empId}</div>
-              {syncStatus&&<div style={{fontSize:9,color:syncStatus==="synced"?"#86efac":"rgba(255,255,255,.4)",marginTop:2}}>{syncStatus==="synced"?"● Synced":"● Syncing..."}</div>}
+              {syncStatus&&<div style={{fontSize:9,color:(syncStatus==="ok"||syncStatus==="synced")?"#86efac":syncStatus==="syncing"?"#FCD34D":"rgba(255,255,255,.4)",marginTop:2}}>
+                {syncStatus==="ok"||syncStatus==="synced"?"● Synced":syncStatus==="syncing"?"● Syncing...":syncStatus==="setup_needed"?"● Setup needed":"● "+syncStatus}</div>}
             </div>
           )}
 
@@ -4156,9 +4157,10 @@ function OfficePortal({ user, state, setState, toast, syncStatus="" }) {
     { id:"attendance", icon:"👥", label:"Mark Attendance", group:"Attendance", groupIcon:"🗓️" },
     { id:"viewatt", icon:"📅", label:"All Attendance", group:"Attendance", groupIcon:"🗓️" },
     { id:"myleaves", icon:"🌿", label:"My Leave", group:"Attendance", groupIcon:"🗓️" },
-    { id:"stockcheckin", icon:"🏭", label:"Godown Check-in", group:"Inventory", groupIcon:"📦" },
-    { id:"stockapproval", icon:"📦", label:"Stock Requests", group:"Inventory", groupIcon:"📦" },
-    { id:"inventory", icon:"📊", label:"Inventory", group:"Inventory", groupIcon:"📦" },
+    { id:"stockcheckin",  icon:"🏭", label:"Godown Check-in",     group:"Inventory", groupIcon:"📦" },
+    { id:"stockrequest",  icon:"📋", label:"Create Stock Request", group:"Inventory", groupIcon:"📦" },
+    { id:"stockapproval", icon:"📦", label:"Approve Requests",     group:"Inventory", groupIcon:"📦" },
+    { id:"inventory",     icon:"📊", label:"Inventory",            group:"Inventory", groupIcon:"📦" },
     { id:"counternotes", icon:"📝", label:"Daily Note" },
     { id:"export", icon:"📥", label:"Export Data" },
     { id:"directory", icon:"👤", label:"Staff Directory" },
