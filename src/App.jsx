@@ -230,7 +230,7 @@ const DB = {
   async upsertSalesItem(item) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/sales_items`, {
       method:"POST", headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
-      body:JSON.stringify({id:item.id,name:item.name.trim(),unit:item.unit||"pcs",category:item.category||"general",active:item.active!==false})
+      body:JSON.stringify({id:item.id,name:item.name.trim(),unit:item.unit||"pcs",category:item.category||"general",rate:Number(item.rate)||0,active:item.active!==false})
     });
     const d = await res.json(); return res.ok ? d : d;
   },
@@ -525,7 +525,7 @@ function useSupabaseSync(localState, setLocalState) {
           ? dbHolidays.map(h=>({id:h.id, date:h.date, name:h.name, type:h.type||"holiday"}))
           : p.holidays,
         salesItems: Array.isArray(dbSalesItems) && dbSalesItems.length>0
-          ? dbSalesItems.map(s=>({id:s.id,name:s.name,unit:s.unit||"pcs",category:s.category||"general",active:s.active!==false}))
+          ? dbSalesItems.map(s=>({id:s.id,name:s.name,unit:s.unit||"pcs",category:s.category||"general",rate:Number(s.rate)||0,active:s.active!==false}))
           : p.salesItems,
         targets: Array.isArray(dbTargets) && dbTargets.length>0
           ? dbTargets.map(t=>({
@@ -3423,9 +3423,9 @@ function MDAttendance({ state }) {
                 <tr style={{background:T.navy,color:"#fff"}}>
                   <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700}}>Staff</th>
                   <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700}}>Role / Exec</th>
-                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#4ade80"}}>{active&&status==="present"?"✓ Present":"Present"}</th>
-                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fca5a5"}}>{active&&status==="absent"?"✓ Absent":"Absent"}</th>
-                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fcd34d"}}>{active&&status==="half_day"?"✓ Half Day":"Half Day"}</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#4ade80"}}>"Present"}</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fca5a5"}}>Absent</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#fcd34d"}}>Half Day"}</th>
                   <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#c4b5fd"}}>On Leave</th>
                   <th style={{padding:"8px 10px",textAlign:"center",fontWeight:700}}>Marked</th>
                   <th style={{padding:"8px 12px",textAlign:"center",fontWeight:700,color:T.amber}}>Attendance %</th>
@@ -6933,6 +6933,8 @@ function StockCheckin({ user, state, setState, toast }) {
 }
 
 function StockRequest({ user, state, setState, toast }) {
+  const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
+  const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
   const myCounter = state.counters.find(c=>
     c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)||
     (user.role==="office"&&c.name==="OFFICE")
@@ -7228,7 +7230,14 @@ function StockRequestsApproval({ user, state, setState, toast }) {
     setExpanded(null);
   };
 
-  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red,cancelled:T.txt2}[s]||T.txt2);
+  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red,cancelled:T.txt2,requested:"#6B7280",invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
+  const statusIcon  = s=>({requested:"📋",approved:"✅",pending:"⏳",partial:"🔶",invoiced:"🧾",dispatched:"🚚",delivered:"📦",rejected:"❌"}[s]||"•");
+  const updateStockStatus = async (req, newStatus) => {
+    const updated = {...req, stockStatus:newStatus, statusUpdatedAt:new Date().toISOString(), statusUpdatedBy:user.id};
+    setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+    await DB.upsertStockRequest(updated).catch(console.error);
+    toast.show(`${statusIcon(newStatus)} Status: ${newStatus}`);
+  };
 
   return (
     <div>
@@ -8489,24 +8498,26 @@ function EditReasonModal({ report, onConfirm, onCancel }) {
 
 // ─── Sales Items Master ───────────────────────────────────────────────────────
 const DEFAULT_SALES_ITEMS = [
-  {id:"si_jopasu",   name:"JOPASU",         unit:"pcs", category:"wash"},
-  {id:"si_shampoo",  name:"SHAMPOO",        unit:"ltr", category:"wash"},
-  {id:"si_polish",   name:"POLISH LIQUID",  unit:"ltr", category:"wash"},
-  {id:"si_micro",    name:"MICROFIBER CLOTH",unit:"pcs",category:"wash"},
-  {id:"si_airfresh", name:"AIR FRESHENER",  unit:"pcs", category:"wash"},
-  {id:"si_tyre",     name:"TYRE SHINE",     unit:"ltr", category:"wash"},
-  {id:"si_bardahl",  name:"BARDAHL",        unit:"ltr", category:"lubricant"},
-  {id:"si_other",    name:"OTHER SALES",    unit:"pcs", category:"general"},
+  {id:"si_jopasu",   name:"JOPASU",         unit:"pcs", category:"wash",      rate:0},
+  {id:"si_shampoo",  name:"SHAMPOO",        unit:"ltr", category:"wash",      rate:0},
+  {id:"si_polish",   name:"POLISH LIQUID",  unit:"ltr", category:"wash",      rate:0},
+  {id:"si_micro",    name:"MICROFIBER CLOTH",unit:"pcs",category:"wash",      rate:0},
+  {id:"si_airfresh", name:"AIR FRESHENER",  unit:"pcs", category:"wash",      rate:0},
+  {id:"si_tyre",     name:"TYRE SHINE",     unit:"ltr", category:"wash",      rate:0},
+  {id:"si_bardahl",  name:"BARDAHL",        unit:"ltr", category:"lubricant", rate:0},
+  {id:"si_other",    name:"OTHER SALES",    unit:"pcs", category:"general",   rate:0},
 ];
 
+
 function SalesItemsMaster({ state, setState, toast }) {
-  const items = state.salesItems && state.salesItems.length > 0
+  const items = (state.salesItems && state.salesItems.length > 0)
     ? state.salesItems
     : DEFAULT_SALES_ITEMS;
 
-  const [form, setForm] = useState({name:"", unit:"pcs", category:"general"});
+  const [form, setForm]   = useState({name:"", unit:"pcs", category:"general", rate:""});
   const [editId, setEditId] = useState(null);
   const categories = ["wash","lubricant","accessories","general"];
+  const units = ["pcs","ltr","kg","box","set","pair"];
 
   const seedDefaults = async () => {
     const existing = state.salesItems||[];
@@ -8521,11 +8532,13 @@ function SalesItemsMaster({ state, setState, toast }) {
   const save = async () => {
     if (!form.name.trim()) { toast.show("Name is required","error"); return; }
     const id = editId || `si_${Date.now()}`;
-    const item = {id, name:form.name.trim(), unit:form.unit||"pcs", category:form.category||"general", active:true};
+    const item = {id, name:form.name.trim(), unit:form.unit||"pcs",
+      category:form.category||"general", rate:Number(form.rate)||0, active:true};
     setState(p=>({...p, salesItems:[...(p.salesItems||[]).filter(x=>x.id!==id), item]}));
-    await DB.upsertSalesItem(item);
-    toast.show(`✅ ${form.name} saved`);
-    setForm({name:"", unit:"pcs", category:"general"}); setEditId(null);
+    const res = await DB.upsertSalesItem(item);
+    if (res&&!Array.isArray(res)&&res.code) toast.show("DB error: "+res.message,"error");
+    else toast.show(`✅ ${item.name} saved`);
+    setForm({name:"", unit:"pcs", category:"general", rate:""}); setEditId(null);
   };
 
   const del = async (item) => {
@@ -8537,41 +8550,43 @@ function SalesItemsMaster({ state, setState, toast }) {
 
   const startEdit = (item) => {
     setEditId(item.id);
-    setForm({name:item.name, unit:item.unit, category:item.category||"general"});
+    setForm({name:item.name, unit:item.unit||"pcs", category:item.category||"general", rate:item.rate||""});
   };
 
-  return (
-    <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Sales Items Master</div>
-      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Define products available for sales entry in daily reports</div>
+  const catColor = c => ({wash:T.navy,lubricant:T.grn,accessories:T.amber,general:T.txt2}[c]||T.bdrS);
 
-      {/* Seed button */}
-      {(!state.salesItems||state.salesItems.length===0) && (
-        <div style={{background:T.amberL,border:"1px solid "+T.amber,borderRadius:8,padding:12,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:13,color:T.amberD}}>No items defined yet. Load the default items to get started.</div>
+  return (
+    <div style={{padding:20}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Sales Items Master</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
+        Products for sales entry in daily reports, godown check-in and stock requests
+      </div>
+
+      {(!state.salesItems||state.salesItems.length===0)&&(
+        <div style={{background:T.amberL,border:"1px solid "+T.amber,borderRadius:8,padding:12,
+          marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:13,color:T.amberD}}>No items yet. Load defaults to get started.</div>
           <Btn onClick={seedDefaults} variant="amber" size="sm">Load Defaults</Btn>
         </div>
       )}
 
       {/* Add / Edit form */}
-      <Card style={{marginBottom:20,maxWidth:520}}>
-        <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:12}}>{editId?"✏️ Edit Item":"➕ Add Item"}</div>
-        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:12}}>
+      <Card style={{marginBottom:20,maxWidth:600}}>
+        <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:12}}>
+          {editId?"✏️ Edit Item":"➕ Add New Item"}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:12}}>
           <div>
             <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Product Name *</label>
             <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}
-              placeholder="e.g. SHAMPOO" onKeyDown={e=>e.key==="Enter"&&save()}
+              placeholder="e.g. SHAMPOO 100ml" onKeyDown={e=>e.key==="Enter"&&save()}
               style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
           </div>
           <div>
             <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Unit</label>
             <select value={form.unit} onChange={e=>setForm(p=>({...p,unit:e.target.value}))}
               style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}>
-              <option value="pcs">pcs</option>
-              <option value="ltr">ltr</option>
-              <option value="kg">kg</option>
-              <option value="box">box</option>
-              <option value="set">set</option>
+              {units.map(u=><option key={u} value={u}>{u}</option>)}
             </select>
           </div>
           <div>
@@ -8581,33 +8596,76 @@ function SalesItemsMaster({ state, setState, toast }) {
               {categories.map(c=><option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4,textTransform:"uppercase"}}>Rate (₹)</label>
+            <input type="number" value={form.rate} onChange={e=>setForm(p=>({...p,rate:e.target.value}))}
+              placeholder="0.00" min="0"
+              style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={save} variant="amber">{editId?"💾 Update":"➕ Add Item"}</Btn>
-          {editId && <Btn onClick={()=>{setEditId(null);setForm({name:"",unit:"pcs",category:"general"});}} variant="ghost" size="sm">Cancel</Btn>}
+          {editId&&<Btn onClick={()=>{setEditId(null);setForm({name:"",unit:"pcs",category:"general",rate:""}); }} variant="ghost" size="sm">Cancel</Btn>}
+          {!editId&&state.salesItems&&state.salesItems.length>0&&(
+            <Btn onClick={seedDefaults} variant="outline" size="sm">+ Load Missing Defaults</Btn>
+          )}
         </div>
       </Card>
 
-      {/* Items list */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
-        {items.map(item=>(
-          <div key={item.id} style={{
-            padding:"10px 14px",borderRadius:10,background:"#fff",
-            border:"1px solid "+(editId===item.id?T.amber:T.bdr),
-            borderLeft:"4px solid "+({wash:T.navy,lubricant:T.grn,accessories:T.amber,general:T.txt2}[item.category]||T.bdrS),
-            display:"flex",justifyContent:"space-between",alignItems:"center"
-          }}>
-            <div>
-              <div style={{fontWeight:700,fontSize:13}}>{item.name}</div>
-              <div style={{fontSize:11,color:T.txt2,marginTop:2}}>{item.unit} · {item.category}</div>
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>startEdit(item)} style={{background:"none",border:"1px solid "+T.bdrS,borderRadius:5,cursor:"pointer",fontSize:12,padding:"3px 8px",color:T.navy}}>✏️</button>
-              <button onClick={()=>del(item)} style={{background:"none",border:"1px solid "+T.red,borderRadius:5,cursor:"pointer",fontSize:12,padding:"3px 8px",color:T.red}}>🗑</button>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Items table */}
+      {items.length>0&&(
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead>
+              <tr style={{background:T.navy,color:"#fff"}}>
+                {["Product","Unit","Category","Rate (₹)","Stock",""].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",textAlign:h==="Rate (₹)"||h==="Stock"?"right":"left",fontSize:11,fontWeight:700}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.sort((a,b)=>a.name.localeCompare(b.name)).map((item,i)=>{
+                const stock = (state.inventory||[]).find(inv=>inv.productName===item.name);
+                const qty   = stock ? Number(stock.currentStock||0) : 0;
+                return (
+                  <tr key={item.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
+                    <td style={{padding:"9px 12px"}}>
+                      <div style={{fontWeight:700}}>{item.name}</div>
+                    </td>
+                    <td style={{padding:"9px 12px",color:T.txt2}}>{item.unit}</td>
+                    <td style={{padding:"9px 12px"}}>
+                      <span style={{background:catColor(item.category)+"22",color:catColor(item.category),
+                        padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:700}}>
+                        {item.category}
+                      </span>
+                    </td>
+                    <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:T.navy}}>
+                      {item.rate ? fmtCurr(item.rate) : <span style={{color:T.txt3}}>Not set</span>}
+                    </td>
+                    <td style={{padding:"9px 12px",textAlign:"right"}}>
+                      <span style={{fontWeight:700,color:qty>0?T.grn:T.red}}>
+                        {qty} {item.unit}
+                      </span>
+                    </td>
+                    <td style={{padding:"9px 12px"}}>
+                      <div style={{display:"flex",gap:6}}>
+                        <button onClick={()=>startEdit(item)} style={{
+                          background:"none",border:"1px solid "+T.bdrS,borderRadius:5,
+                          cursor:"pointer",fontSize:12,padding:"3px 10px",color:T.navy,fontFamily:"inherit"
+                        }}>✏️ Edit</button>
+                        <button onClick={()=>del(item)} style={{
+                          background:"none",border:"1px solid "+T.red,borderRadius:5,
+                          cursor:"pointer",fontSize:12,padding:"3px 10px",color:T.red,fontFamily:"inherit"
+                        }}>🗑</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
