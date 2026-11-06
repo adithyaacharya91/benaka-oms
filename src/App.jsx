@@ -7052,14 +7052,6 @@ function StockRequest({ user, state, setState, toast }) {
               ))}
             </div>
           </div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
-            <thead><tr style={{background:T.navyXL}}>
-              {["Product","Qty Needed","Notes",""].map(h=>(
-                <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-              ))}
-                                  </tr></thead>
-            </thead>
-          </table>
           {/* Quick Add from Sales Items */}
           {(state.salesItems&&state.salesItems.length>0)&&(
             <div style={{marginBottom:10}}>
