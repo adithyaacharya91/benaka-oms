@@ -6992,7 +6992,6 @@ function StockRequest({ user, state, setState, toast }) {
     toast.show("Request cancelled");
   };
 
-  const statusColor = s=>({pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red,cancelled:T.txt2}[s]||T.txt2);
 
   return (
     <div>
