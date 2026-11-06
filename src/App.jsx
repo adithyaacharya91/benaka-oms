@@ -250,9 +250,14 @@ const DB = {
       min_stock: Number(i.minStock)||0, last_updated: i.lastUpdated||today(),
       updated_by: i.updatedBy||"",
     }));
-    const res = await supabase.from("inventory").upsert(rows);
-    if (res&&res.code) console.error("upsertInventory failed:", res.message);
-    return res;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory`, {
+      method:"POST",
+      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+      body:JSON.stringify(rows)
+    });
+    const data = await res.json();
+    if (!res.ok) { console.error("upsertInventory failed:", data); return data; }
+    return Array.isArray(data)?data:[data];
   },
   async getStockTransactions() {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_transactions?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
@@ -276,14 +281,24 @@ const DB = {
       id: req.id, date: req.date, counter_id: req.counterId||"",
       counter_name: req.counterName||"", requested_by: req.requestedBy||"",
       requested_by_name: req.requestedByName||"",
+      request_type: req.requestType||"counter",
+      urgency: req.urgency||"normal",
       items: JSON.stringify(req.items||[]),
       status: req.status||"requested",
-      stock_status: req.stockStatus||"requested", notes: req.notes||"",
+      stock_status: req.stockStatus||"requested",
+      notes: req.notes||"",
       approved_by: req.approvedBy||null, approved_at: req.approvedAt||null,
+      status_updated_at: req.statusUpdatedAt||null,
+      status_updated_by: req.statusUpdatedBy||null,
     };
-    const res = await supabase.from("stock_requests").upsert(row);
-    if (res&&res.code) console.error("upsertStockRequest failed:", res.message);
-    return res;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stock_requests`, {
+      method:"POST",
+      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+      body:JSON.stringify(row)
+    });
+    const data = await res.json();
+    if (!res.ok) { console.error("upsertStockRequest failed:", data); return data; }
+    return Array.isArray(data)?data:[data];
   },
   // Salaries
   async getSalaries(month) {
@@ -545,8 +560,12 @@ function useSupabaseSync(localState, setLocalState) {
           return {
             id: r.id, date: r.date, counterId: r.counter_id||"", counterName: r.counter_name||"",
             requestedBy: r.requested_by||"", requestedByName: r.requested_by_name||"",
-            items, status: r.status||"pending", notes: r.notes||"",
+            requestType: r.request_type||"counter", urgency: r.urgency||"normal",
+            items, status: r.status||"pending",
+            stockStatus: r.stock_status||r.status||"requested",
+            notes: r.notes||"",
             approvedBy: r.approved_by||null, approvedAt: r.approved_at||null,
+            statusUpdatedAt: r.status_updated_at||null, statusUpdatedBy: r.status_updated_by||null,
           };
         }) : p.stockRequests,
         plannedLeaves: Array.isArray(plannedLeaves) && plannedLeaves.length > 0 ? plannedLeaves.map(l=>({
@@ -7365,25 +7384,31 @@ function StockRequestsApproval({ user, state, setState, toast }) {
     if (newStatus==="dispatched" && req.stockStatus!=="dispatched") {
       const approvedItems = req.items.filter(it=>Number(it.approvedQty)>0);
       if (approvedItems.length>0) {
-        // Build updated inventory
-        const newInv = (state.inventory||[]).map(inv=>{
-          const item = approvedItems.find(it=>it.productName===inv.productName);
-          if (!item) return inv;
-          return {...inv,
-            currentStock: Math.max(0, Number(inv.currentStock||0) - Number(item.approvedQty)),
-            pendingQty: Math.max(0, Number(inv.pendingQty||0)),
-            lastUpdated: today(), updatedBy: user.id
-          };
+        let savedInvItems = [];
+        // Use functional setState to get latest inventory state
+        setState(p=>{
+          const newInv = p.inventory.map(inv=>{
+            const item = approvedItems.find(it=>it.productName===inv.productName);
+            if (!item) return inv;
+            const updItem = {...inv,
+              currentStock: Math.max(0, Number(inv.currentStock||0) - Number(item.approvedQty)),
+              lastUpdated: today(), updatedBy: user.id
+            };
+            savedInvItems.push(updItem);
+            return updItem;
+          });
+          return {...p, inventory: newInv};
         });
-        setState(p=>({...p, inventory: newInv}));
-        // Persist to DB using direct fetch
-        for (const item of newInv.filter(inv=>approvedItems.find(it=>it.productName===inv.productName))) {
-          await fetch(`${SUPABASE_URL}/rest/v1/inventory`, {
-            method:"POST",
-            headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
-            body:JSON.stringify({id:item.id,product_id:item.productId||item.id,product_name:item.productName,unit:item.unit||"pcs",current_stock:Number(item.currentStock)||0,pending_qty:Number(item.pendingQty)||0,min_stock:Number(item.minStock)||0,last_updated:today(),updated_by:user.id})
-          }).catch(console.error);
-        }
+        // Persist each affected item to DB
+        setTimeout(async ()=>{
+          for (const item of savedInvItems) {
+            await fetch(`${SUPABASE_URL}/rest/v1/inventory`, {
+              method:"POST",
+              headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+              body:JSON.stringify({id:item.id,product_id:item.productId||item.id,product_name:item.productName||item.name,unit:item.unit||"pcs",current_stock:Number(item.currentStock)||0,pending_qty:0,min_stock:Number(item.minStock)||0,last_updated:today(),updated_by:user.id})
+            }).catch(e=>console.error("Inventory update failed:",e));
+          }
+        }, 100);
         // Create dispatch transactions
         const txs = approvedItems.map(it=>({
           id:`tx_disp_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
@@ -7393,7 +7418,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         }));
         setState(p=>({...p, stockTransactions:[...(p.stockTransactions||[]),...txs]}));
         for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
-        toast.show(`🚚 Dispatched — deducted ${approvedItems.reduce((s,i)=>s+Number(i.approvedQty),0)} units from godown`);
+        toast.show(`🚚 Dispatched — ${approvedItems.reduce((s,i)=>s+Number(i.approvedQty),0)} units deducted from godown`);
         return;
       }
     }
