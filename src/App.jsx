@@ -6972,14 +6972,13 @@ function StockCheckin({ user, state, setState, toast }) {
 function StockRequest({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
-  const isStaff = user.role==="office"||user.role==="manager"||user.role==="md";
+
+  // Counter is optional - auto-assign for supervisors, manual for others
   const autoCounter = state.counters.find(c=>
     c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)
   );
   const [selCounterId, setSelCounterId] = useState(autoCounter?.id||"");
-  const myCounter = isStaff
-    ? state.counters.find(c=>c.id===selCounterId)
-    : autoCounter;
+  const [requestType, setRequestType]   = useState("counter"); // "counter" | "direct"
   const [rows, setRows]       = useState([{productName:"",qty:"",notes:""}]);
   const [urgency, setUrgency] = useState("normal");
   const [saving, setSaving]   = useState(false);
@@ -6990,247 +6989,240 @@ function StockRequest({ user, state, setState, toast }) {
   const rmRow  = i => setRows(p=>p.filter((_,j)=>j!==i));
   const upRow  = (i,k,v) => setRows(p=>p.map((r,j)=>j===i?{...r,[k]:v}:r));
 
-  const myRequests = (state.stockRequests||[])
-    .filter(r=>r.requestedBy===user.id)
-    .sort((a,b)=>b.date.localeCompare(a.date));
+  const canManageAll = user.role==="office"||user.role==="manager"||user.role==="md"||user.role==="it_admin";
 
   const submit = async () => {
     const valid = rows.filter(r=>r.productName.trim()&&Number(r.qty)>0);
     if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
-    if (!myCounter) { toast.show("No counter assigned to you","error"); return; }
     setSaving(true);
+    const counter = selCounterId ? state.counters.find(c=>c.id===selCounterId) : null;
     const req = {
-      id:`req_${user.id}_${Date.now()}`,
-      date:today(), counterId:myCounter.id, counterName:myCounter.name,
-      requestedBy:user.id, requestedByName:user.name,
-      items: valid.map(r=>({
-        productName:r.productName.trim(), qty:Number(r.qty),
-        approvedQty:null, notes:r.notes||"", urgency
-      })),
-      status:"pending", notes:"", approvedBy:null, approvedAt:null,
+      id: `req_${user.id}_${Date.now()}`,
+      date: today(),
+      counterId:   counter?.id||"",
+      counterName: counter?.name||(requestType==="direct"?"Direct Sales":""),
+      requestedBy: user.id,
+      requestedByName: user.name,
+      requestType: requestType,
+      urgency,
+      items: valid.map(r=>({productName:r.productName.trim(),qty:Number(r.qty),approvedQty:null,notes:r.notes||"",urgency})),
+      status:"pending", stockStatus:"requested",
+      notes:"", approvedBy:null, approvedAt:null,
     };
-    setState(p=>({...p, stockRequests:[...(p.stockRequests||[]),req]}));
-    await DB.upsertStockRequest(req).catch(console.error);
-    toast.show(`📦 Request submitted — ${valid.length} item(s)`);
-    setRows([{productName:"",qty:"",notes:""}]);
+    setState(p=>({...p, stockRequests:[...(p.stockRequests||[]), req]}));
+    const res = await DB.upsertStockRequest(req);
     setSaving(false);
+    if (res&&res.code) toast.show("DB error: "+res.message,"error");
+    else { toast.show("✅ Stock request submitted!"); setRows([{productName:"",qty:"",notes:""}]); }
   };
 
-  const saveEdit = async (req) => {
-    const valid = editRows.filter(r=>r.productName.trim()&&Number(r.qty)>0);
-    if (!valid.length) { toast.show("At least one item required","error"); return; }
-    const updated = {...req, items:valid.map(r=>({...r,qty:Number(r.qty),approvedQty:null}))};
-    setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
-    await DB.upsertStockRequest(updated).catch(console.error);
-    toast.show("Request updated ✅");
-    setEditingReq(null);
-  };
-
+  // Cancel a pending request
   const cancelReq = async (req) => {
+    if (!confirm("Cancel this request?")) return;
     const updated = {...req, status:"cancelled"};
-    setState(p=>({...p,stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
+    setState(p=>({...p, stockRequests:p.stockRequests.map(r=>r.id===req.id?updated:r)}));
     await DB.upsertStockRequest(updated).catch(console.error);
     toast.show("Request cancelled");
   };
 
+  // My requests
+  const myRequests = (state.stockRequests||[])
+    .filter(r=>r.requestedBy===user.id)
+    .sort((a,b)=>b.date.localeCompare(a.date));
+
+  const pending  = myRequests.filter(r=>r.status==="pending");
+  const history  = myRequests.filter(r=>r.status!=="pending");
 
   return (
-    <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Request Stock</div>
-      {/* Counter selector for office/manager */}
-      {isStaff ? (
-        <div style={{marginBottom:16}}>
-          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:6,textTransform:"uppercase"}}>Select Counter *</label>
-          <select value={selCounterId} onChange={e=>setSelCounterId(e.target.value)}
-            style={{padding:"9px 12px",border:"2px solid "+(selCounterId?T.navy:T.bdrS),borderRadius:8,
-              fontSize:13,fontFamily:"inherit",outline:"none",minWidth:220}}>
-            <option value="">— Choose counter —</option>
-            {state.counters.filter(c=>c.name!=="OFFICE").sort((a,b)=>a.name.localeCompare(b.name)).map(c=>(
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>
-          Request products for <b>{myCounter?.name||"your counter"}</b>
-        </div>
-      )}
-      {isStaff && !selCounterId && <Card><div style={{color:T.amber,padding:12}}>👆 Please select a counter above to request stock.</div></Card>}
-      {!isStaff && !myCounter && <Card><div style={{color:T.red,padding:12}}>⚠ No counter assigned. Contact IT Admin.</div></Card>}
-      {(myCounter || (isStaff && selCounterId)) && (
-        <Card style={{marginBottom:20}}>
-          <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{fontSize:13,fontWeight:700,color:T.navy}}>📍 {myCounter.name}</span>
-            <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-              {["normal","urgent"].map(u=>(
-                <button key={u} onClick={()=>setUrgency(u)} style={{
-                  padding:"4px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                  border:"1px solid "+(urgency===u?(u==="urgent"?T.red:T.navy):T.bdrS),
-                  background:urgency===u?(u==="urgent"?T.redL:T.navyXL):"transparent",
-                  color:urgency===u?(u==="urgent"?T.red:T.navy):T.txt2
-                }}>{u==="urgent"?"🔴 Urgent":"🟢 Normal"}</button>
-              ))}
-            </div>
-          </div>
-          {/* Quick Add from Sales Items */}
-          {(state.salesItems&&state.salesItems.length>0)&&(
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Quick Add Product</div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {state.salesItems.filter(s=>s.active!==false).map(s=>{
-                  const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-                  const qty=inv?Number(inv.currentStock||0):0;
-                  const added=rows.some(r=>r.productName===s.name);
-                  return (
-                    <button key={s.id} onClick={()=>{
-                      if(added){toast.show(s.name+" already added","error");return;}
-                      setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",notes:""}]);
-                    }} style={{
-                      padding:"4px 10px",borderRadius:14,fontSize:11,fontWeight:600,cursor:"pointer",
-                      fontFamily:"inherit",border:"1px solid "+(added?T.navy:qty>0?T.grn:T.bdrS),
-                      background:added?T.navy:"#fff",color:added?"#fff":T.txt
-                    }}>
-                      {s.name}<span style={{marginLeft:3,fontSize:10,opacity:.7}}>{qty}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
-            <thead><tr style={{background:T.navyXL}}>{["Product","Qty","Notes",""].map(h=>(
-              <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-            ))}</tr></thead>
-            <tbody>
-              {rows.map((row,i)=>(
-                <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                  <td style={{padding:"5px 6px"}}>
-                    <input list="req-products" value={row.productName}
-                      onChange={e=>upRow(i,"productName",e.target.value)}
-                      placeholder="Product..."
-                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"5px 6px",width:90}}>
-                    <input type="number" value={row.qty} min="1"
-                      onChange={e=>upRow(i,"qty",e.target.value)}
-                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"5px 6px"}}>
-                    <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
-                      placeholder="Reason..."
-                      style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                  </td>
-                  <td style={{padding:"5px 6px",width:36,textAlign:"center"}}>
-                    <button onClick={()=>rmRow(i)}
-                      style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.red}}>×</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <datalist id="req-products">
-            {(state.salesItems&&state.salesItems.length>0
-              ? state.salesItems.filter(s=>s.active!==false)
-              : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
-                 {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
-            ).map(s=>{
-              const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-              const qty=inv?Number(inv.currentStock||0):0;
-              return <option key={s.id||s.name} value={s.name} label={`Stock: ${qty} ${s.unit||"pcs"}`}/>;
-            })}
-            {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
-              .map(i=><option key={i.id} value={i.productName}/>)}
-          </datalist>
-          <div style={{display:"flex",gap:8}}>
-            <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
-            <Btn onClick={submit} variant="amber" disabled={saving}>
-              {saving?"Submitting...":"📤 Submit Request"}
-            </Btn>
-          </div>
-        </Card>
-      )}
+    <div style={{padding:20}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Request Stock</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Request products from godown</div>
 
-      {myRequests.length>0 && (
-        <div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Requests ({myRequests.length})</div>
-          {myRequests.map(req=>(
-            <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:13}}>{fmtDate(req.date)} · {req.items.length} item(s)</div>
-                  {editingReq!==req.id && (
-                    <>
-                      <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                        {req.items.map(it=>`${it.productName} × ${it.qty}`).join(" | ")}
-                      </div>
-                      {(req.status==="approved"||req.status==="partial") && (
-                        <div style={{fontSize:11,color:T.grn,marginTop:2,fontWeight:600}}>
-                          ✅ Released: {req.items.filter(it=>Number(it.approvedQty)>0)
-                            .map(it=>`${it.productName} × ${it.approvedQty}`).join(" | ")}
-                        </div>
-                      )}
-                    </>
-                  )}
+      <Card style={{marginBottom:20}}>
+        {/* Request type */}
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          {[["counter","🏪 Counter Request"],["direct","🚗 Direct / Non-Counter"]].map(([type,label])=>(
+            <button key={type} onClick={()=>setRequestType(type)} style={{
+              padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",
+              fontFamily:"inherit",border:"2px solid "+(requestType===type?T.navy:T.bdrS),
+              background:requestType===type?T.navy:"#fff",color:requestType===type?"#fff":T.txt
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {/* Counter selector - optional */}
+        {requestType==="counter" && (
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>
+              Counter {canManageAll?"(select any)":""}
+            </label>
+            <select value={selCounterId} onChange={e=>setSelCounterId(e.target.value)}
+              style={{padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,
+                fontSize:13,fontFamily:"inherit",outline:"none",minWidth:220}}>
+              <option value="">— No specific counter —</option>
+              {state.counters.filter(c=>c.name!=="OFFICE").sort((a,b)=>a.name.localeCompare(b.name)).map(c=>(
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Urgency */}
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Priority</label>
+          <div style={{display:"flex",gap:8}}>
+            {[["normal","🟢 Normal"],["urgent","🔴 Urgent"]].map(([u,label])=>(
+              <button key={u} onClick={()=>setUrgency(u)} style={{
+                padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                fontFamily:"inherit",border:"2px solid "+(urgency===u?(u==="urgent"?T.red:T.grn):T.bdrS),
+                background:urgency===u?(u==="urgent"?"#FEF2F2":"#F0FDF4"):"#fff",
+                color:urgency===u?(u==="urgent"?T.red:T.grn):T.txt
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Add from Sales Items */}
+        {(state.salesItems&&state.salesItems.length>0)&&(
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Quick Add Product</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {state.salesItems.filter(s=>s.active!==false).map(s=>{
+                const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                const qty=inv?Number(inv.currentStock||0):0;
+                const added=rows.some(r=>r.productName===s.name);
+                return (
+                  <button key={s.id} onClick={()=>{
+                    if(added){toast.show(s.name+" already added","error");return;}
+                    setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",notes:""}]);
+                  }} style={{
+                    padding:"4px 10px",borderRadius:14,fontSize:11,fontWeight:600,cursor:"pointer",
+                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:qty>0?T.grn:T.bdrS),
+                    background:added?T.navy:"#fff",color:added?"#fff":T.txt
+                  }}>
+                    {s.name}<span style={{marginLeft:3,fontSize:10,opacity:.7}}>{qty}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Product rows */}
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10}}>
+          <thead><tr style={{background:T.navyXL}}>
+            {["Product","Qty","Notes",""].map(h=>(
+              <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {rows.map((row,i)=>(
+              <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                <td style={{padding:"5px 6px"}}>
+                  <input list="req-products" value={row.productName}
+                    onChange={e=>upRow(i,"productName",e.target.value)}
+                    placeholder="Product name"
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:80}}>
+                  <input type="number" value={row.qty} min="1"
+                    onChange={e=>upRow(i,"qty",e.target.value)}
+                    placeholder="Qty"
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+                </td>
+                <td style={{padding:"5px 6px"}}>
+                  <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
+                    placeholder="Notes (optional)"
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:36}}>
+                  {rows.length>1&&<button onClick={()=>rmRow(i)} style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"2px"}}>×</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <datalist id="req-products">
+          {(state.salesItems&&state.salesItems.length>0
+            ? state.salesItems.filter(s=>s.active!==false)
+            : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
+               {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
+          ).map(s=>{
+            const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+            const qty=inv?Number(inv.currentStock||0):0;
+            return <option key={s.id||s.name} value={s.name} label={`Stock: ${qty} ${s.unit||"pcs"}`}/>;
+          })}
+        </datalist>
+
+        <div style={{display:"flex",gap:8,marginTop:4}}>
+          <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
+          <Btn onClick={submit} variant="amber" disabled={saving}>
+            {saving?"Submitting...":"📤 Submit Request"}
+          </Btn>
+        </div>
+      </Card>
+
+      {/* Pending requests */}
+      {pending.length>0&&(
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:8}}>⏳ Pending ({pending.length})</div>
+          {pending.map(req=>(
+            <Card key={req.id} style={{marginBottom:8,borderLeft:"4px solid "+T.amber}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>
+                    {req.counterName||"Direct Request"} · {fmtDate(req.date)}
+                    {req.urgency==="urgent"&&<span style={{marginLeft:6,color:T.red,fontSize:11,fontWeight:800}}>🔴 URGENT</span>}
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {req.items.map(it=>`${it.productName} ×${it.qty}`).join(", ")}
+                  </div>
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                  {req.status==="pending" && editingReq!==req.id && <>
-                    <Btn onClick={()=>{setEditingReq(req.id);setEditRows(req.items.map(it=>({...it})));}} size="sm" variant="outline">✏️ Edit</Btn>
-                    <Btn onClick={()=>cancelReq(req)} size="sm" variant="danger">✕ Cancel</Btn>
-                  </>}
-                  {(req.status==="cancelled"||req.status==="rejected") && (
-                    <Btn onClick={()=>{
-                      if(!confirm("Delete this request?")) return;
-                      setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
-                      supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
-                      toast.show("Request deleted");
-                    }} size="sm" variant="danger">🗑 Delete</Btn>
-                  )}
-                  {req.status==="pending" && editingReq===req.id && <>
-                    <Btn onClick={()=>saveEdit(req)} size="sm" variant="amber">💾 Save</Btn>
-                    <Btn onClick={()=>setEditingReq(null)} size="sm" variant="ghost">Cancel</Btn>
-                  </>}
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                  <Btn onClick={()=>cancelReq(req)} variant="danger" size="sm">Cancel</Btn>
                 </div>
               </div>
-              {editingReq===req.id && (
-                <div style={{marginTop:10,borderTop:"1px solid "+T.bdr,paddingTop:10}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                    <thead><tr style={{background:T.navyXL}}>
-                      {["Product","Qty","Notes",""].map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:T.txt2}}>{h}</th>)}
-                    </tr></thead>
-                    <tbody>
-                       {editRows.map((row,i)=>(
-                         <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                           <td style={{padding:"4px 5px"}}>
-                             <input list="req-edit-products" value={row.productName} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,productName:e.target.value}:r))} style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                           </td>
-                           <td style={{padding:"4px 5px",width:70}}>
-                             <input type="number" value={row.qty} min="1" onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,qty:e.target.value}:r))} style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                           </td>
-                           <td style={{padding:"4px 5px"}}>
-                             <input value={row.notes||""} onChange={e=>setEditRows(p=>p.map((r,j)=>j===i?{...r,notes:e.target.value}:r))} style={{width:"100%",padding:"4px 6px",border:"1px solid "+T.bdrS,borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                           </td>
-                           <td style={{padding:"4px 5px",width:30,textAlign:"center"}}>
-                             <button onClick={()=>setEditRows(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15}}>×</button>
-                           </td>
-                         </tr>
-                       ))}
-                     </tbody>
-                  </table>
-                  <datalist id="req-edit-products">
-                    {(state.workTypes||[]).map(w=><option key={w.id} value={w.name}/>)}
-                    {(state.inventory||[]).map(i=><option key={i.id} value={i.productName}/>)}
-                  </datalist>
-                  <Btn onClick={()=>setEditRows(p=>[...p,{productName:"",qty:"",notes:""}])} size="sm" variant="outline" style={{marginTop:6}}>+ Row</Btn>
-                </div>
-              )}
             </Card>
           ))}
         </div>
       )}
+
+      {/* History */}
+      {history.length>0&&(
+        <div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>History ({history.length})</div>
+          {history.slice(0,20).map(req=>(
+            <Card key={req.id} style={{marginBottom:6,borderLeft:"3px solid "+statusColor(req.status)}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>
+                    {req.counterName||"Direct"} · {fmtDate(req.date)}
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                    {(req.status==="approved"||req.status==="partial")&&
+                      <span style={{color:T.grn}}> → Approved: {req.items.filter(it=>Number(it.approvedQty)>0).map(it=>`${it.productName}×${it.approvedQty}`).join(", ")}</span>
+                    }
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                  <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {pending.length===0&&history.length===0&&(
+        <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No stock requests yet. Use the form above to create one.</div></Card>
+      )}
     </div>
   );
 }
+
 
 function StockRequestsApproval({ user, state, setState, toast }) {
   const pending = (state.stockRequests||[]).filter(r=>r.status==="pending").sort((a,b)=>b.date.localeCompare(a.date));
