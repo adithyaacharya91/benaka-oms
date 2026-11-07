@@ -7106,7 +7106,8 @@ function StockRequest({ user, state, setState, toast }) {
       }
       // Create restore transaction
       for (const it of approvedItems) {
-        const tx = {id:`tx_restore_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:`Restored — request cancelled`,doneBy:user.id};
+        const const safeName = it.productName.split(" ").join("_");
+                tx = {id:"tx_restore_"+req.id+"_"+safeName+"_"+Date.now(),date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:"Restored - request cancelled",doneBy:user.id};
         setState(p=>({...p,stockTransactions:[...(p.stockTransactions||[]),tx]}));
         await DB.upsertStockTransaction(tx).catch(console.error);
       }
@@ -7472,7 +7473,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         }, 100);
         // Create dispatch transactions
         const txs = approvedItems.map(it=>({
-          id:`tx_disp_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
+          id:"tx_disp_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),
           date:today(), type:"dispatch", productName:it.productName, qty:it.approvedQty,
           counterId:req.counterId, counterName:req.counterName,
           requestId:req.id, notes:`Dispatched by ${user.name}`, doneBy:user.id,
@@ -7488,7 +7489,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
       const approvedItems = req.items.filter(it=>Number(it.approvedQty)>0);
       if (approvedItems.length>0) {
         const txs = approvedItems.map(it=>({
-          id:`tx_del_${req.id}_${it.productName.replace(/\s+/g,"_")}_${Date.now()}`,
+          id:"tx_del_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),
           date:today(), type:"delivered",
           productName:it.productName, qty:it.approvedQty,
           counterId:req.counterId, counterName:req.counterName||"Direct",
@@ -7612,24 +7613,30 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
                     <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                    <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                    <Badge color={statusColor(req.stockStatus||req.status)}>
+                      {statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}
+                    </Badge>
                   </div>
-                  {/* Stock status progression buttons - only for approved/partial */}
                   {(req.status==="approved"||req.status==="partial")&&(
                     <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                      {["invoiced","dispatched","delivered"].map(s=>(
-                        <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
-                          padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",
-                          fontFamily:"inherit",border:"1px solid "+statusColor(s),
-                          background:(req.stockStatus===s)?statusColor(s):"transparent",
-                          color:(req.stockStatus===s)?"#fff":statusColor(s)
-                        }}>{statusIcon(s)} {s}</button>
-                      ))}
+                      {["invoiced","dispatched","delivered"].map(function(s){
+                        const isActive = req.stockStatus===s;
+                        const col = statusColor(s);
+                        return (
+                          <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
+                            padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,
+                            cursor:"pointer",fontFamily:"inherit",
+                            border:"1px solid "+col,
+                            background:isActive?col:"transparent",
+                            color:isActive?"#fff":col
+                          }}>{statusIcon(s)} {s}</button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               </div>
-              </Card>
+            </Card>
             ))}
           </div>
         )}
