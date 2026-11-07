@@ -850,8 +850,8 @@ const Btn = ({ children, onClick, variant="primary", size="md", disabled, style=
     amber:    { background:T.amber, color:"#fff" },
     success:  { background:T.grn, color:"#fff" },
     danger:   { background:T.red, color:"#fff" },
-    ghost:    { background:"transparent", color:T.txt2, border:`1px solid ${T.bdrS}` },
-    outline:  { background:T.navyXL, color:T.navy, border:`1px solid ${T.navy}22` },
+    ghost:    { background:"transparent", color:T.txt2, border:"1px solid "+(T.bdrS)+" },
+    outline:  { background:T.navyXL, color:T.navy, border:"1px solid "+(T.navy)+"22" },
   };
   return <button style={{...base,...sizes[size],...variants[variant]}} onClick={onClick} disabled={disabled}>{children}</button>;
 };
@@ -861,14 +861,14 @@ const Badge = ({ children, color=T.navy, bg }) => (
 );
 
 const Card = ({ children, style={}, onClick }) => (
-  <div onClick={onClick} style={{ background:T.card, border:`1px solid ${T.bdr}`, borderRadius:12, padding:20, ...style, cursor:onClick?"pointer":"default" }}>{children}</div>
+  <div onClick={onClick} style={{ background:T.card, border:"1px solid "+(T.bdr)+", borderRadius:12, padding:20, ...style, cursor:onClick?"pointer":"default" }}>{children}</div>
 );
 
 const Input = ({ label, value, onChange, type="text", placeholder, required, style={} }) => (
   <div style={{ marginBottom:14 }}>
     {label && <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>{label}{required&&<span style={{color:T.red}}> *</span>}</label>}
     <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-      style={{ width:"100%", padding:"9px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", color:T.txt, background:"#fff", outline:"none", boxSizing:"border-box", ...style }}
+      style={{ width:"100%", padding:"9px 13px", border:"1px solid "+(T.bdrS)+", borderRadius:8, fontSize:14, fontFamily:"inherit", color:T.txt, background:"#fff", outline:"none", boxSizing:"border-box", ...style }}
     />
   </div>
 );
@@ -877,7 +877,7 @@ const Select = ({ label, value, onChange, options, required }) => (
   <div style={{ marginBottom:14 }}>
     {label && <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase", letterSpacing:".04em" }}>{label}{required&&<span style={{color:T.red}}> *</span>}</label>}
     <select value={value} onChange={e=>onChange(e.target.value)}
-      style={{ width:"100%", padding:"9px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", color:T.txt, background:"#fff", outline:"none", boxSizing:"border-box" }}>
+      style={{ width:"100%", padding:"9px 13px", border:"1px solid "+(T.bdrS)+", borderRadius:8, fontSize:14, fontFamily:"inherit", color:T.txt, background:"#fff", outline:"none", boxSizing:"border-box" }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   </div>
@@ -913,11 +913,11 @@ const StatCard = ({ label, value, sub, color=T.navy, icon, trend }) => (
 );
 
 const Tabs = ({ tabs, active, onChange }) => (
-  <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${T.bdr}`, marginBottom:20 }}>
+  <div style={{ display:"flex", gap:4, borderBottom:"1px solid "+(T.bdr)+", marginBottom:20 }}>
     {tabs.map(t => (
       <button key={t.id} onClick={()=>onChange(t.id)} style={{
         padding:"9px 16px", border:"none", background:"none", fontFamily:"inherit",
-        fontSize:13, fontWeight:600, cursor:"pointer", borderBottom:`2px solid ${active===t.id?T.navy:"transparent"}`,
+        fontSize:13, fontWeight:600, cursor:"pointer", borderBottom:"2px solid "+(active===t.id?T.navy:"transparent")+",
         color:active===t.id?T.navy:T.txt2, transition:"all .15s"
       }}>{t.label}</button>
     ))}
@@ -938,17 +938,17 @@ function DateRangePicker({ range, setRange, customFrom, setCustomFrom, customTo,
     <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:16 }}>
       {options.map(o=>(
         <button key={o.id} onClick={()=>setRange(o.id)} style={{
-          padding:"5px 14px", borderRadius:20, border:`1px solid ${range===o.id?T.navy:T.bdrS}`,
+          padding:"5px 14px", borderRadius:20, border:"1px solid "+(range===o.id?T.navy:T.bdrS)+",
           background:range===o.id?T.navy:"transparent", color:range===o.id?"#fff":T.txt2,
           fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s"
         }}>{o.label}</button>
       ))}
       {range==="custom" && <>
         <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}
-          style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+          style={{ padding:"5px 10px", border:"1px solid "+(T.bdrS)+", borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
         <span style={{ fontSize:12, color:T.txt2 }}>→</span>
         <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}
-          style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+          style={{ padding:"5px 10px", border:"1px solid "+(T.bdrS)+", borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
       </>}
     </div>
   );
@@ -1002,15 +1002,15 @@ function useDateRange(defaultRange="today") {
 
 
 const Table = ({ cols, rows, emptyMsg="No data" }) => (
-  <div style={{ overflowX:"auto", border:`1px solid ${T.bdr}`, borderRadius:10 }}>
+  <div style={{ overflowX:"auto", border:"1px solid "+(T.bdr)+", borderRadius:10 }}>
     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
       <thead>
-        <tr>{cols.map(c => <th key={c.key} style={{ background:T.surf, padding:"9px 13px", textAlign:"left", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", letterSpacing:".04em", borderBottom:`1px solid ${T.bdr}`, whiteSpace:"nowrap" }}>{c.label}</th>)}</tr>
+        <tr>{cols.map(c => <th key={c.key} style={{ background:T.surf, padding:"9px 13px", textAlign:"left", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase", letterSpacing:".04em", borderBottom:"1px solid "+(T.bdr)+", whiteSpace:"nowrap" }}>{c.label}</th>)}</tr>
       </thead>
       <tbody>
         {rows.length === 0
           ? <tr><td colSpan={cols.length} style={{ textAlign:"center", padding:28, color:T.txt3, fontSize:13 }}>{emptyMsg}</td></tr>
-          : rows.map((r,i) => <tr key={i}>{cols.map(c => <td key={c.key} style={{ padding:"10px 13px", borderBottom:`1px solid ${T.bdr}`, verticalAlign:"middle" }}>{c.render ? c.render(r) : r[c.key]}</td>)}</tr>)
+          : rows.map((r,i) => <tr key={i}>{cols.map(c => <td key={c.key} style={{ padding:"10px 13px", borderBottom:"1px solid "+(T.bdr)+", verticalAlign:"middle" }}>{c.render ? c.render(r) : r[c.key]}</td>)}</tr>)
         }
       </tbody>
     </table>
@@ -1209,7 +1209,7 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
           <div style={{ fontSize:17, fontWeight:800, marginBottom:4, color:T.txt }}>Sign in</div>
           <div style={{ fontSize:13, color:T.txt2, marginBottom:24 }}>Use your Employee ID and password</div>
 
-          {err && <div style={{ background:T.redL, border:`1px solid ${T.red}44`, borderRadius:8, padding:"10px 14px", fontSize:13, color:T.red, marginBottom:16 }}>{err}</div>}
+          {err && <div style={{ background:T.redL, border:"1px solid "+(T.red)+"44", borderRadius:8, padding:"10px 14px", fontSize:13, color:T.red, marginBottom:16 }}>{err}</div>}
 
           <Input label="Employee ID" value={empId} onChange={v=>{setEmpId(v);setErr("")}} placeholder="e.g. MGR001" />
           <Input label="Password" type="password" value={pwd} onChange={v=>{setPwd(v);setErr("")}} placeholder="Your password" />
@@ -1410,9 +1410,9 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:24 }}>
         <StatCard label="Today's Revenue" value={fmtCurr(todayRevenue)} color={T.amber} icon="💰" sub={target?`Target: ${fmtCurr(target.dailyTarget)}`:"No target set"}/>
-        <StatCard label="Staff Present" value={`${presentToday}/${myStaff.length}`} color={T.grn} icon="👥"/>
+        <StatCard label="Staff Present" value={presentToday+"/"+myStaff.length} color={T.grn} icon="👥"/>
         <StatCard label="Reports Submitted" value={state.serviceReports.filter(r=>r.supervisorId===user.id&&r.date===today()).length} color={T.navy} icon="📋"/>
-        {target && <StatCard label="Daily Target %" value={`${pct}%`} color={pct>=100?T.grn:pct>=70?T.amber:T.red} icon="🎯"/>}
+        {target && <StatCard label="Daily Target %" value={pct+"%"} color={pct>=100?T.grn:pct>=70?T.amber:T.red} icon="🎯"/>}
       </div>
 
       {pct !== null && (
@@ -1433,7 +1433,7 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
           {myStaff.length === 0 ? <div style={{color:T.txt3,fontSize:13}}>No staff assigned</div> :
             myStaff.map(s => {
               const att = todayAtt.find(a=>a.staffId===s.id);
-              return <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.bdr}` }}>
+              return <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid "+(T.bdr)+" }}>
                 <span style={{fontSize:13}}>{s.name}</span>
                 {att ? <Badge color={att.status==="present"?T.lime:T.red}>{att.status}</Badge> : <Badge color={T.txt3}>Not marked</Badge>}
               </div>;
@@ -1487,7 +1487,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
         </div>
         {myCounters.length > 1 && (
           <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
-            style={{ padding:"6px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }}>
+            style={{ padding:"6px 12px",border:"1px solid "+(T.bdrS)+",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }}>
             <option value="all">All My Counters</option>
             {myCounters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -1633,7 +1633,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
         <Card style={{ maxWidth:700 }}>
           <Input label="Date" type="date" value={displayDate} onChange={d=>loadDate(d)}/>
           <div style={{ marginBottom:10 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, marginBottom:8 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, padding:"6px 0", borderBottom:"1px solid "+(T.bdr)+", marginBottom:8 }}>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Staff Member</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Status</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Reason</div>
@@ -1644,7 +1644,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                 <div key={s.id} style={{ display:"grid", gridTemplateColumns:"1fr 250px 1fr", gap:8, alignItems:"center", marginBottom:8,
                   background:changedRef.current.has(s.id)?(curStatus==="present"?"#ECFCCB":curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:T.surf):(curStatus==="present"?"#F7FEDE":curStatus==="absent"?"#FFF8F8":curStatus==="half_day"?"#FFFCF0":T.surf),
                   padding:"8px 10px", borderRadius:8,
-                  borderLeft:`4px solid ${curStatus==="present"?T.lime:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS}`,
+                  borderLeft:"4px solid "+(curStatus==="present"?T.lime:curStatus==="absent"?T.red:curStatus==="half_day"?T.amber:T.bdrS)+",
                   transition:"all 0.2s" }}>
                   <div>
                     <div style={{fontSize:14,fontWeight:700}}>{s.name}{s.id===user.id&&<Badge color={T.navy} style={{marginLeft:6}}>You</Badge>}</div>
@@ -1663,7 +1663,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                       return (
                         <button key={status} onClick={()=>setStatus(s.id, status)} style={{
                           padding:"5px 10px", borderRadius:6,
-                          border:`1px solid ${explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):savedActive?(status==="present"?"#A3E635":status==="absent"?"#FCA5A5":"#FDE68A"):T.bdrS}`,
+                          border:"1px solid "+(explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):savedActive?(status==="present"?"#A3E635":status==="absent"?"#FCA5A5":"#FDE68A"):T.bdrS)+",
                           background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
                               savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
                               "transparent",
@@ -1674,12 +1674,12 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
                     })}
                   </div>
                   <input
-                    key={`reason_${s.id}_${formTick}`}
+                    key={"reason_"+s.id+"_"+formTick}
                     defaultValue={reasonsRef.current[s.id]||""}
                     onChange={e=>{ reasonsRef.current={...reasonsRef.current,[s.id]:e.target.value}; setDirty(true); }}
                     placeholder={curStatus==="absent"?"Reason required":"Optional"}
                     style={{ padding:"6px 10px",
-                      border:`1px solid ${curStatus==="absent"?T.red:T.bdrS}`,
+                      border:"1px solid "+(curStatus==="absent"?T.red:T.bdrS)+",
                       borderRadius:6, fontSize:13, fontFamily:"inherit", outline:"none",
                       background:curStatus==="absent"?T.redL:curStatus==="half_day"?T.amberL:"#fff" }}/>
                 </div>
@@ -1865,7 +1865,7 @@ function SupReport({ user, state, setState, toast }) {
           const isSubmitted = !!state.serviceReports.find(r=>r.counterId===c.id&&r.supervisorId===user.id&&r.date===date);
           return (
             <button key={c.id} onClick={()=>setActiveCounter(c.id)} style={{
-              padding:"8px 16px", borderRadius:8, border:`2px solid ${activeCounter===c.id?T.navy:T.bdrS}`,
+              padding:"8px 16px", borderRadius:8, border:"2px solid "+(activeCounter===c.id?T.navy:T.bdrS)+",
               background:activeCounter===c.id?T.navy:"#fff", color:activeCounter===c.id?"#fff":T.txt,
               fontFamily:"inherit", fontSize:13, fontWeight:600, cursor:"pointer", position:"relative"
             }}>
@@ -1976,9 +1976,9 @@ function SupHistory({ user, state, setState, toast }) {
       <div style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>Report History</div>
       {myCounters.length > 1 && (
         <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-          <button onClick={()=>setSelCounter("all")} style={{ padding:"6px 14px",borderRadius:20,border:`1px solid ${selCounter==="all"?T.navy:T.bdrS}`,background:selCounter==="all"?T.navy:"transparent",color:selCounter==="all"?"#fff":T.txt2,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>All Counters</button>
+          <button onClick={()=>setSelCounter("all")} style={{ padding:"6px 14px",borderRadius:20,border:"1px solid "+(selCounter==="all"?T.navy:T.bdrS)+",background:selCounter==="all"?T.navy:"transparent",color:selCounter==="all"?"#fff":T.txt2,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>All Counters</button>
           {myCounters.map(c=>(
-            <button key={c.id} onClick={()=>setSelCounter(c.id)} style={{ padding:"6px 14px",borderRadius:20,border:`1px solid ${selCounter===c.id?T.amber:T.bdrS}`,background:selCounter===c.id?T.amber:"transparent",color:selCounter===c.id?"#fff":T.txt2,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>{c.name}</button>
+            <button key={c.id} onClick={()=>setSelCounter(c.id)} style={{ padding:"6px 14px",borderRadius:20,border:"1px solid "+(selCounter===c.id?T.amber:T.bdrS)+",background:selCounter===c.id?T.amber:"transparent",color:selCounter===c.id?"#fff":T.txt2,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>{c.name}</button>
           ))}
         </div>
       )}
@@ -2005,7 +2005,7 @@ function SupHistory({ user, state, setState, toast }) {
                 </div>
               </div>
               {expanded===r.id && (
-                <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.bdr}` }}>
+                <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid "+(T.bdr)+" }}>
                   {(() => {
                     const svcEntries = (r.entries||[]).filter(e=>!salesWTNames.includes(e.workTypeName)&&e.type!=="sales"&&e.vehicles>0);
                     const salEntries = (r.entries||[]).filter(e=>(salesWTNames.includes(e.workTypeName)||e.type==="sales")&&e.amount>0);
@@ -2390,7 +2390,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
       </Card>
 
       {pendingLeaves > 0 && (
-        <div style={{ background:T.amberL, border:`1px solid ${T.amber}44`, borderRadius:10, padding:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ background:T.amberL, border:"1px solid "+(T.amber)+"44", borderRadius:10, padding:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ fontSize:13, color:T.amberD, fontWeight:600 }}>⚠ {pendingLeaves} leave request(s) awaiting your approval</div>
           <Btn onClick={()=>setPage("leaves")} size="sm" variant="amber">Review Now</Btn>
         </div>
@@ -3132,7 +3132,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
             const isEditing = editing===`${sub.type}_${sub.id}`;
             return (
               <Card key={sub.id} style={{marginBottom:10,
-                borderLeft:`3px solid ${sub.pct>=100?T.grn:sub.pct>=75?T.amber:sub.targetVal?T.red:T.bdrS}`}}>
+                borderLeft:"3px solid "+(sub.pct>=100?T.grn:sub.pct>=75?T.amber:sub.targetVal?T.red:T.bdrS)+"}}>
                 <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:800,fontSize:14}}>{sub.name}</div>
@@ -3605,7 +3605,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
       <div style={{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:8}}>
         <div style={{flex:1}}><DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/></div>
         <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
-          style={{padding:"6px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+          style={{padding:"6px 12px",border:"1px solid "+(T.bdrS)+",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
           <option value="all">All Counters</option>
           {state.counters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -3618,7 +3618,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
               {["Executive","Service","Sales","Total"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:h==="Executive"?"left":"right",fontSize:11,fontWeight:800,color:T.txt2}}>{h}</th>)}
             </tr></thead>
             <tbody>{execTotals.map(e=>(
-              <tr key={e.exec.id} style={{borderBottom:`1px solid ${T.bdr}`}}>
+              <tr key={e.exec.id} style={{borderBottom:"1px solid "+(T.bdr)+"}}>
                 <td style={{padding:"6px 10px",fontWeight:600}}>{e.exec.name}</td>
                 <td style={{padding:"6px 10px",textAlign:"right"}}>{fmtCurr(e.svc)}</td>
                 <td style={{padding:"6px 10px",textAlign:"right",color:T.grn}}>{fmtCurr(e.sal)}</td>
@@ -3815,14 +3815,14 @@ function MDDashboard({ user, state, syncFromCloud }) {
       <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
         {["today","week","month","quarter","year","custom"].map(r=>(
           <button key={r} onClick={()=>setDateRange(r)} style={{
-            padding:"6px 14px", borderRadius:20, border:`1px solid ${dateRange===r?T.navy:T.bdrS}`,
+            padding:"6px 14px", borderRadius:20, border:"1px solid "+(dateRange===r?T.navy:T.bdrS)+",
             background:dateRange===r?T.navy:"transparent", color:dateRange===r?"#fff":T.txt2,
             fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit"
           }}>{r.charAt(0).toUpperCase()+r.slice(1)}</button>
         ))}
         {dateRange==="custom" && <>
-          <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
-          <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ padding:"5px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+          <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ padding:"5px 10px", border:"1px solid "+(T.bdrS)+", borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
+          <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ padding:"5px 10px", border:"1px solid "+(T.bdrS)+", borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
         </>}
       </div>
 
@@ -3983,19 +3983,19 @@ function MDDashboard({ user, state, syncFromCloud }) {
             : absentToday.map(a => {
               const staff = state.users.find(u=>u.id===a.staffId);
               const sup = state.users.find(u=>u.id===a.supervisorId);
-              return <div key={a.id} style={{ padding:"8px 0", borderBottom:`1px solid ${T.bdr}` }}>
+              return <div key={a.id} style={{ padding:"8px 0", borderBottom:"1px solid "+(T.bdr)+" }}>
                 <div style={{ fontWeight:700, fontSize:13 }}>{staff?.name}</div>
                 <div style={{ fontSize:11, color:T.txt2 }}>{sup?.counter} · {a.reason||"No reason given"}</div>
               </div>;
             })
           }
-          <hr style={{ border:`none`, borderTop:`1px solid ${T.bdr}`, margin:"12px 0" }}/>
+          <hr style={{ border:"none", borderTop:"1px solid "+T.bdr, margin:"12px 0" }}/>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:8 }}>Pending approvals</div>
           {pendingLeaves.length===0
             ? <div style={{ color:T.txt3, fontSize:13 }}>No pending leaves</div>
             : pendingLeaves.slice(0,3).map(l => {
               const u = state.users.find(x=>x.id===l.userId);
-              return <div key={l.id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${T.bdr}`, fontSize:12 }}>
+              return <div key={l.id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid "+(T.bdr)+", fontSize:12 }}>
                 <span><b>{u?.name}</b> — {l.type}</span>
                 <Badge color={T.amber}>{l.status}</Badge>
               </div>;
@@ -4011,10 +4011,10 @@ function MDDashboard({ user, state, syncFromCloud }) {
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead><tr style={{ background:T.surf }}>
-                <th style={{ padding:"8px 12px", textAlign:"left", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Counter</th>
-                <th style={{ padding:"8px 12px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Service</th>
-                <th style={{ padding:"8px 12px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Sales</th>
-                <th style={{ padding:"8px 12px", textAlign:"right", border:`1px solid ${T.bdr}`, fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Total</th>
+                <th style={{ padding:"8px 12px", textAlign:"left", border:"1px solid "+(T.bdr)+", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Counter</th>
+                <th style={{ padding:"8px 12px", textAlign:"right", border:"1px solid "+(T.bdr)+", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Service</th>
+                <th style={{ padding:"8px 12px", textAlign:"right", border:"1px solid "+(T.bdr)+", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Sales</th>
+                <th style={{ padding:"8px 12px", textAlign:"right", border:"1px solid "+(T.bdr)+", fontSize:11, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>Total</th>
               </tr></thead>
               <tbody>
                 {todayReports.map((r,i) => {
@@ -4023,16 +4023,16 @@ function MDDashboard({ user, state, syncFromCloud }) {
                   const svcT = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
                   const salT = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
                   return <tr key={r.id}>
-                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:600 }}>{cname}</td>
-                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right" }}>{fmtCurr(svcT)}</td>
-                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right" }}>{fmtCurr(salT)}</td>
-                    <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, textAlign:"right", fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</td>
+                    <td style={{ padding:"8px 12px", border:"1px solid "+(T.bdr)+", fontWeight:600 }}>{cname}</td>
+                    <td style={{ padding:"8px 12px", border:"1px solid "+(T.bdr)+", textAlign:"right" }}>{fmtCurr(svcT)}</td>
+                    <td style={{ padding:"8px 12px", border:"1px solid "+(T.bdr)+", textAlign:"right" }}>{fmtCurr(salT)}</td>
+                    <td style={{ padding:"8px 12px", border:"1px solid "+(T.bdr)+", textAlign:"right", fontWeight:800, color:T.amber }}>{fmtCurr(r.totalAmount)}</td>
                   </tr>;
                 })}
               </tbody>
               <tfoot><tr style={{ background:T.navyXL }}>
-                <td colSpan={3} style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:800, color:T.navy, textAlign:"right" }}>GRAND TOTAL</td>
-                <td style={{ padding:"8px 12px", border:`1px solid ${T.bdr}`, fontWeight:800, color:T.amber, textAlign:"right", fontSize:15 }}>{fmtCurr(todayRevenue)}</td>
+                <td colSpan={3} style={{ padding:"8px 12px", border:"1px solid "+(T.bdr)+", fontWeight:800, color:T.navy, textAlign:"right" }}>GRAND TOTAL</td>
+                <td style={{ padding:"8px 12px", border:"1px solid "+(T.bdr)+", fontWeight:800, color:T.amber, textAlign:"right", fontSize:15 }}>{fmtCurr(todayRevenue)}</td>
               </tr></tfoot>
             </table>
           </div>
@@ -4115,7 +4115,7 @@ function MDOperations({ state }) {
           const reports = state.serviceReports.filter(r=>r.counterId===c.id||r.counterName===c.name);
           const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
           return (
-            <Card key={c.id} style={{ borderTop:`3px solid ${T.amber}` }}>
+            <Card key={c.id} style={{ borderTop:"3px solid "+(T.amber)+" }}>
               <div style={{ fontSize:15, fontWeight:800, marginBottom:4 }}>{c.name}</div>
               <div style={{ fontSize:12, color:T.txt2, marginBottom:10 }}>{c.dealership}</div>
               <div style={{ fontSize:13, marginBottom:3 }}>👤 Supervisor: <b>{sup?.name||"—"}</b></div>
@@ -4324,7 +4324,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
           <div>
             <label style={{ display:"block", fontSize:12, fontWeight:700, color:T.txt2, marginBottom:5, textTransform:"uppercase" }}>Executive · Counter</label>
             <select value={selSupervisor} onChange={e=>setSelSupervisor(e.target.value)}
-              style={{ width:"100%", padding:"9px 13px", border:`1px solid ${T.bdrS}`, borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none" }}>
+              style={{ width:"100%", padding:"9px 13px", border:"1px solid "+(T.bdrS)+", borderRadius:8, fontSize:14, fontFamily:"inherit", outline:"none" }}>
               <option value="">Select executive...</option>
               {executives.map(u=><option key={u.id} value={u.id}>{u.name} — {u.counter}</option>)}
             </select>
@@ -4336,17 +4336,17 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
         {serviceWTs.map(wt=><option key={wt.id} value={wt.name}/>)}
       </datalist>
       {reportCounters.map((counter, ci) => (
-        <Card key={ci} style={{ marginBottom:16, borderTop:`3px solid ${T.amber}` }}>
+        <Card key={ci} style={{ marginBottom:16, borderTop:"3px solid "+(T.amber)+" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
             <div style={{ width:26,height:26,background:T.navy,color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800 }}>{ci+1}</div>
             <div style={{ flex:1 }}>
               <select value={counter.counterName} onChange={e=>setReportCounters(p=>p.map((c,i)=>i===ci?{...c,counterName:e.target.value}:c))}
-                style={{ padding:"7px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", marginRight:8 }}>
+                style={{ padding:"7px 10px", border:"1px solid "+(T.bdrS)+", borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", marginRight:8 }}>
                 <option value="">Select counter...</option>
                 {state.counters.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
               <input value={counter.counterName} onChange={e=>setReportCounters(p=>p.map((c,i)=>i===ci?{...c,counterName:e.target.value}:c))}
-                placeholder="Or type counter name" style={{ padding:"7px 10px", border:`1px solid ${T.bdrS}`, borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", width:180 }}/>
+                placeholder="Or type counter name" style={{ padding:"7px 10px", border:"1px solid "+(T.bdrS)+", borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", width:180 }}/>
             </div>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:11,color:T.txt2,fontWeight:700,textTransform:"uppercase" }}>Counter Total</div>
@@ -4359,15 +4359,15 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
           <div style={{ overflowX:"auto", marginBottom:16 }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead><tr style={{ background:T.surf }}>
-                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Work Type</th>
-                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:80,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Vehicles</th>
-                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"center",width:100,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Rate (₹)</th>
-                <th style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",textAlign:"right",width:110,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Amount (₹)</th>
+                <th style={{ border:"1px solid "+(T.bdr)+",padding:"6px 10px",textAlign:"left",fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Work Type</th>
+                <th style={{ border:"1px solid "+(T.bdr)+",padding:"6px 10px",textAlign:"center",width:80,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Vehicles</th>
+                <th style={{ border:"1px solid "+(T.bdr)+",padding:"6px 10px",textAlign:"center",width:100,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Rate (₹)</th>
+                <th style={{ border:"1px solid "+(T.bdr)+",padding:"6px 10px",textAlign:"right",width:110,fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase" }}>Amount (₹)</th>
               </tr></thead>
               <tbody>
                 {(counter.entries||[]).map((e,ei)=>(
                   <tr key={ei} style={{ background:e.vehicles>0?"#FFFDF7":"#fff" }}>
-                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                    <td style={{ border:"1px solid "+(T.bdr)+",padding:"5px 8px" }}>
                       <input list="off-wt-list" value={e.workTypeName||""} placeholder="Type work type..."
                         onChange={ev=>{
                           const val=ev.target.value;
@@ -4380,29 +4380,29 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
                         }}
                         style={{ width:"100%",padding:"4px 6px",border:"1px solid "+(e.workTypeName?T.navy:T.bdrS),borderRadius:5,fontSize:12,fontFamily:"inherit",outline:"none",background:e.workTypeName?"#EFF6FF":"#fff" }}/>
                     </td>
-                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                    <td style={{ border:"1px solid "+(T.bdr)+",padding:"5px 8px" }}>
                       <input type="number" value={e.vehicles} onChange={ev=>updateEntry(ci,ei,"vehicles",ev.target.value)} min={0}
-                        style={{ width:"100%",padding:"4px 6px",border:`1px solid ${e.vehicles>0?T.amber:T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center",background:e.vehicles>0?T.amberL:"#fff",fontWeight:e.vehicles>0?700:400 }}/>
+                        style={{ width:"100%",padding:"4px 6px",border:"1px solid "+(e.vehicles>0?T.amber:T.bdrS)+",borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center",background:e.vehicles>0?T.amberL:"#fff",fontWeight:e.vehicles>0?700:400 }}/>
                     </td>
-                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 8px" }}>
+                    <td style={{ border:"1px solid "+(T.bdr)+",padding:"5px 8px" }}>
                       <input type="number" value={e.rate} onChange={ev=>updateEntry(ci,ei,"rate",ev.target.value)} min={0}
-                        style={{ width:"100%",padding:"4px 6px",border:`1px solid ${T.bdrS}`,borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center" }}/>
+                        style={{ width:"100%",padding:"4px 6px",border:"1px solid "+(T.bdrS)+",borderRadius:5,fontSize:13,fontFamily:"inherit",outline:"none",textAlign:"center" }}/>
                     </td>
-                    <td style={{ border:`1px solid ${T.bdr}`,padding:"5px 12px",textAlign:"right",fontWeight:700,color:e.amount>0?T.navy:T.txt3 }}>{e.amount>0?e.amount.toLocaleString("en-IN"):"0"}</td>
+                    <td style={{ border:"1px solid "+(T.bdr)+",padding:"5px 12px",textAlign:"right",fontWeight:700,color:e.amount>0?T.navy:T.txt3 }}>{e.amount>0?e.amount.toLocaleString("en-IN"):"0"}</td>
                   </tr>
                 ))}
               </tbody>
               <tbody>
                 <tr>
-                  <td colSpan={4} style={{ padding:"4px 8px", border:`1px solid ${T.bdr}` }}>
+                  <td colSpan={4} style={{ padding:"4px 8px", border:"1px solid "+(T.bdr)+" }}>
                     <button onClick={()=>setReportCounters(p=>p.map((c2,ci2)=>ci2!==ci?c2:{...c2,entries:[...c2.entries,{workTypeId:"",workTypeName:"",vehicles:0,rate:0,amount:0,type:"service"}]}))}
                       style={{ background:"none", border:"none", color:T.navy, cursor:"pointer", fontSize:12, fontWeight:700, padding:"2px 4px", fontFamily:"inherit" }}>+ Add Row</button>
                   </td>
                 </tr>
               </tbody>
               <tfoot><tr style={{ background:T.navyXL }}>
-                <td colSpan={3} style={{ border:`1px solid ${T.bdr}`,padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy }}>SERVICE TOTAL</td>
-                <td style={{ border:`1px solid ${T.bdr}`,padding:"6px 12px",fontWeight:800,color:T.navy,textAlign:"right" }}>{counterServiceTotal(counter).toLocaleString("en-IN")}</td>
+                <td colSpan={3} style={{ border:"1px solid "+(T.bdr)+",padding:"6px 10px",fontWeight:800,textAlign:"right",color:T.navy }}>SERVICE TOTAL</td>
+                <td style={{ border:"1px solid "+(T.bdr)+",padding:"6px 12px",fontWeight:800,color:T.navy,textAlign:"right" }}>{counterServiceTotal(counter).toLocaleString("en-IN")}</td>
               </tr></tfoot>
             </table>
           </div>
@@ -4456,7 +4456,7 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
       <div style={{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:8}}>
         <div style={{flex:1}}><DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/></div>
         <select value={selCounter} onChange={e=>setSelCounter(e.target.value)}
-          style={{padding:"6px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+          style={{padding:"6px 12px",border:"1px solid "+(T.bdrS)+",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
           <option value="all">All Counters</option>
           {state.counters.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -4533,7 +4533,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
           <div>
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Executive · Counter</label>
             <select value={selExec} onChange={e=>{setSelExec(e.target.value);loadDate(displayDate,e.target.value);}}
-              style={{width:"100%",padding:"8px 12px",border:`1px solid ${T.bdrS}`,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
+              style={{width:"100%",padding:"8px 12px",border:"1px solid "+(T.bdrS)+",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
               <option value="">Select Executive / Manager / MD</option>
               {executives.map(u=><option key={u.id} value={u.id}>{u.name} ({ROLE_LABELS[u.role]||u.role})</option>)}
             </select>
@@ -4542,7 +4542,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
         </div>
         {selExec && staffList.length>0 && (
           <>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 250px 1fr",gap:8,padding:"6px 0",borderBottom:`1px solid ${T.bdr}`,marginBottom:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 250px 1fr",gap:8,padding:"6px 0",borderBottom:"1px solid "+(T.bdr)+",marginBottom:8}}>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Staff</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Status</div>
               <div style={{fontSize:11,fontWeight:800,color:T.txt2,textTransform:"uppercase"}}>Reason</div>
@@ -4561,7 +4561,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
                       const savedActive = active && !changedRef.current.has(s.id);
                       return <button key={status} onClick={()=>setStatus(s.id,status)} style={{
                         padding:"5px 8px",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                        border:`1px solid ${explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):savedActive?(status==="present"?"#A3E635":status==="absent"?"#FCA5A5":"#FDE68A"):T.bdrS}`,
+                        border:"1px solid "+(explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):savedActive?(status==="present"?"#A3E635":status==="absent"?"#FCA5A5":"#FDE68A"):T.bdrS)+",
                         background:explicit?(status==="present"?T.lime:status==="absent"?T.red:T.amber):
                               savedActive?(status==="present"?"#D9F99D":status==="absent"?"#FEE2E2":"#FEF3DC"):
                               "transparent",
@@ -4569,10 +4569,10 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
                       }}>{status==="half_day"?"½":status==="absent"?"Absent":"Present"}</button>;
                     })}
                   </div>
-                  <input key={`r_${s.id}_${formTick}`} defaultValue={reasonsRef.current[s.id]||""}
+                  <input key={"r_"+s.id+"_"+formTick} defaultValue={reasonsRef.current[s.id]||""}
                     onChange={e=>{reasonsRef.current={...reasonsRef.current,[s.id]:e.target.value};setDirty(true);}}
                     placeholder={st==="absent"?"Reason required":"Optional"}
-                    style={{padding:"6px 10px",border:`1px solid ${st==="absent"?T.red:T.bdrS}`,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",background:st==="absent"?T.redL:"#fff"}}/>
+                    style={{padding:"6px 10px",border:"1px solid "+(st==="absent"?T.red:T.bdrS)+",borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",background:st==="absent"?T.redL:"#fff"}}/>
                 </div>
               );
             })}
@@ -6672,9 +6672,9 @@ function DailyNotePortal({ user, state, setState, toast }) {
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Notes ({myNotes.length})</div>
           {myNotes.slice(0,10).map(n=>(
-            <Card key={n.id} style={{marginBottom:8,borderLeft:`3px solid ${
+            <Card key={n.id} style={{marginBottom:8,borderLeft:"3px solid "+(
               n.category==="issue"?"#ef4444":n.category==="demand"?"#f59e0b":
-              n.category==="achievement"?"#10b981":n.category==="suggestion"?"#6366f1":T.navy}`}}>
+              n.category==="achievement"?"#10b981":n.category==="suggestion"?"#6366f1":T.navy)+"}}>
               <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
                 <div style={{flex:1}}>
                   <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
@@ -6789,7 +6789,7 @@ function StaffNotesViewer({ user, state, setState, toast }) {
       {notes.length===0&&<Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No notes for selected period</div></Card>}
 
       {notes.map(n=>(
-        <Card key={n.id} style={{marginBottom:8,borderLeft:`3px solid ${catColors[n.category]||T.navy}`,
+        <Card key={n.id} style={{marginBottom:8,borderLeft:"3px solid "+(catColors[n.category]||T.navy)+",
           background:n.status==="unread"?"#FFFDF7":"#fff",opacity:n.status==="read"?.85:1}}>
           <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
             <div style={{flex:1}}>
@@ -7594,7 +7594,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
           {history.slice(0,30).map(req=>(
-            <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
+            <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
                 <div>
                   <div style={{fontWeight:600,fontSize:13}}>
