@@ -6853,7 +6853,7 @@ function StockCheckin({ user, state, setState, toast }) {
         inv[idx] = { ...inv[idx], currentStock: Number(inv[idx].currentStock||0) + qty,
           lastUpdated:date, updatedBy:user.id };
       } else {
-        inv.push({ id:"inv_"+name.toLowerCase().split("").map(c=>/[a-z0-9]/.test(c)?c:"_").join("")+"_"+Date.now(),
+        inv.push({ id:"inv_"+name.toLowerCase().split("").map(function(c){return(c>="a"&&c<="z")||(c>="0"&&c<="9")?c:"_";}).join("")+"_"+Date.now(),
           productName:name, unit:row.unit||"pcs",
           currentStock:qty, minStock:0, lastUpdated:date, updatedBy:user.id });
       }
@@ -7594,7 +7594,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
           {history.slice(0,30).map(req=>(
-            <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
+            <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
                 <div>
                   <div style={{fontWeight:600,fontSize:13}}>
