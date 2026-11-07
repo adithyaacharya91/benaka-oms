@@ -204,7 +204,7 @@ const DB = {
   },
   async upsertHoliday(h) {
     const row = {id:h.id, date:h.date, name:h.name, type:h.type||"holiday"};
-    const res = await fetch(SUPABASE_URL+"/rest/v1/holidays", {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/holidays`, {
       method: "POST",
       headers: {
         "apikey": SUPABASE_ANON_KEY,
@@ -291,7 +291,7 @@ const DB = {
       status_updated_at: req.statusUpdatedAt||null,
       status_updated_by: req.statusUpdatedBy||null,
     };
-    const res = await fetch(SUPABASE_URL+"/rest/v1/stock_requests", {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stock_requests`, {
       method:"POST",
       headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
       body:JSON.stringify(row)
@@ -1060,7 +1060,7 @@ function useBirthdayNotifications(state, currentUser) {
 
     // Show in-app notification
     const names = birthdayPeople.map(u => u.name).join(', ');
-    const key = "bday_notified_"+todayStr;
+    const key = `bday_notified_${todayStr}`;
     if (localStorage.getItem(key)) return; // already notified today
     localStorage.setItem(key, '1');
 
@@ -1198,7 +1198,7 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:`linear-gradient(135deg, ${T.navy} 0%, ${T.navyL} 60%, #1a4a6b 100%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg, "+T.navy+" 0%, "+T.navyL+" 60%, #1a4a6b 100%)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div style={{ width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ width:64, height:64, background:T.amber, borderRadius:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:32, marginBottom:12 }}>✨</div>
@@ -1409,7 +1409,7 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:24 }}>
-        <StatCard label="Today's Revenue" value={fmtCurr(todayRevenue)} color={T.amber} icon="💰" sub={target?`Target: ${fmtCurr(target.dailyTarget)}`:"No target set"}/>
+        <StatCard label="Today's Revenue" value={fmtCurr(todayRevenue)} color={T.amber} icon="💰" sub={target?"Target: "+fmtCurr(target.dailyTarget):"No target set"}/>
         <StatCard label="Staff Present" value={presentToday+"/"+myStaff.length} color={T.grn} icon="👥"/>
         <StatCard label="Reports Submitted" value={state.serviceReports.filter(r=>r.supervisorId===user.id&&r.date===today()).length} color={T.navy} icon="📋"/>
         {target && <StatCard label="Daily Target %" value={pct+"%"} color={pct>=100?T.grn:pct>=70?T.amber:T.red} icon="🎯"/>}
@@ -3129,7 +3129,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
 
           {/* Cards */}
           {subjects.map(sub=>{
-            const isEditing = editing===`${sub.type}_${sub.id}`;
+            const isEditing = editing===sub.type+"_"+sub.id;
             return (
               <Card key={sub.id} style={{marginBottom:10,
                 borderLeft:"3px solid "+sub.pct>=100?T.grn:sub.pct>=75?T.amber:sub.targetVal?T.red:T.bdrS}}>
@@ -3148,7 +3148,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
                     )}
                     {!sub.targetVal && (()=>{
                       const allSet = periods.filter(p=>{
-                        const k = `tgt_${sub.type}_${sub.id}_${p.id}_`;
+                        const k = "tgt_"+sub.type+"_"+sub.id+"_"+p.id+"_";
                         return (state.targets||[]).some(t=>t.id.startsWith(k));
                       }).map(p=>p.label);
                       return allSet.length>0
@@ -3775,7 +3775,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ background:`linear-gradient(135deg,${T.navy} 0%,${T.navyL} 100%)`, borderRadius:16, padding:24, marginBottom:20, color:"#fff" }}>
+      <div style={{ background:"linear-gradient(135deg,"+T.navy+" 0%,"+T.navyL+" 100%)", borderRadius:16, padding:24, marginBottom:20, color:"#fff" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
           <div>
             <div style={{ fontSize:11, opacity:.6, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Live Dashboard</div>
@@ -3833,7 +3833,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
           {dailyRevs.map((d,i) => (
             <div key={d.date} style={{ flex:"0 0 auto", display:"flex", flexDirection:"column", alignItems:"center", gap:4, minWidth:36 }}>
               <div style={{ fontSize:9, color:T.txt3, transform:"rotate(-45deg)", whiteSpace:"nowrap", marginBottom:2 }}>{d.date.slice(5)}</div>
-              <div title={fmtCurr(d.rev)} style={{ width:28, background:d.date===today()?T.amber:d.rev>0?T.navy:T.bdr, borderRadius:"3px 3px 0 0", height:`${Math.max(4,Math.round(d.rev/maxDailyRev*60))}px`, cursor:"pointer", transition:"opacity .15s" }}/>
+              <div title={fmtCurr(d.rev)} style={{ width:28, background:d.date===today()?T.amber:d.rev>0?T.navy:T.bdr, borderRadius:"3px 3px 0 0", height:Math.max(4,Math.round(d.rev/maxDailyRev*60))+"px", cursor:"pointer", transition:"opacity .15s" }}/>
               {d.rev>0 && <div style={{ fontSize:9, color:T.txt3 }}>₹{Math.floor(d.rev * 0.001)}k</div>}
             </div>
           ))}
@@ -3845,7 +3845,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
       </Card>
 
       {/* Counter live status grid */}
-      <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>Counter Status — {dateRange==="today"?"Today":from===to?fmtDate(from):`${fmtDate(from)} → ${fmtDate(to)}`}</div>
+      <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>Counter Status — {dateRange==="today"?"Today":from===to?fmtDate(from):fmtDate(from)+" → "+fmtDate(to)}</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:14, marginBottom:20 }}>
         {counterStats.map(c => (
           <Card key={c.id} style={{ borderTop:"3px solid "+(c.todayAmt>0||c.todayRep?T.grn:c.total>0?T.amber:T.bdr), padding:16 }}>
@@ -3953,9 +3953,9 @@ function MDDashboard({ user, state, syncFromCloud }) {
             const months = [];
             for (let i=5; i>=0; i--) {
               const d = new Date(); d.setMonth(d.getMonth()-i);
-              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+              const key = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
               const rev = state.serviceReports.filter(r=>r.date.startsWith(key)).reduce((s,r)=>s+r.totalAmount,0);
-              months.push({ key, label:`${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear().toString().slice(-2)}`, rev });
+              months.push({ key, label:String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear().toString().slice(-2), rev });
             }
             const maxR = Math.max(...months.map(m=>m.rev),1);
             return months.map((m,i) => {
@@ -5133,10 +5133,10 @@ function UserMgmt({ user, state, setState, toast }) {
       {/* Filter tabs */}
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
         {[
-          {id:"active",   label:`Active (${counts.active})`,   color:T.grn},
-          {id:"inactive", label:`Inactive (${counts.inactive})`, color:T.amber},
-          {id:"resigned", label:`Resigned (${counts.resigned})`, color:T.red},
-          {id:"all",      label:`All (${state.users.length})`,   color:T.navy},
+          {id:"active",   label:"Active ("+counts.active+")",   color:T.grn},
+          {id:"inactive", label:"Inactive ("+counts.inactive+")", color:T.amber},
+          {id:"resigned", label:"Resigned ("+counts.resigned+")", color:T.red},
+          {id:"all",      label:"All ("+state.users.length+")",   color:T.navy},
         ].map(tab=>(
           <button key={tab.id} onClick={()=>setViewFilter(tab.id)} style={{
             padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
@@ -5177,7 +5177,7 @@ function UserMgmt({ user, state, setState, toast }) {
             }
           </div>
         )},
-      ]} rows={filteredUsers} emptyMsg={`No ${viewFilter} users`}/>
+      ]} rows={filteredUsers} emptyMsg={"No "+viewFilter+" users"}/>
     </div>
   );
 }
@@ -6673,6 +6673,8 @@ function DailyNotePortal({ user, state, setState, toast }) {
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Notes ({myNotes.length})</div>
           {myNotes.slice(0,10).map(n=>(
             <Card key={n.id} style={{marginBottom:8,borderLeft:"3px solid "+n.category==="issue"?"#ef4444":n.category==="demand"?"#f59e0b":n.category==="achievement"?"#10b981":n.category==="suggestion"?"#6366f1":T.navy}}>
+
+
               <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
                 <div style={{flex:1}}>
                   <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
@@ -6909,7 +6911,7 @@ function StockCheckin({ user, state, setState, toast }) {
                         .reduce((sum,r)=>sum+(r.items||[]).filter(it=>it.productName===s.name).reduce((s2,it)=>s2+Number(it.qty||0),0),0);
                       const avail=Math.max(0,qty-livePend);
                       return <span style={{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(avail>0?T.grn:T.red),fontWeight:700}}>
-                        {avail}{s.unit||"pcs"}{livePend>0?` (${livePend} pend)`:""}
+                        {avail}{s.unit||"pcs"}{livePend>0?" ("+livePend+" pend)":""}
                       </span>;
                     })()}
                   </button>
@@ -6973,8 +6975,8 @@ function StockCheckin({ user, state, setState, toast }) {
                 .reduce((a,it)=>a+Number(it.qty||0),0),0);
             const avail=Math.max(0,total-livePend);
             const label=livePend>0
-              ? `${s.name} — Available: ${avail} (${livePend} pending)`
-              : `${s.name} — Stock: ${avail} ${s.unit||"pcs"}`;
+              ? s.name+" — Available: "+avail+" ("+livePend+" pending)"
+              : s.name+" — Stock: "+avail+" "+(s.unit||"pcs");
             return <option key={s.id||s.name} value={s.name} label={label}/>;
           })}
           {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
@@ -7032,7 +7034,7 @@ function StockRequest({ user, state, setState, toast }) {
     setSaving(true);
     const counter = (requestType==="counter"&&selCounterId) ? state.counters.find(c=>c.id===selCounterId) : null;
     const req = {
-      id: `req_${user.id}_${Date.now()}`,
+      id: "req_"+user.id+"_"+Date.now(),
       date: today(),
       counterId:   counter?.id||"",
       counterName: requestType==="direct" ? "Direct Sales" : (counter?.name||""),
@@ -7245,8 +7247,8 @@ function StockRequest({ user, state, setState, toast }) {
                         .reduce((a,it)=>a+Number(it.qty||0),0),0);
                     const avail=Math.max(0,total-livePend);
                     const label=livePend>0
-                      ? `${s.name} — Avail: ${avail} ${s.unit||"pcs"} (${livePend} pending)`
-                      : `${s.name} — Stock: ${avail} ${s.unit||"pcs"}`;
+                      ? s.name+" — Avail: "+avail+" "+(s.unit||"pcs")+" ("+livePend+" pending)"
+                      : s.name+" — Stock: "+avail+" "+(s.unit||"pcs");
                     return <option key={s.id||s.name} value={s.name}>{label}</option>;
                   })}
                 </select>
@@ -7810,7 +7812,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                             setState(p=>({...p,stockRequests:p.stockRequests.filter(x=>x.id!==req.id)}));
                             toast.show("Request deleted");
                           }
-                          fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                          fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
                         }} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15,padding:"2px 6px"}}>🗑</button>
                       </td>
                     </tr>
