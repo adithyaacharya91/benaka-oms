@@ -7,7 +7,7 @@ const SUPABASE_URL = "https://hrqyuxwpxiffyqolpgdo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhycXl1eHdweGlmZnlxb2xwZ2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTYzOTMsImV4cCI6MjEwMzU5MjM5M30.EOMujy8n-pHPaBcYj8UZe_u2Bfa3IQ02dRPT_ZioKAs";
 
 const supabase = (() => {
-  const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" };
+  const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY, "Content-Type": "application/json", "Prefer": "return=representation" };
   const rpc  = (path, body) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method:"POST", headers, body:JSON.stringify(body) }).then(r=>r.json());
   const get  = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers }).then(r=>r.json());
   const post = (table, data) => fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method:"POST", headers, body:JSON.stringify(data) }).then(r=>r.json());
@@ -43,7 +43,7 @@ const DB = {
     if (filter.date) url += `&date=eq.${filter.date}`;
     if (filter.supervisorId) url += `&supervisor_id=eq.${filter.supervisorId}`;
     if (filter.fromDate) url += `&date=gte.${filter.fromDate}&date=lte.${filter.toDate||filter.fromDate}`;
-    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     return r.json();
   },
   async upsertReport(report) {
@@ -67,7 +67,7 @@ const DB = {
     let url = `${SUPABASE_URL}/rest/v1/attendance?select=*`;
     if (filter.date) url += `&date=eq.${filter.date}`;
     if (filter.supervisorId) url += `&supervisor_id=eq.${filter.supervisorId}`;
-    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     return r.json();
   },
   async upsertAttendance(records) {
@@ -76,7 +76,7 @@ const DB = {
   },
   // Leaves
   async getLeaves() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/leaves?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/leaves?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const data = await r.json();
     return Array.isArray(data) ? data : [];
   },
@@ -100,7 +100,7 @@ const DB = {
   },
   // Feedback
   async getFeedback() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/feedback?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/feedback?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json();
     return Array.isArray(d) ? d : [];
   },
@@ -132,7 +132,7 @@ const DB = {
   async getCollectionReports(filter={}) {
     let url = `${SUPABASE_URL}/rest/v1/collection_reports?select=*`;
     if (filter.date) url += `&date=eq.${filter.date}`;
-    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(url, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json();
     return Array.isArray(d) ? d : [];
     },
@@ -161,7 +161,7 @@ const DB = {
   },
   // Targets
   async getTargets() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_targets?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_targets?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json(); return Array.isArray(d) ? d : [];
   },
   async upsertTargets(items) {
@@ -185,7 +185,7 @@ const DB = {
       method: "POST",
       headers: {
         "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Authorization": "Bearer "+SUPABASE_ANON_KEY,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates,return=representation"
       },
@@ -198,17 +198,17 @@ const DB = {
   },
   // Holidays
   async getHolidays() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/holidays?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/holidays?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json();
     return Array.isArray(d) ? d : [];
   },
   async upsertHoliday(h) {
     const row = {id:h.id, date:h.date, name:h.name, type:h.type||"holiday"};
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/holidays`, {
+    const res = await fetch(SUPABASE_URL+"/rest/v1/holidays", {
       method: "POST",
       headers: {
         "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Authorization": "Bearer "+SUPABASE_ANON_KEY,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates,return=representation"
       },
@@ -224,22 +224,22 @@ const DB = {
   },
   // Sales Items Master
   async getSalesItems() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/sales_items?select=*&order=name`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/sales_items?select=*&order=name`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json(); return Array.isArray(d) ? d : [];
   },
   async upsertSalesItem(item) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/sales_items`, {
-      method:"POST", headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+      method:"POST", headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
       body:JSON.stringify({id:item.id,name:item.name.trim(),unit:item.unit||"pcs",category:item.category||"general",rate:Number(item.rate)||0,active:item.active!==false})
     });
     const d = await res.json(); return res.ok ? d : d;
   },
   async deleteSalesItem(id) {
-    return fetch(`${SUPABASE_URL}/rest/v1/sales_items?id=eq.${id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}});
+    return fetch(`${SUPABASE_URL}/rest/v1/sales_items?id=eq.${id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}});
   },
   // Inventory
   async getInventory() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json(); return Array.isArray(d) ? d : [];
   },
   async upsertInventory(items) {
@@ -250,9 +250,9 @@ const DB = {
       min_stock: Number(i.minStock)||0, last_updated: i.lastUpdated||today(),
       updated_by: i.updatedBy||"",
     }));
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory`, {
+    const res = await fetch(SUPABASE_URL+"/rest/v1/inventory", {
       method:"POST",
-      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
       body:JSON.stringify(rows)
     });
     const data = await res.json();
@@ -260,7 +260,7 @@ const DB = {
     return Array.isArray(data)?data:[data];
   },
   async getStockTransactions() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_transactions?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_transactions?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json(); return Array.isArray(d) ? d : [];
   },
   async upsertStockTransaction(tx) {
@@ -273,7 +273,7 @@ const DB = {
     return supabase.from("stock_transactions").upsert(row);
   },
   async getStockRequests() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_requests?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_requests?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const d = await r.json(); return Array.isArray(d) ? d : [];
   },
   async upsertStockRequest(req) {
@@ -291,9 +291,9 @@ const DB = {
       status_updated_at: req.statusUpdatedAt||null,
       status_updated_by: req.statusUpdatedBy||null,
     };
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/stock_requests`, {
+    const res = await fetch(SUPABASE_URL+"/rest/v1/stock_requests", {
       method:"POST",
-      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
       body:JSON.stringify(row)
     });
     const data = await res.json();
@@ -302,7 +302,7 @@ const DB = {
   },
   // Salaries
   async getSalaries(month) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/salaries?select=*${month?`&month=eq.${month}`:""}`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/salaries?select=*${month?`&month=eq.${month}`:""}`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     return r.json();
   },
   async upsertSalary(sal) {
@@ -311,8 +311,8 @@ const DB = {
   // Users & Config
   async getConfig() {
     const [users, passwords] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/app_users?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json()),
-      fetch(`${SUPABASE_URL}/rest/v1/app_passwords?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json()),
+      fetch(`${SUPABASE_URL}/rest/v1/app_users?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } }).then(r=>r.json()),
+      fetch(`${SUPABASE_URL}/rest/v1/app_passwords?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } }).then(r=>r.json()),
     ]);
     return { users, passwords };
   },
@@ -338,7 +338,7 @@ const DB = {
     return res;
   },
   async getCounters() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     return r.json();
   },
   async upsertCounters(counters) {
@@ -358,7 +358,7 @@ const DB = {
     return result;
   },
   async getWorkTypes() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     return r.json();
   },
   async upsertWorkTypes(workTypes) {
@@ -370,7 +370,7 @@ const DB = {
     return supabase.from("app_work_types").upsert(rows);
   },
   async getPlannedLeaves() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/planned_leaves?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/planned_leaves?select=*`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } });
     const data = await r.json();
     return Array.isArray(data) ? data : [];
   },
@@ -389,10 +389,10 @@ const DB = {
   },
   async seedConfigIfEmpty() {
     // Seed counters if empty
-    const ec = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json());
+    const ec = await fetch(`${SUPABASE_URL}/rest/v1/app_counters?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } }).then(r=>r.json());
     if (Array.isArray(ec) && ec.length === 0) await DB.upsertCounters(INITIAL_STATE.counters);
     // Seed work types if empty
-    const ew = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json());
+    const ew = await fetch(`${SUPABASE_URL}/rest/v1/app_work_types?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } }).then(r=>r.json());
     if (Array.isArray(ew) && ew.length === 0) await DB.upsertWorkTypes(INITIAL_STATE.workTypes);
   },
   async upsertPasswords(passwords) {
@@ -404,7 +404,7 @@ const DB = {
   },
   async seedUsersIfEmpty(users, passwords) {
     // Only seed if table is empty
-    const existing = await fetch(`${SUPABASE_URL}/rest/v1/app_users?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }).then(r=>r.json());
+    const existing = await fetch(`${SUPABASE_URL}/rest/v1/app_users?select=id&limit=1`, { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY } }).then(r=>r.json());
     if (Array.isArray(existing) && existing.length === 0) {
       await DB.upsertUsers(users);
       await DB.upsertPasswords(passwords);
@@ -1060,7 +1060,7 @@ function useBirthdayNotifications(state, currentUser) {
 
     // Show in-app notification
     const names = birthdayPeople.map(u => u.name).join(', ');
-    const key = `bday_notified_${todayStr}`;
+    const key = "bday_notified_"+todayStr;
     if (localStorage.getItem(key)) return; // already notified today
     localStorage.setItem(key, '1');
 
@@ -3000,7 +3000,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
   const deleteTarget = async (tgt) => {
     if (!confirm("Remove this target?")) return;
     setState(p=>({...p, targets:(p.targets||[]).filter(t=>t.id!==tgt.id)}));
-    await fetch(`${SUPABASE_URL}/rest/v1/app_targets?id=eq.${tgt.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}});
+    await fetch(`${SUPABASE_URL}/rest/v1/app_targets?id=eq.${tgt.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}});
     toast.show("Target removed");
   };
 
@@ -6672,9 +6672,7 @@ function DailyNotePortal({ user, state, setState, toast }) {
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Notes ({myNotes.length})</div>
           {myNotes.slice(0,10).map(n=>(
-            <Card key={n.id} style={{marginBottom:8,borderLeft:"3px solid "+
-              n.category==="issue"?"#ef4444":n.category==="demand"?"#f59e0b":
-              n.category==="achievement"?"#10b981":n.category==="suggestion"?"#6366f1":T.navy}}>
+            <Card key={n.id} style={{marginBottom:8,borderLeft:"3px solid "+n.category==="issue"?"#ef4444":n.category==="demand"?"#f59e0b":n.category==="achievement"?"#10b981":n.category==="suggestion"?"#6366f1":T.navy}}>
               <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
                 <div style={{flex:1}}>
                   <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
@@ -6882,7 +6880,7 @@ function StockCheckin({ user, state, setState, toast }) {
         {state.inventory?.length>0 && (
           <div style={{background:T.navyXL,borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12}}>
             <b>Current Stock:</b>{" "}
-            {(state.inventory||[]).map(i=>`${i.productName}: ${i.currentStock} ${i.unit}`).join(" · ")}
+            {(state.inventory||[]).map(function(i){return i.productName+": "+i.currentStock+" "+i.unit;}).join(" · ")}
           </div>
         )}
 
@@ -7069,7 +7067,7 @@ function StockRequest({ user, state, setState, toast }) {
     setSaving(false);
     if (res&&res.code) toast.show("DB error: "+res.message,"error");
     else {
-      toast.show("✅ Request submitted! "+valid.map(r=>`${r.productName} ×${r.qty}`).join(", ")+" blocked.");
+      toast.show("✅ Request submitted! "+valid.map(function(r){return r.productName+" ×"+r.qty;}).join(", ")+" blocked.");
       setRows([{productName:"",qty:"",notes:""}]);
     }
   };
@@ -7098,15 +7096,15 @@ function StockRequest({ user, state, setState, toast }) {
     // Persist to DB
     setTimeout(async ()=>{
       for (const item of restoredItems) {
-        await fetch(`${SUPABASE_URL}/rest/v1/inventory`,{
+        await fetch(SUPABASE_URL+"/rest/v1/inventory",{
           method:"POST",
-          headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
+          headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},
           body:JSON.stringify({id:item.id,product_id:item.productId||item.id,product_name:item.productName||item.name,unit:item.unit||"pcs",current_stock:Number(item.currentStock)||0,pending_qty:0,min_stock:Number(item.minStock)||0,last_updated:today(),updated_by:user.id})
         }).catch(console.error);
       }
       // Create restore transaction
       for (const it of approvedItems) {
-        const tx = {id:`tx_restore_${req.id}_${it.productName.split(" ").join("_")}_${Date.now()}`,date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:`Restored — request cancelled`,doneBy:user.id};
+        const tx = {id:"tx_restore_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:`Restored — request cancelled`,doneBy:user.id};
         setState(p=>({...p,stockTransactions:[...(p.stockTransactions||[]),tx]}));
         await DB.upsertStockTransaction(tx).catch(console.error);
       }
@@ -7330,9 +7328,9 @@ function StockRequest({ user, state, setState, toast }) {
                     } · {fmtDate(req.date)}
                   </div>
                   <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                    {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                    {req.items.map(function(it){return it.productName+"×"+it.qty;}).join(", ")}
                     {(req.status==="approved"||req.status==="partial")&&
-                      <span style={{color:T.grn}}> → Approved: {req.items.filter(it=>Number(it.approvedQty)>0).map(it=>`${it.productName}×${it.approvedQty}`).join(", ")}</span>
+                      <span style={{color:T.grn}}> → Approved: {req.items.filter(function(it){return Number(it.approvedQty)>0;}).map(function(it){return it.productName+"×"+it.approvedQty;}).join(", ")}</span>
                     }
                   </div>
                 </div>
@@ -7565,9 +7563,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                               <input type="number" value={releaseQty}
                                 min="0" max={available}
                                 onChange={e=>setEditQtys(p=>({...p,[req.id]:{...p[req.id],[i]:e.target.value}}))}
-                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+
-                                  (releaseQty>available?"#ef4444":T.bdrS),
-                                  borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+(releaseQty>available?"#ef4444":T.bdrS),borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
                             </td>
                             <td style={{padding:"7px 10px",fontSize:11}}>
                               {available===0?<span style={{color:T.red}}>Out of stock</span>
@@ -7781,7 +7777,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                       <td style={{padding:"8px 12px",fontWeight:600}}>{req.counterName}</td>
                       <td style={{padding:"8px 12px"}}>{req.requestedByName}</td>
                       <td style={{padding:"8px 12px",fontSize:12,color:T.txt2}}>
-                        {req.items.map(it=>`${it.productName}×${it.qty}`).join(", ")}
+                        {req.items.map(function(it){return it.productName+"×"+it.qty;}).join(", ")}
                       </td>
                       <td style={{padding:"8px 12px"}}>
                         <Badge color={{pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[req.status]||T.txt2}>{req.status}</Badge>
@@ -7806,7 +7802,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                               for(const item of approvedItems){
                                 const inv=state.inventory.find(i=>i.productName===item.productName);
                                 if(!inv) continue;
-                                await fetch(`${SUPABASE_URL}/rest/v1/inventory`,{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:inv.id,product_id:inv.productId||inv.id,product_name:inv.productName,unit:inv.unit||"pcs",current_stock:Number(inv.currentStock||0)+Number(item.approvedQty),pending_qty:0,min_stock:Number(inv.minStock||0),last_updated:today(),updated_by:user.id})}).catch(console.error);
+                                await fetch(SUPABASE_URL+"/rest/v1/inventory",{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:inv.id,product_id:inv.productId||inv.id,product_name:inv.productName,unit:inv.unit||"pcs",current_stock:Number(inv.currentStock||0)+Number(item.approvedQty),pending_qty:0,min_stock:Number(inv.minStock||0),last_updated:today(),updated_by:user.id})}).catch(console.error);
                               }
                             },100);
                             toast.show("Deleted — stock restored to godown");
@@ -7814,7 +7810,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                             setState(p=>({...p,stockRequests:p.stockRequests.filter(x=>x.id!==req.id)}));
                             toast.show("Request deleted");
                           }
-                          fetch(`${SUPABASE_URL}/rest/v1/stock_requests?id=eq.${req.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}}).catch(console.error);
+                          fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
                         }} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:15,padding:"2px 6px"}}>🗑</button>
                       </td>
                     </tr>
