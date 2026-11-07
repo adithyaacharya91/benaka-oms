@@ -7617,14 +7617,21 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                   {/* Stock status progression buttons - only for approved/partial */}
                   {(req.status==="approved"||req.status==="partial")&&(
                     <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                      {["invoiced","dispatched","delivered"].map(s=>(
-                        <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
-                          padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",
-                          fontFamily:"inherit",border:"1px solid "+statusColor(s),
-                          background:(req.stockStatus===s)?statusColor(s):"transparent",
-                          color:(req.stockStatus===s)?"#fff":statusColor(s)
-                        }}>{statusIcon(s)} {s}</button>
-                      ))}
+                      {(["invoiced","dispatched","delivered"]).map(function(ss){
+                        const isAct=req.stockStatus===ss;
+                        const scol=statusColor(ss);
+                        return React.createElement("button",{
+                          key:ss,
+                          onClick:function(){updateStockStatus(req,ss);},
+                          style:{
+                            padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,
+                            cursor:"pointer",fontFamily:"inherit",
+                            border:"1px solid "+scol,
+                            background:isAct?scol:"transparent",
+                            color:isAct?"#fff":scol
+                          }
+                        },statusIcon(ss)+" "+ss);
+                      })}
                     </div>
                   )}
                 </div>
