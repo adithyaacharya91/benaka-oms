@@ -7387,7 +7387,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         })}));
         setTimeout(async ()=>{
           for (const item of approvedItems) {
-            const inv = sra_old.inventory?.find(i=>i.productName===item.productName);
+            const inv = (state.inventory||[]).find(i=>i.productName===item.productName);
             if (!inv) continue;
             await fetch(`${SUPABASE_URL}/rest/v1/inventory`,{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:inv.id,product_id:inv.productId||inv.id,product_name:inv.productName,unit:inv.unit||"pcs",current_stock:Number(inv.currentStock||0)+Number(item.approvedQty),pending_qty:0,min_stock:Number(inv.minStock||0),last_updated:today(),updated_by:user.id})}).catch(console.error);
           }
@@ -7594,7 +7594,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
           {history.slice(0,30).map(req=>(
-            <Card key={req.id} style={{marginBottom:8,borderLeft:`3px solid ${statusColor(req.status)}`}}>
+            <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
                 <div>
                   <div style={{fontWeight:600,fontSize:13}}>
