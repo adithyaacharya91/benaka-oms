@@ -6176,7 +6176,7 @@ function OfficeExport({ state, toast }) {
   const dl = (data, name) => {
     if (!data.length) { toast.show("No data","error"); return; }
     const h = Object.keys(data[0]);
-    const csv = [h.join(","), ...data.map(r=>h.map(k=>`"${(r[k]||"").toString().replace(/"/g,'""')}"`).join(","))].join("\n");
+    const csv = [h.join(","), ...data.map(r=>h.map(k=>`"${(r[k]||"").toString().split('"').join('""')}"`).join(","))].join("\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download = name; a.click();
     toast.show("Exported "+name);
   };
@@ -6853,7 +6853,7 @@ function StockCheckin({ user, state, setState, toast }) {
         inv[idx] = { ...inv[idx], currentStock: Number(inv[idx].currentStock||0) + qty,
           lastUpdated:date, updatedBy:user.id };
       } else {
-        inv.push({ id:`inv_${name.toLowerCase().replace(/[^a-z0-9]/g,"_")}_${Date.now()}`,
+        inv.push({ id:"inv_"+name.toLowerCase().split("").map(c=>/[a-z0-9]/.test(c)?c:"_").join("")+"_"+Date.now(),
           productName:name, unit:row.unit||"pcs",
           currentStock:qty, minStock:0, lastUpdated:date, updatedBy:user.id });
       }
@@ -7106,8 +7106,7 @@ function StockRequest({ user, state, setState, toast }) {
       }
       // Create restore transaction
       for (const it of approvedItems) {
-        const const safeName = it.productName.split(" ").join("_");
-                tx = {id:"tx_restore_"+req.id+"_"+safeName+"_"+Date.now(),date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:"Restored - request cancelled",doneBy:user.id};
+        const tx = {id:`tx_restore_${req.id}_${it.productName.split(" ").join("_")}_${Date.now()}`,date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:`Restored — request cancelled`,doneBy:user.id};
         setState(p=>({...p,stockTransactions:[...(p.stockTransactions||[]),tx]}));
         await DB.upsertStockTransaction(tx).catch(console.error);
       }
@@ -7473,7 +7472,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
         }, 100);
         // Create dispatch transactions
         const txs = approvedItems.map(it=>({
-          id:"tx_disp_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),
+          id:`tx_disp_${req.id}_${it.productName.split(" ").join("_")}_${Date.now()}`,
           date:today(), type:"dispatch", productName:it.productName, qty:it.approvedQty,
           counterId:req.counterId, counterName:req.counterName,
           requestId:req.id, notes:`Dispatched by ${user.name}`, doneBy:user.id,
@@ -7489,7 +7488,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
       const approvedItems = req.items.filter(it=>Number(it.approvedQty)>0);
       if (approvedItems.length>0) {
         const txs = approvedItems.map(it=>({
-          id:"tx_del_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),
+          id:`tx_del_${req.id}_${it.productName.split(" ").join("_")}_${Date.now()}`,
           date:today(), type:"delivered",
           productName:it.productName, qty:it.approvedQty,
           counterId:req.counterId, counterName:req.counterName||"Direct",
@@ -7613,30 +7612,24 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
                     <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                    <Badge color={statusColor(req.stockStatus||req.status)}>
-                      {statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}
-                    </Badge>
+                    <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
                   </div>
+                  {/* Stock status progression buttons - only for approved/partial */}
                   {(req.status==="approved"||req.status==="partial")&&(
                     <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                      {["invoiced","dispatched","delivered"].map(function(s){
-                        const isActive = req.stockStatus===s;
-                        const col = statusColor(s);
-                        return (
-                          <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
-                            padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,
-                            cursor:"pointer",fontFamily:"inherit",
-                            border:"1px solid "+col,
-                            background:isActive?col:"transparent",
-                            color:isActive?"#fff":col
-                          }}>{statusIcon(s)} {s}</button>
-                        );
-                      })}
+                      {["invoiced","dispatched","delivered"].map(s=>(
+                        <button key={s} onClick={()=>updateStockStatus(req,s)} style={{
+                          padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",
+                          fontFamily:"inherit",border:"1px solid "+statusColor(s),
+                          background:(req.stockStatus===s)?statusColor(s):"transparent",
+                          color:(req.stockStatus===s)?"#fff":statusColor(s)
+                        }}>{statusIcon(s)} {s}</button>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
-            </Card>
+              </Card>
             ))}
           </div>
         )}
@@ -8256,7 +8249,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
     const n = holName.trim();
     if (!d) { toast.show("Please select a date","error"); return; }
     if (!n) { toast.show("Please enter a holiday name","error"); return; }
-    const h = { id:`hol_${d.replace(/-/g,"")}_${Date.now()}`, date:d, name:n, type:holType };
+    const h = { id:"hol_"+d.split("-").join("")+"_"+Date.now(), date:d, name:n, type:holType };
     setState(p=>({...p, holidays:[...(p.holidays||[]).filter(x=>x.date!==d), h]}));
     toast.show("✅ "+n+" added!");
     setHolName(""); setHolDate(""); setHolType("holiday"); setMgmtOpen(false);
@@ -8491,7 +8484,7 @@ function BulkHolidayImport({ state, setState, toast }) {
     setSaving(true);
     const existing = state.holidays||[];
     const toAdd = valid.map(h=>({
-      id:`hol_${h.date.replace(/-/g,"")}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      id:"hol_"+h.date.split("-").join("")+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),
       date:h.date, name:h.name, type:h.type
     }));
     // Merge (newer overrides same date)
@@ -8552,7 +8545,7 @@ function HolidayManager({ state, setState, toast }) {
   const save = async () => {
     if (!form.date) { toast.show("Please select a date","error"); return; }
     if (!form.name.trim()) { toast.show("Please enter a holiday name","error"); return; }
-    const h = { id:`hol_${form.date.replace(/-/g,"")}_${Date.now()}`,
+    const h = { id:"hol_"+form.date.split("-").join("")+"_"+Date.now(),
       date:form.date, name:form.name.trim(), type:form.type||"holiday" };
     const updated = [...(state.holidays||[]).filter(x=>x.date!==form.date), h];
     setState(p=>({...p, holidays:updated}));
