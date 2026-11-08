@@ -7388,9 +7388,9 @@ function StockRequestsApproval({ user, state, setState, toast }) {
     // Compute approved quantities: capped at available stock
     const approvedItems = req.items.map((it,i)=>{
       const inv       = findInv(it.productName);
-      const available = Number(inv?.currentStock||0);
+      const available = Number((inv&&inv.currentStock)||0);
       const requested = Number(it.qty)||0;
-      const edited    = editQtys[req.id]?.[i];
+      const edited    = editQtys[req.id]?editQtys[req.id][i]:undefined;
       const want      = edited!==undefined ? Number(edited) : requested;
       const approvedQty = Math.min(Math.max(0, want), available);
       return {...it, approvedQty};
@@ -7536,8 +7536,8 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     <tbody>
                       {req.items.map((it,i)=>{
                         const inv       = findInv(it.productName);
-                        const available = Number(inv?.currentStock||0);
-                        const releaseQty = Number(editQtys[req.id]?.[i]??it.qty);
+                        const available = Number((inv&&inv.currentStock)||0);
+                        const releaseQty = Number(editQtys[req.id]&&editQtys[req.id][i]!==undefined?editQtys[req.id][i]:it.qty);
                         const canFulfil  = available >= it.qty;
                         return (
                           <tr key={i} style={{borderBottom:"1px solid "+T.bdr,
