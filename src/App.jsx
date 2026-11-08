@@ -2647,9 +2647,9 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
     // Find their supervisor
     const supId = staffUser.managerId||"";
     const newAtts = dates.map(date=>({
-      id:"att_"+supId+"_"+userId+"_"+date,
+      id:`att_${supId}_${userId}_${date}`,
       date, supervisorId:supId, staffId:userId,
-      status:"absent", reason:"Approved leave: "+(leave.reason||leave.type||""),
+      status:"absent", reason:`Approved leave: ${leave.reason||leave.type||""}`,
       markedAt:"auto"
     }));
     setState(p=>({...p, attendance:[
@@ -2681,7 +2681,9 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
       if (status==="approved") autoMarkLeave({...leave, date:leave.fromDate, toDate:leave.toDate}, status);
     }
     const applicant = state.users.find(u=>u.id===leave?.userId);
-    toast.show(status==="approved" ? "✅ Leave approved for "+(applicant?.name||"staff")+" — attendance auto-marked absent" : "❌ Leave rejected for "+(applicant?.name||"staff")
+    toast.show(status==="approved"
+      ? `✅ Leave approved for ${applicant?.name||"staff"} — attendance auto-marked absent`
+      : `❌ Leave rejected for ${applicant?.name||"staff"}`
     );
   };
 
@@ -7134,7 +7136,6 @@ function StockRequest({ user, state, setState, toast }) {
       <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Request products from godown</div>
 
       <Card style={{marginBottom:20}}>
-        {/* Request type */}
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           {[["counter","🏪 Counter Request"],["direct","🚗 Direct / Non-Counter"]].map(([type,label])=>(
             <button key={type} onClick={()=>{setRequestType(type);if(type==="direct")setSelCounterId("");}} style={{
@@ -7144,8 +7145,6 @@ function StockRequest({ user, state, setState, toast }) {
             }}>{label}</button>
           ))}
         </div>
-
-        {/* Counter selector - optional */}
         {requestType==="counter" && (
           <div style={{marginBottom:14}}>
             <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>
@@ -7161,8 +7160,6 @@ function StockRequest({ user, state, setState, toast }) {
             </select>
           </div>
         )}
-
-        {/* Urgency */}
         <div style={{marginBottom:14}}>
           <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Priority</label>
           <div style={{display:"flex",gap:8}}>
@@ -7176,8 +7173,6 @@ function StockRequest({ user, state, setState, toast }) {
             ))}
           </div>
         </div>
-
-        {/* Quick Add from Sales Items */}
         {(state.salesItems&&state.salesItems.length>0)&&(
           <div style={{marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Quick Add Product</div>
@@ -7212,8 +7207,6 @@ function StockRequest({ user, state, setState, toast }) {
             </div>
           </div>
         )}
-
-        {/* Product rows */}
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10}}>
           <thead><tr style={{background:T.navyXL}}>
             {["Product","Qty","Notes",""].map(h=>(
@@ -7276,8 +7269,6 @@ function StockRequest({ user, state, setState, toast }) {
           </Btn>
         </div>
       </Card>
-
-      {/* Pending requests */}
       {pending.length>0&&(
         <div style={{marginBottom:20}}>
           <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:8}}>⏳ Pending ({pending.length})</div>
@@ -7310,8 +7301,6 @@ function StockRequest({ user, state, setState, toast }) {
           ))}
         </div>
       )}
-
-      {/* History */}
       {history.length>0&&(
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>History ({history.length})</div>
