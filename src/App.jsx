@@ -1991,7 +1991,7 @@ function SupHistory({ user, state, setState, toast }) {
             <Card key={r.id} style={{ marginBottom:10, cursor:"pointer" }} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
               <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{r.counterName || r.counters?.[0]?.counterName || "—"}</div>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{r.counterName || (r.counters&&r.counters[0]&&r.counters[0].counterName) || "—"}</div>
                   <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(r.date)} · Submitted {r.submittedAt}</div>
                   <div style={{ display:"flex", gap:8, marginTop:5 }}>
                     <span style={{ background:T.navyXL,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700,color:T.navy }}>Svc: {fmtCurr(svcTotal)}</span>
@@ -2467,7 +2467,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
   const getEntries = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
   const isSales = e => e.type==="sales"||SALES_WTS.includes(e.workTypeName);
-  const getCounterName = r => r.counterName || (r.counters||[])[0]?.counterName || state.users.find(u=>u.id===r.supervisorId)?.counter || "—";
+  const getCounterName = r => r.counterName || ((r.counters||[])[0]&&(r.counters||[])[0].counterName) || (state.users.find(function(u){return u.id===r.supervisorId;})||{}).counter || "—";
   const getVehicles = r => getEntries(r).filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
 
   const relevantReports = state.serviceReports.filter(r =>
@@ -2488,7 +2488,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
     });
   });
   const wtArr = Object.entries(wtRevenue).sort((a,b)=>b[1]-a[1]);
-  const maxWt = wtArr[0]?.[1]||1;
+  const maxWt = (wtArr[0]&&wtArr[0][1])||1;
 
   return (
     <div>
@@ -2749,7 +2749,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
                       {l.type&&<span style={{background:T.amberL,color:T.amberD,padding:"1px 8px",borderRadius:20,fontSize:11,marginLeft:4}}>{l.type}</span>}
                     </div>
                     <div style={{fontSize:13,marginTop:4}}>{l.reason}</div>
-                    <div style={{fontSize:11,color:T.txt3}}>Applied: {fmtDate(l.submittedAt?.split?.("T")[0]||"")}</div>
+                    <div style={{fontSize:11,color:T.txt3}}>Applied: {fmtDate(l.submittedAt?(l.submittedAt.split("T")[0]||""):"")}</div>
                   </div>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     <Btn onClick={()=>decideOld(l.id,"approved")} variant="success" size="sm">✅ Approve</Btn>
@@ -4016,7 +4016,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
               </tr></thead>
               <tbody>
                 {todayReports.map((r,i) => {
-                  const cname = r.counterName || (r.counters||[])[0]?.counterName || state.users.find(u=>u.id===r.supervisorId)?.counter||"—";
+                  const cname = r.counterName || ((r.counters||[])[0]&&(r.counters||[])[0].counterName) || "—";
                   const allE = mdGetEntries(r);
                   const svcT = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
                   const salT = allE.filter(e=>mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -5606,7 +5606,7 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
     if (!isSale(e) && e.workTypeName) wtMap[e.workTypeName]=(wtMap[e.workTypeName]||0)+(Number(e.amount)||0);
   }));
   const wtArr = Object.entries(wtMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const maxWt = wtArr[0]?.[1]||1;
+  const maxWt = (wtArr[0]&&wtArr[0][1])||1;
 
   return (
     <div>
@@ -7012,7 +7012,7 @@ function StockRequest({ user, state, setState, toast }) {
   const autoCounter = state.counters.find(c=>
     c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)
   );
-  const [selCounterId, setSelCounterId] = useState(autoCounter?.id||"");
+  const [selCounterId, setSelCounterId] = useState(autoCounter?autoCounter.id:"");
   const [requestType, setRequestType]   = useState("counter"); // "counter" | "direct"
   const [rows, setRows]       = useState([{productName:"",qty:"",notes:""}]);
   const [urgency, setUrgency] = useState("normal");
@@ -7034,8 +7034,8 @@ function StockRequest({ user, state, setState, toast }) {
     const req = {
       id: "req_"+user.id+"_"+Date.now(),
       date: today(),
-      counterId:   counter?.id||"",
-      counterName: requestType==="direct" ? "Direct Sales" : (counter?.name||""),
+      counterId:   counter?counter.id:"",
+      counterName: requestType==="direct" ? "Direct Sales" : (counter?counter.name:""),
       requestedBy: user.id,
       requestedByName: user.name,
       requestType: requestType,
@@ -7390,7 +7390,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
       const inv       = findInv(it.productName);
       const available = Number((inv&&inv.currentStock)||0);
       const requested = Number(it.qty)||0;
-      const edited    = editQtys[req.id]?editQtys[req.id][i]:undefined;
+      const edited    = (editQtys[req.id]!==undefined&&editQtys[req.id]!==null)?editQtys[req.id][i]:undefined;
       const want      = edited!==undefined ? Number(edited) : requested;
       const approvedQty = Math.min(Math.max(0, want), available);
       return {...it, approvedQty};
@@ -7537,7 +7537,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                       {req.items.map((it,i)=>{
                         const inv       = findInv(it.productName);
                         const available = Number((inv&&inv.currentStock)||0);
-                        const releaseQty = Number(editQtys[req.id]&&editQtys[req.id][i]!==undefined?editQtys[req.id][i]:it.qty);
+                        const releaseQty = Number((editQtys[req.id]&&editQtys[req.id][i]!==undefined)?editQtys[req.id][i]:it.qty);
                         const canFulfil  = available >= it.qty;
                         return (
                           <tr key={i} style={{borderBottom:"1px solid "+T.bdr,
