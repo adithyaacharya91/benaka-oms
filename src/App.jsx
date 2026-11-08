@@ -3850,7 +3850,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
               <div>
                 <div style={{ fontWeight:800, fontSize:13 }}>{c.name}</div>
-                <div style={{ fontSize:11, color:T.txt2 }}>{c.(sup&&sup.name)}{c.sup?" ("+ROLE_LABELS[c.sup.role]+")":""}</div>
+                <div style={{ fontSize:11, color:T.txt2 }}>{(c.sup&&c.sup.name)}{c.sup?" ("+ROLE_LABELS[c.sup.role]+")":""}</div>
               </div>
               <Badge color={c.todayAmt>0||c.todayRep?T.grn:T.red}>{c.todayAmt>0||c.todayRep?"✓ Reported":"⏳ Pending"}</Badge>
             </div>
