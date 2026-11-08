@@ -1473,7 +1473,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
   // Filter reports by date range and counter
   const filteredReports = state.serviceReports.filter(r => {
     if (r.date < dr.from || r.date > dr.to) return false;
-    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== ((myCounters.find(c=>c.id===selCounter)||{}).name) return false;
+    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== ((myCounters.find(c=>c.id===selCounter)||{}).name)) return false;
     // Only show this executive's counters
     return myCounters.some(c=>c.id===r.counterId||c.name===r.counterName) || r.supervisorId===user.id;
   });
@@ -1966,7 +1966,7 @@ function SupHistory({ user, state, setState, toast }) {
 
   const myReports = state.serviceReports
     .filter(r => r.supervisorId === user.id)
-    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === ((myCounters.find(c=>c.id===selCounter)||{}).name)
+    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === ((myCounters.find(c=>c.id===selCounter)||{}).name))
     .sort((a,b) => b.date.localeCompare(a.date) || (a.counterName||"").localeCompare(b.counterName||""));
 
   const salesWTNames = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"];
@@ -2244,7 +2244,7 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
     const inScope = mySupervisors.some(s=>s.id===r.supervisorId) ||
       myCounters.some(c=>c.id===r.counterId||c.name===r.counterName||c.supervisorId===r.supervisorId);
     if(!inScope) return false;
-    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==((myCounters.find(c=>c.id===selCounter)||{}).name) return false;
+    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==((myCounters.find(c=>c.id===selCounter)||{}).name)) return false;
     return true;
   });
 
@@ -3581,7 +3581,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters.find(c=>c.id===selCounter)||{}).name) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters.find(c=>c.id===selCounter)||{}).name)) return false;
     return true;
   });
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
@@ -4445,7 +4445,7 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters.find(c=>c.id===selCounter)||{}).name) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters.find(c=>c.id===selCounter)||{}).name)) return false;
     return true;
   });
   return (
@@ -5887,7 +5887,7 @@ function MDFeedbackAll({ state }) {
 
   const fb = state.feedback
     .filter(f => f.date>=dr.from && f.date<=dr.to)
-    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===((state.counters.find(c=>c.id===filterCounter)||{}).name)
+    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===((state.counters.find(c=>c.id===filterCounter)||{}).name))
     .filter(f => filterRating===0 || f.rating===filterRating)
     .sort((a,b) => b.date.localeCompare(a.date));
 
