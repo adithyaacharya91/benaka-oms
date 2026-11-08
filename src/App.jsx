@@ -2647,9 +2647,9 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
     // Find their supervisor
     const supId = staffUser.managerId||"";
     const newAtts = dates.map(date=>({
-      id:`att_${supId}_${userId}_${date}`,
+      id:"att_"+supId+"_"+userId+"_"+date,
       date, supervisorId:supId, staffId:userId,
-      status:"absent", reason:`Approved leave: ${leave.reason||leave.type||""}`,
+      status:"absent", reason:"Approved leave: "+(leave.reason||leave.type||""),
       markedAt:"auto"
     }));
     setState(p=>({...p, attendance:[
@@ -2668,9 +2668,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
       if (status==="approved") autoMarkLeave(leave, status);
     }
     const applicant = state.users.find(u=>u.id===leave?.userId);
-    toast.show(status==="approved"
-      ? `✅ Leave approved for ${applicant?.name||"staff"}${status==="approved"?" — attendance auto-marked":""}`
-      : `❌ Leave rejected for ${applicant?.name||"staff"}`
+    toast.show(status==="approved" ? "✅ Leave approved for "+(applicant?.name||"staff")+(status==="approved"?" — attendance auto-marked":"") : "❌ Leave rejected for "+(applicant?.name||"staff")
     );
   };
 
@@ -2683,9 +2681,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
       if (status==="approved") autoMarkLeave({...leave, date:leave.fromDate, toDate:leave.toDate}, status);
     }
     const applicant = state.users.find(u=>u.id===leave?.userId);
-    toast.show(status==="approved"
-      ? `✅ Leave approved for ${applicant?.name||"staff"} — attendance auto-marked absent`
-      : `❌ Leave rejected for ${applicant?.name||"staff"}`
+    toast.show(status==="approved" ? "✅ Leave approved for "+(applicant?.name||"staff")+" — attendance auto-marked absent" : "❌ Leave rejected for "+(applicant?.name||"staff")
     );
   };
 
@@ -7106,7 +7102,7 @@ function StockRequest({ user, state, setState, toast }) {
       }
       // Create restore transaction
       for (const it of approvedItems) {
-        const tx = {id:"tx_restore_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:`Restored — request cancelled`,doneBy:user.id};
+        const tx = {id:"tx_restore_"+req.id+"_"+it.productName.split(" ").join("_")+"_"+Date.now(),date:today(),type:"restored",productName:it.productName,qty:it.approvedQty,counterId:req.counterId||"",counterName:req.counterName||"",requestId:req.id,notes:"Restored - request cancelled",doneBy:user.id};
         setState(p=>({...p,stockTransactions:[...(p.stockTransactions||[]),tx]}));
         await DB.upsertStockTransaction(tx).catch(console.error);
       }
