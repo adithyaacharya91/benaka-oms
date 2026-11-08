@@ -7534,7 +7534,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                   <Btn onClick={()=>{
                     if(!confirm("Delete this pending request?")) return;
                     setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
-                    supabase.from("stock_requests").delete().eq("id",req.id).catch(console.error);
+                    fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
                     toast.show("Request deleted");
                   }} size="sm" variant="danger">🗑</Btn>
                 </div>
@@ -7612,7 +7612,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                     <Badge color={statusColor(req.status)}>{req.status}</Badge>
                     <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
                   </div>
-                  {/* Stock status progression buttons - only for approved/partial */}
+
                   {(req.status==="approved"||req.status==="partial")&&(
                     <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
                       {(["invoiced","dispatched","delivered"]).map(function(ss){
