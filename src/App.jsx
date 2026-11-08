@@ -1473,7 +1473,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
   // Filter reports by date range and counter
   const filteredReports = state.serviceReports.filter(r => {
     if (r.date < dr.from || r.date > dr.to) return false;
-    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== ((myCounters.find(c=>c.id===selCounter)||{}).name)) return false;
+    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== (myCounters.find(c=>c.id===selCounter)||{}).name) return false;
     // Only show this executive's counters
     return myCounters.some(c=>c.id===r.counterId||c.name===r.counterName) || r.supervisorId===user.id;
   });
@@ -1966,7 +1966,7 @@ function SupHistory({ user, state, setState, toast }) {
 
   const myReports = state.serviceReports
     .filter(r => r.supervisorId === user.id)
-    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === ((myCounters.find(c=>c.id===selCounter)||{}).name))
+    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === (myCounters.find(c=>c.id===selCounter)||{}).name)
     .sort((a,b) => b.date.localeCompare(a.date) || (a.counterName||"").localeCompare(b.counterName||""));
 
   const salesWTNames = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"];
@@ -2244,7 +2244,7 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
     const inScope = mySupervisors.some(s=>s.id===r.supervisorId) ||
       myCounters.some(c=>c.id===r.counterId||c.name===r.counterName||c.supervisorId===r.supervisorId);
     if(!inScope) return false;
-    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==((myCounters.find(c=>c.id===selCounter)||{}).name)) return false;
+    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==(myCounters.find(c=>c.id===selCounter)||{}).name) return false;
     return true;
   });
 
@@ -2403,7 +2403,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
         const todayBank = ((todayColRep&&todayColRep.bankEntries)||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
         const todayExp  = ((todayColRep&&todayColRep.expenses)||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
-        const OFFICE_ID = ((state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
+        const OFFICE_ID = (state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
         const salesToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const getE = r=>r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
         const todayBardahl = salesToday.flatMap(getE).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -3077,7 +3077,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
                   <tbody>
                     {allHistory.map((t,i)=>{
                       const name = t.targetType==="counter"
-                        ? ((state.counters.find(c=>c.id===t.counterId)||{}).name||t.counterId
+                        ? (state.counters.find(c=>c.id===t.counterId)||{}).name||t.counterId
                         : (state.users.find(u=>u.id===(t.supervisorId||t.targetId))||{}).name||t.targetId;
                       return (
                         <tr key={t.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
@@ -3199,7 +3199,7 @@ function MgrFeedback({ user, state, myCounters }) {
   const [selDate, setSelDate] = useState("");
 
   let fb = state.feedback.filter(f => myCounters.some(c => c.id===f.counterId||c.name===f.counterName));
-  if (selCounter !== "all") fb = fb.filter(f => f.counterId===selCounter || f.counterName===((state.counters.find(c=>c.id===selCounter)||{}).name);
+  if (selCounter !== "all") fb = fb.filter(f => f.counterId===selCounter || f.counterName===(state.counters.find(c=>c.id===selCounter)||{}).name);
   if (selDate) fb = fb.filter(f => f.date===selDate);
   fb = [...fb].sort((a,b) => b.date.localeCompare(a.date));
 
@@ -3284,7 +3284,7 @@ function MgrFeedback({ user, state, myCounters }) {
             <Card key={f.id} style={{ marginBottom:12, borderLeft:"4px solid " + bc }}>
               <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || ((state.counters.find(c=>c.id===f.counterId)||{}).name}</div>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || (state.counters.find(c=>c.id===f.counterId)||{}).name}</div>
                   <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</div>
                 </div>
                 <Badge color={bc}>{stars(f.rating)} {f.rating}</Badge>
@@ -3581,7 +3581,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters.find(c=>c.id===selCounter)||{}).name)) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==(state.counters.find(c=>c.id===selCounter)||{}).name) return false;
     return true;
   });
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
@@ -3714,7 +3714,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
   const getEntriesMD  = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
   const today_         = today();
-  const todayOffId   = ((state.counters.find(c=>c.name==="OFFICE")||{}).id;
+  const todayOffId   = (state.counters.find(c=>c.name==="OFFICE")||{}).id;
   const todaySvcReps = state.serviceReports.filter(r=>r.date===today_&&r.counterId!==todayOffId&&r.counterName!=="OFFICE");
   const gDaySvc      = todaySvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const todayOffReps  = state.serviceReports.filter(r=>r.date===today_&&(r.counterId===todayOffId||r.counterName==="OFFICE"));
@@ -3738,8 +3738,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
     : gDayTotal > 0 ? 100 : 0;
 
   // Month totals — computed directly from state, NOT from counterStats (which uses range filter)
-  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!((state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE"));
-  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&((state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE"));
+  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!(state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
+  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&(state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
   const gMoSvc        = moReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const moBardahlCo   = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const moOtherCo     = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -3748,8 +3748,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
   const thisMonthRev = gMoTotal;  // Use same computation as displayed Month Total
-  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&((state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE"));
-  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==((state.counters.find(c=>c.name==="OFFICE")||{}).id&&r.counterName!=="OFFICE");
+  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&(state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
+  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==(state.counters.find(c=>c.name==="OFFICE")||{}).id&&r.counterName!=="OFFICE");
   const lastMonthSvc       = lastMonthSvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const lastMonthSalesAmt  = lastMonthOffReps.flatMap(getEntriesMD).filter(e=>["BARDAHL","OTHER SALES"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
   const lastMonthRev       = lastMonthSvc + lastMonthSalesAmt;
@@ -3886,7 +3886,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
         const moExp       = allMonthCol.reduce((s,r)=>(r.expenses||[]).reduce((ss,e)=>ss+(Number(e.amount)||0),s),0);
         const moNet       = moBank - moExp;
         // Sales (OFFICE counter only)
-        const OFFICE_ID = ((state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
+        const OFFICE_ID = (state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
         const salesRepsToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const salesRepsMo    = state.serviceReports.filter(r=>r.date.startsWith(monthPfx)&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const getEntries = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
@@ -4445,7 +4445,7 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters.find(c=>c.id===selCounter)||{}).name)) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==(state.counters.find(c=>c.id===selCounter)||{}).name) return false;
     return true;
   });
   return (
@@ -4602,7 +4602,7 @@ function ExecutiveReportGenerator({ state }) {
   const monthEnd     = selDate.slice(0,7)+"-31";
 
   // Company-level sales (OFFICE counter only)
-  const OFFICE_ID    = ((state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
+  const OFFICE_ID    = (state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
   const officeSalesDay   = state.serviceReports.filter(r=>r.date===selDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
   const officeSalesMo    = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
   const calcSales = (reps, wt) => reps.flatMap(r=>getE(r)).filter(e=>e.workTypeName===wt).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -4641,8 +4641,8 @@ function ExecutiveReportGenerator({ state }) {
     const moSvc   = monthReps.flatMap(r=>getE(r)).filter(isSvc).reduce((s,e)=>s+(Number(e.amount)||0),0);
 
     // Absent/half-day staff
-    const absentList = dayAtt.filter(a=>a.status==="absent").map(a=>((state.users.find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
-    const halfList   = dayAtt.filter(a=>a.status==="half_day").map(a=>((state.users.find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
+    const absentList = dayAtt.filter(a=>a.status==="absent").map(a=>(state.users.find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
+    const halfList   = dayAtt.filter(a=>a.status==="half_day").map(a=>(state.users.find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
 
     return { exec, myCounters, counterRows, daySvc, dayVeh, moSvc, absentList, halfList, reported:dayReps.length>0 };
   };
@@ -5264,7 +5264,7 @@ function CounterMgmt({ user, state, setState, toast }) {
             </div>
             {selExecs.length>1 && (
               <div style={{fontSize:11,color:T.amber,marginTop:6}}>
-                Primary executive (first selected): {((state.users.find(u=>u.id===selExecs[0])||{}).name}
+                Primary executive (first selected): {(state.users.find(u=>u.id===selExecs[0])||{}).name}
               </div>
             )}
           </div>
@@ -5701,7 +5701,7 @@ function AllReports({ state, setState, toast, user }) {
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
                 <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}
-                  {r.submittedBy&&<span style={{color:T.txt3}}> · by {((state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</span>}
+                  {r.submittedBy&&<span style={{color:T.txt3}}> · by {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</span>}
                 </div>
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
@@ -5887,7 +5887,7 @@ function MDFeedbackAll({ state }) {
 
   const fb = state.feedback
     .filter(f => f.date>=dr.from && f.date<=dr.to)
-    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===((state.counters.find(c=>c.id===filterCounter)||{}).name))
+    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===(state.counters.find(c=>c.id===filterCounter)||{}).name)
     .filter(f => filterRating===0 || f.rating===filterRating)
     .sort((a,b) => b.date.localeCompare(a.date));
 
@@ -5919,7 +5919,7 @@ function MDFeedbackAll({ state }) {
           <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid "+bc }}>
             <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
               <div>
-                <div style={{ fontWeight:700 }}>{f.counterName || ((state.counters.find(c=>c.id===f.counterId)||{}).name || "—"}</div>
+                <div style={{ fontWeight:700 }}>{f.counterName || (state.counters.find(c=>c.id===f.counterId)||{}).name || "—"}</div>
                 <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt||""}</div>
               </div>
               <Badge color={bc}>{Array(f.rating).fill("⭐").join("")} {f.rating}</Badge>
@@ -5968,7 +5968,7 @@ function OfficeReports({ state, setState, toast, user }) {
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
                 <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}</div>
-                {r.submittedBy&&<div style={{fontSize:11,color:T.txt3}}>By: {((state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</div>}
+                {r.submittedBy&&<div style={{fontSize:11,color:T.txt3}}>By: {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</div>}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
                 <div style={{fontWeight:800,fontSize:16,color:T.amber}}>{fmtCurr(r.totalAmount)}</div>
@@ -6033,7 +6033,7 @@ function OfficeAttendanceView({ state }) {
       {att.length>0 && <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}><StatCard label="Present" value={counts.present} color={T.grn}/><StatCard label="Absent" value={counts.absent} color={T.red}/><StatCard label="Half Day" value={counts.half} color={T.amber}/></div>}
       <Table cols={[
         {key:"date",label:"Date",render:r=>fmtDate(r.date)},
-        {key:"staff",label:"Staff",render:r=><b>{((state.users.find(u=>u.id===r.staffId)||{}).name||r.staffId}</b>},
+        {key:"staff",label:"Staff",render:r=><b>{(state.users.find(u=>u.id===r.staffId)||{}).name||r.staffId}</b>},
         {key:"counter",label:"Counter",render:r=>state.counters.find(c=>c.supervisorId===r.supervisorId)||{name:"—"}).name},
         {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.lime:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
         {key:"reason",label:"Reason",render:r=>r.reason||"—"},
@@ -6359,7 +6359,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>For (self or staff member)</label>
             <select value={forStaff} onChange={e=>setForStaff(e.target.value)}
               style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value={user.id}>Myself ({((state.users.find(u=>u.id===user.id)||{}).name})</option>
+              <option value={user.id}>Myself ({(state.users.find(u=>u.id===user.id)||{}).name})</option>
               {myStaff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
@@ -6380,7 +6380,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
       {myLeaves.length > 0 && (
         <>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>
-            {forStaff===user.id ? "My Leave Requests" : ((state.users.find(u=>u.id===forStaff)||{}).name+"'s Leaves"}
+            {forStaff===user.id ? "My Leave Requests" : (state.users.find(u=>u.id===forStaff)||{}).name+"'s Leaves"}
           </div>
           <Table cols={[
             {key:"staffName",label:"Staff",render:r=>r.staffName||state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
@@ -6677,7 +6677,7 @@ function DailyNotePortal({ user, state, setState, toast }) {
                 <div style={{flex:1}}>
                   <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
                     <span style={{fontSize:11,background:T.navyXL,color:T.navy,padding:"2px 8px",borderRadius:20,fontWeight:700}}>
-                      {((cats.find(c=>c.id===n.category)||{}).icon} {((cats.find(c=>c.id===n.category)||{}).label||n.category}
+                      {(cats.find(c=>c.id===n.category)||{}).icon} {(cats.find(c=>c.id===n.category)||{}).label||n.category}
                     </span>
                     {n.counterName&&<span style={{fontSize:11,color:T.txt2}}>📍 {n.counterName}</span>}
                   </div>
@@ -6796,7 +6796,7 @@ function StaffNotesViewer({ user, state, setState, toast }) {
                 <Badge color={ROLE_COLORS[n.role]||T.navy}>{ROLE_LABELS[n.role]||n.role}</Badge>
                 {n.counterName&&<span style={{fontSize:11,color:T.txt2}}>📍 {n.counterName}</span>}
                 <span style={{fontSize:11,background:catColors[n.category]+"22",color:catColors[n.category]||T.navy,padding:"1px 8px",borderRadius:20,fontWeight:700}}>
-                  {((cats.find(c=>c.id===n.category)||{}).label||n.category}
+                  {(cats.find(c=>c.id===n.category)||{}).label||n.category}
                 </span>
               </div>
               <div style={{fontSize:13,lineHeight:1.5}}>{n.message}</div>
@@ -7735,7 +7735,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                           <Badge color={isOut?T.red:isLow?T.amber:T.grn}>{isOut?"Out of Stock":isLow?"Low Stock":"In Stock"}</Badge>
                         </td>
                         <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{fmtDate(item.lastUpdated)}</td>
-                        <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{((state.users.find(u=>u.id===item.updatedBy)||{}).name||item.updatedBy}</td>
+                        <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{(state.users.find(u=>u.id===item.updatedBy)||{}).name||item.updatedBy}</td>
                       </tr>
                     );
                   })}
@@ -7769,7 +7769,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                       <td style={{padding:"8px 12px"}}>
                         <Badge color={{pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[req.status]||T.txt2}>{req.status}</Badge>
                       </td>
-                      <td style={{padding:"8px 12px",fontSize:12}}>{req.approvedBy?((state.users.find(u=>u.id===req.approvedBy)||{}).name||req.approvedBy:"—"}</td>
+                      <td style={{padding:"8px 12px",fontSize:12}}>{req.approvedBy?(state.users.find(u=>u.id===req.approvedBy)||{}).name||req.approvedBy:"—"}</td>
                       <td style={{padding:"8px 12px",textAlign:"center"}}>
                         <button onClick={()=>{
                           if(!confirm("Delete this request record?")) return;
@@ -7834,7 +7834,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                         {tx.type==="checkin"?"+":"-"}{tx.qty}
                       </td>
                       <td style={{padding:"8px 12px"}}>{tx.counterName}</td>
-                      <td style={{padding:"8px 12px",fontSize:12}}>{((state.users.find(u=>u.id===tx.doneBy)||{}).name||tx.doneBy}</td>
+                      <td style={{padding:"8px 12px",fontSize:12}}>{(state.users.find(u=>u.id===tx.doneBy)||{}).name||tx.doneBy}</td>
                       <td style={{padding:"8px 12px",fontSize:12,color:T.txt2}}>{tx.notes}</td>
                       <td style={{padding:"8px 12px",textAlign:"center"}}>
                         <button onClick={()=>{
