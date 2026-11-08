@@ -2505,7 +2505,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
           </div>
           <Table cols={[
             {key:"counter",label:"Counter",render:r=><b>{getCounterName(r)}</b>},
-            {key:"supervisor",label:"Executive",render:r=>state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name},
+            {key:"supervisor",label:"Executive",render:r=>(state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name},
             {key:"vehicles",label:"Vehicles",render:r=>getVehicles(r)},
             {key:"totalAmount",label:"Revenue",render:r=><b style={{color:T.amber}}>{fmtCurr(r.totalAmount)}</b>},
             {key:"submittedAt",label:"Submitted"},
@@ -2767,7 +2767,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
         <>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>All Leave Requests</div>
           <Table cols={[
-            {key:"name",label:"Staff",render:r=>r.staffName||state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
+            {key:"name",label:"Staff",render:r=>r.staffName||(state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
             {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
             {key:"toDate",label:"To",render:r=>fmtDate(r.toDate)},
             {key:"reason",label:"Reason"},
@@ -4137,7 +4137,7 @@ function MDPeople({ state, setState, toast }) {
         {key:"empId",label:"ID"},
         {key:"name",label:"Name",render:r=><b>{r.name}</b>},
         {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]}>{ROLE_LABELS[r.role]}</Badge>},
-        {key:"manager",label:"Reports To",render:r=>state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
+        {key:"manager",label:"Reports To",render:r=>(state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
         {key:"phone",label:"Phone"},
         {key:"status",label:"Status",render:r=><Badge color={r.active?T.grn:T.red}>{r.active?"Active":"Inactive"}</Badge>},
       ]} rows={state.users}/>
@@ -4291,7 +4291,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
     const newReports = reportCounters
       .filter(c => c.counterName)
       .map(c => {
-        const counter = state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName};
+        const counter = (state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName});
         const allEntries = (c.entries||[]).filter(e=>e.workTypeName&&(e.vehicles>0||e.amount>0));
         const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0),0);
         return {
@@ -5155,7 +5155,7 @@ function UserMgmt({ user, state, setState, toast }) {
           </div>
         )},
         {key:"role",  label:"Role", render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
-        {key:"mgr",   label:"Manager", render:r=>state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
+        {key:"mgr",   label:"Manager", render:r=>(state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
         {key:"act",   label:"", render:r=>(
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {r.status!=="resigned" && <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>}
@@ -5619,7 +5619,7 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
             <Card key={c.id}>
               <div style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>{c.name}</div>
               <div style={{ fontSize:12, color:T.txt2, marginBottom:10 }}>
-                {state.users.find(u=>u.id===c.supervisorId)||{name:"—"}).name} · {c.days} days · {c.repCount} reports
+                {(state.users.find(u=>u.id===c.supervisorId)||{name:"—"}).name} · {c.days} days · {c.repCount} reports
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                 <div style={{ background:T.navyXL, borderRadius:6, padding:"8px 10px" }}>
@@ -5700,7 +5700,7 @@ function AllReports({ state, setState, toast, user }) {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",gap:8,flexWrap:"wrap"}}>
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
-                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}
+                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {(state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}
                   {r.submittedBy&&<span style={{color:T.txt3}}> · by {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</span>}
                 </div>
               </div>
@@ -5795,7 +5795,7 @@ function StaffDirectory({ state }) {
         {key:"empId",   label:"ID",     render:r=><span style={{fontFamily:"monospace",fontSize:12}}>{r.empId}</span>},
         {key:"name",    label:"Name",   render:r=><b>{r.name}</b>},
         {key:"role",    label:"Role",   render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
-        {key:"manager", label:"Reports To", render:r=>state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
+        {key:"manager", label:"Reports To", render:r=>(state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
         {key:"dob",     label:"D.O.B",  render:r=>r.dob?r.dob.split("-").reverse().join("/"):"—"},
         {key:"joining", label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("/"):"—"},
         {key:"phone",   label:"Phone"},
@@ -5967,7 +5967,7 @@ function OfficeReports({ state, setState, toast, user }) {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",gap:8,flexWrap:"wrap"}}>
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
-                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}</div>
+                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {(state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}</div>
                 {r.submittedBy&&<div style={{fontSize:11,color:T.txt3}}>By: {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</div>}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
@@ -6034,7 +6034,7 @@ function OfficeAttendanceView({ state }) {
       <Table cols={[
         {key:"date",label:"Date",render:r=>fmtDate(r.date)},
         {key:"staff",label:"Staff",render:r=><b>{(state.users.find(u=>u.id===r.staffId)||{}).name||r.staffId}</b>},
-        {key:"counter",label:"Counter",render:r=>state.counters.find(c=>c.supervisorId===r.supervisorId)||{name:"—"}).name},
+        {key:"counter",label:"Counter",render:r=>(state.counters.find(c=>c.supervisorId===r.supervisorId)||{name:"—"}).name},
         {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.lime:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
         {key:"reason",label:"Reason",render:r=>r.reason||"—"},
       ]} rows={att} emptyMsg="No records"/>
@@ -6183,8 +6183,8 @@ function OfficeExport({ state, toast }) {
       <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Export Data</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
         {[
-          ["Service Reports","📋",()=>dl(state.serviceReports.map(r=>({ Date:r.date, Counter:r.counterName||"", Executive:state.users.find(u=>u.id===r.supervisorId)||{name:""}).name, Total:r.totalAmount, Status:r.status })),"reports_"+today()+".csv")],
-          ["Attendance","👥",()=>dl(state.attendance.map(a=>({ Date:a.date, Staff:state.users.find(u=>u.id===a.staffId)||{name:""}).name, Status:a.status, Reason:a.reason||"" })),"attendance_"+today()+".csv")],
+          ["Service Reports","📋",()=>dl(state.serviceReports.map(r=>({ Date:r.date, Counter:r.counterName||"", Executive:(state.users.find(u=>u.id===r.supervisorId)||{name:""}).name, Total:r.totalAmount, Status:r.status })),"reports_"+today()+".csv")],
+          ["Attendance","👥",()=>dl(state.attendance.map(a=>({ Date:a.date, Staff:(state.users.find(u=>u.id===a.staffId)||{name:""}).name, Status:a.status, Reason:a.reason||"" })),"attendance_"+today()+".csv")],
           ["Staff List","👤",()=>dl(state.users.map(u=>({ ID:u.empId, Name:u.name, Role:ROLE_LABELS[u.role]||u.role, Phone:u.phone||"" })),"staff_"+today()+".csv")],
           ["Feedback","💬",()=>dl(state.feedback.map(f=>({ Date:f.date, Counter:f.counterName||"", Rating:f.rating, Vehicle:f.vehicleNo||"", Comment:f.comment||"" })),"feedback_"+today()+".csv")],
         ].map(([label,icon,fn])=>(
@@ -6383,7 +6383,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
             {forStaff===user.id ? "My Leave Requests" : (state.users.find(u=>u.id===forStaff)||{}).name+"'s Leaves"}
           </div>
           <Table cols={[
-            {key:"staffName",label:"Staff",render:r=>r.staffName||state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
+            {key:"staffName",label:"Staff",render:r=>r.staffName||(state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
             {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
             {key:"toDate",label:"To",render:r=>fmtDate(r.toDate)},
             {key:"reason",label:"Reason"},
@@ -8119,7 +8119,7 @@ function TargetFulfillmentReport({ user, state }) {
             border:"1px solid "+(period===p.id?T.amber:T.bdrS),background:period===p.id?T.amber:"transparent",color:period===p.id?"#fff":T.txt2
           }}>{p.label}</button>
         ))}
-        <input type={periods.find(p=>p.id===period)||{inputType:"month"}).inputType} value={selRef}
+        <input type={(periods.find(p=>p.id===period)||{inputType:"month"}).inputType} value={selRef}
           onChange={e=>setSelRef(e.target.value)}
           style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
       </div>
