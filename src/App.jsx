@@ -3120,7 +3120,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
                 color:selPeriod===p.id?"#fff":T.txt2
               }}>{p.label}</button>
             ))}
-            <input type={periods.find(p=>p.id===selPeriod) ;const _pt=_pf?_pf.inputType:"month"; const _dummy=_pt} value={selRef}
+            <input type={(periods.find(p=>p.id===selPeriod)||{inputType:"month"}).inputType} value={selRef}
               onChange={e=>setSelRef(e.target.value)}
               style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
           </div>
@@ -4291,7 +4291,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
     const newReports = reportCounters
       .filter(c => c.counterName)
       .map(c => {
-        const counter = (state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName});
+        const counter = (state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName};
         const allEntries = (c.entries||[]).filter(e=>e.workTypeName&&(e.vehicles>0||e.amount>0));
         const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0),0);
         return {
