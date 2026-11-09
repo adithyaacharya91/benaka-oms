@@ -1267,27 +1267,18 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
   );
 
   return (
-    <div style={{display:"flex",minHeight:"100vh",background:T.surf,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.txt}}>
-      {/* Sidebar */}
-      <div style={{width:sideOpen?220:60,background:T.navy,flexShrink:0,display:"flex",flexDirection:"column",transition:"width .2s",overflow:"hidden"}}>
-        {/* Brand */}
-        <div style={{padding:"20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+    <div style={{display:"flex",minHeight:"100vh",background:T.surf,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.txt}}> <div style={{width:sideOpen?220:60,background:T.navy,flexShrink:0,display:"flex",flexDirection:"column",transition:"width .2s",overflow:"hidden"}}> <div style={{padding:"20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,background:T.amber,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✨</div>
             {sideOpen && <div><div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Benaka Enterprises</div><div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>Operations</div></div>}
           </div>
-        </div>
-
-        {/* Nav */}
-        <div style={{flex:1,padding:"12px 8px",overflowY:"auto"}}>
+        </div> <div style={{flex:1,padding:"12px 8px",overflowY:"auto"}}>
           {grouped.map((entry,ei) => {
             if (entry.type==="item") return <NavBtn key={entry.item.id} item={entry.item}/>;
             const isOpen = !collapsedGroups[entry.group];
             const hasActive = entry.items.some(i=>i.id===activePage);
             return (
-              <div key={entry.group} style={{marginBottom:2}}>
-                {/* Group header */}
-                <button onClick={()=>sideOpen&&toggleGroup(entry.group)} style={{
+              <div key={entry.group} style={{marginBottom:2}}> <button onClick={()=>sideOpen&&toggleGroup(entry.group)} style={{
                   display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",
                   borderRadius:8,border:"none",
                   background:hasActive?"rgba(232,160,32,.15)":"transparent",
@@ -1300,18 +1291,13 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
                     <span style={{flex:1}}>{entry.group}</span>
                     <span style={{fontSize:10,opacity:.7}}>{isOpen?"▲":"▼"}</span>
                   </>}
-                </button>
-                {/* Group items */}
-                {(isOpen||!sideOpen) && entry.items.map(item=>(
+                </button> {(isOpen||!sideOpen) && entry.items.map(item=>(
                   <NavBtn key={item.id} item={item} indent={sideOpen}/>
                 ))}
               </div>
             );
           })}
-        </div>
-
-        {/* User info & logout */}
-        <div style={{padding:"12px",borderTop:"1px solid rgba(255,255,255,.1)"}}>
+        </div> <div style={{padding:"12px",borderTop:"1px solid rgba(255,255,255,.1)"}}>
           {sideOpen && (
             <div style={{marginBottom:8}}>
               <div style={{fontSize:13,fontWeight:700,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
@@ -1319,10 +1305,7 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
               {syncStatus&&<div style={{fontSize:9,color:(syncStatus==="ok"||syncStatus==="synced")?"#86efac":syncStatus==="syncing"?"#FCD34D":"rgba(255,255,255,.4)",marginTop:2}}>
                 {syncStatus==="ok"||syncStatus==="synced"?"● Synced":syncStatus==="syncing"?"● Syncing...":syncStatus==="setup_needed"?"● Setup needed":"● "+syncStatus}</div>}
             </div>
-          )}
-
-          {/* Calendar in sidebar */}
-          <div style={{marginBottom:8}}>
+          )} <div style={{marginBottom:8}}>
             <CompanyCalendar state={state} setState={setState} user={user} toast={typeof toast==="object"&&toast?toast:{show:(m,t)=>console.log(t,m)}} setPage={setActivePage}/>
           </div>
           <button onClick={()=>setSideOpen(p=>!p)} style={{
@@ -1338,10 +1321,7 @@ function Shell({ user, children, activePage, setActivePage, navItems, onLogout, 
             <span>🚪</span>{sideOpen&&<span>Sign out</span>}
           </button>
         </div>
-      </div>
-
-      {/* Main */}
-      <div style={{flex:1,overflow:"auto",padding:"0 0 40px 0"}}>
+      </div> <div style={{flex:1,overflow:"auto",padding:"0 0 40px 0"}}>
         {children}
       </div>
     </div>
@@ -1855,10 +1835,7 @@ function SupReport({ user, state, setState, toast }) {
           <div style={{ fontSize:13, color:T.txt2 }}>Submit one report per counter</div>
         </div>
         <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:180}}/>
-      </div>
-
-      {/* Counter tabs */}
-      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+      </div> <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
         {myCounters.map(c => {
           const d = getData(c.id);
           const total = [...(d.entries||[]),...(d.salesEntries||[])].reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -1878,10 +1855,7 @@ function SupReport({ user, state, setState, toast }) {
             </button>
           );
         })}
-      </div>
-
-      {/* Active counter form */}
-      {activeC && (() => {
+      </div> {activeC && (() => {
         const d = getData(activeC.id);
         const isSubmitted = !!state.serviceReports.find(r=>(r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date);
         const svcTotal = (d.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -1901,10 +1875,7 @@ function SupReport({ user, state, setState, toast }) {
                   supabase.from("service_reports").delete().eq("id",recallId).catch(e=>console.error("Recall delete:",e));
                   toast.show("Report recalled ✅"); }} size="sm" variant="ghost">↩ Recall</Btn>}
               </div>
-            </div>
-
-            {/* Service Entries */}
-            <div style={{ fontSize:12, fontWeight:800, color:T.navy, textTransform:"uppercase", marginBottom:10 }}>Vehicle Service</div>
+            </div> <div style={{ fontSize:12, fontWeight:800, color:T.navy, textTransform:"uppercase", marginBottom:10 }}>Vehicle Service</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 90px 100px", gap:8, marginBottom:6, padding:"0 4px" }}>
               {["Work Type","Vehicles","Rate (₹)","Amount (₹)"].map(h=>(
                 <div key={h} style={{ fontSize:10, fontWeight:800, color:T.txt2, textTransform:"uppercase" }}>{h}</div>
@@ -2356,10 +2327,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <StatCard label="Active Counters" value={myCounters.length} color={T.grn} icon="🏪"/>
         <StatCard label="Pending Leaves" value={pendingLeaves} color={pendingLeaves>0?T.red:T.grn} icon="✅"/>
         <StatCard label="Reports Today" value={todayReports.length+"/"+myCounters.length} color={todayReports.length>=myCounters.length?T.grn:T.amber} icon="📋"/>
-      </div>
-
-      {/* Counter Revenue Grid */}
-      <Card style={{ marginBottom:20 }}>
+      </div> <Card style={{ marginBottom:20 }}>
         <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Counter Performance — Today</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
@@ -2394,10 +2362,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
           <div style={{ fontSize:13, color:T.amberD, fontWeight:600 }}>⚠ {pendingLeaves} leave request(s) awaiting your approval</div>
           <Btn onClick={()=>setPage("leaves")} size="sm" variant="amber">Review Now</Btn>
         </div>
-      )}
-
-      {/* Collection & Sales Summary */}
-      {(() => {
+      )} {(() => {
         const todayDate = today_;
         const monthPfx  = todayDate.slice(0,7);
         const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
@@ -2760,10 +2725,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
             );
           })}
         </div>
-      )}
-
-      {/* All leaves history */}
-      {allNew.length > 0 && (
+      )} {allNew.length > 0 && (
         <>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>All Leave Requests</div>
           <Table cols={[
@@ -3058,10 +3020,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div style={{fontSize:18,fontWeight:800}}>Set Targets</div>
         <Btn onClick={()=>setShowHist(p=>!p)} variant="outline" size="sm">{showHist?"◀ Targets":"🕘 History"}</Btn>
-      </div>
-
-      {/* History view */}
-      {showHist ? (
+      </div> {showHist ? (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:T.navy}}>Target History ({allHistory.length})</div>
           {allHistory.length===0
@@ -3101,9 +3060,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
           }
         </div>
       ) : (
-        <>
-          {/* View mode + period + ref */}
-          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+        <> <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
             {[["counter","🏪 Counter"],["executive","👤 Executive"],["manager","👔 Manager"]].map(([id,lbl])=>(
               <button key={id} onClick={()=>{setViewMode(id);setEditing(null);}} style={{
                 padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
@@ -3123,10 +3080,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
             <input type={(periods.find(p=>p.id===selPeriod)||{inputType:"month"}).inputType} value={selRef}
               onChange={e=>setSelRef(e.target.value)}
               style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-          </div>
-
-          {/* Cards */}
-          {subjects.map(sub=>{
+          </div> {subjects.map(sub=>{
             const isEditing = editing===sub.type+"_"+sub.id;
             return (
               <Card key={sub.id} style={{marginBottom:10,
@@ -3405,10 +3359,7 @@ function MDAttendance({ state }) {
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Attendance</div>
-      <Tabs tabs={[{id:"daily",label:"Daily View"},{id:"monthly",label:"Monthly Report"}]} active={view} onChange={setView}/>
-
-      {/* ── MONTHLY REPORT ── */}
-      {view==="monthly" && (
+      <Tabs tabs={[{id:"daily",label:"Daily View"},{id:"monthly",label:"Monthly Report"}]} active={view} onChange={setView}/> {view==="monthly" && (
         <div style={{marginTop:16}}>
           <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
             <div>
@@ -3418,10 +3369,7 @@ function MDAttendance({ state }) {
             </div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search staff..."
               style={{padding:"7px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none",flex:1,minWidth:160,marginTop:20}}/>
-          </div>
-
-          {/* Summary */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:16}}>
+          </div> <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:16}}>
             {[
               {label:"Avg Attendance",val:monthlyRows.length?Math.round(monthlyRows.reduce((s,r)=>s+r.pct,0)/monthlyRows.length)+"%":"—",color:T.navy},
               {label:"Full Attendance",val:monthlyRows.filter(r=>r.pct>=100).length,color:T.grn},
@@ -3433,10 +3381,7 @@ function MDAttendance({ state }) {
                 <div style={{fontSize:10,color:T.txt2,textTransform:"uppercase",fontWeight:600}}>{c.label}</div>
               </Card>
             ))}
-          </div>
-
-          {/* Per-staff monthly table */}
-          <div style={{overflowX:"auto"}}>
+          </div> <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
                 <tr style={{background:T.navy,color:"#fff"}}>
@@ -3475,10 +3420,7 @@ function MDAttendance({ state }) {
             </table>
           </div>
         </div>
-      )}
-
-      {/* ── DAILY VIEW ── */}
-      {view==="daily" && (
+      )} {view==="daily" && (
         <div style={{marginTop:16}}>
           <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:14}}>
@@ -3771,9 +3713,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const refresh = () => { syncFromCloud && syncFromCloud(); setLastRefresh(new Date()); };
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ background:"linear-gradient(135deg,"+T.navy+" 0%,"+T.navyL+" 100%)", borderRadius:16, padding:24, marginBottom:20, color:"#fff" }}>
+    <div> <div style={{ background:"linear-gradient(135deg,"+T.navy+" 0%,"+T.navyL+" 100%)", borderRadius:16, padding:24, marginBottom:20, color:"#fff" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
           <div>
             <div style={{ fontSize:11, opacity:.6, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Live Dashboard</div>
@@ -3783,9 +3723,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
             <button onClick={refresh} style={{ background:"rgba(255,255,255,.15)", border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"7px 14px", color:"#fff", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>🔄 Refresh</button>
           </div>
-        </div>
-        {/* Key metrics — 4×3 grid matching dashboard spec */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:20 }}>
+        </div> <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:20 }}>
           {[
             { l:"Today Service",  v:fmtCurr(gDaySvc),   i:"🔧", c:"#bfdbfe" },
             { l:"Today Sales",    v:fmtCurr(gDaySales),  i:"🛢", c:"#bbf7d0" },
@@ -3807,10 +3745,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Date range selector */}
-      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+      </div> <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
         {["today","week","month","quarter","year","custom"].map(r=>(
           <button key={r} onClick={()=>setDateRange(r)} style={{
             padding:"6px 14px", borderRadius:20, border:"1px solid "+dateRange===r?T.navy:T.bdrS,
@@ -3822,10 +3757,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
           <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{ padding:"5px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
           <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{ padding:"5px 10px", border:"1px solid "+T.bdrS, borderRadius:7, fontSize:12, fontFamily:"inherit", outline:"none" }}/>
         </>}
-      </div>
-
-      {/* Revenue trend (last 14 days) */}
-      <Card style={{ marginBottom:20 }}>
+      </div> <Card style={{ marginBottom:20 }}>
         <div style={{ fontSize:13, fontWeight:700, marginBottom:14 }}>Revenue trend — last 14 days</div>
         <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:80, overflowX:"auto" }}>
           {dailyRevs.map((d,i) => (
@@ -3840,10 +3772,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
           <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:12, background:T.amber, borderRadius:2, display:"inline-block" }}/> Today</span>
           <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:12, background:T.navy, borderRadius:2, display:"inline-block" }}/> Other days</span>
         </div>
-      </Card>
-
-      {/* Counter live status grid */}
-      <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>Counter Status — {dateRange==="today"?"Today":from===to?fmtDate(from):fmtDate(from)+" → "+fmtDate(to)}</div>
+      </Card> <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>Counter Status — {dateRange==="today"?"Today":from===to?fmtDate(from):fmtDate(from)+" → "+fmtDate(to)}</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:14, marginBottom:20 }}>
         {counterStats.map(c => (
           <Card key={c.id} style={{ borderTop:"3px solid "+(c.todayAmt>0||c.todayRep?T.grn:c.total>0?T.amber:T.bdr), padding:16 }}>
@@ -3871,10 +3800,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             </div>
           </Card>
         ))}
-      </div>
-
-      {/* Collection & Sales Summary */}
-      {(() => {
+      </div> {(() => {
         const todayDate = today();
         const monthPfx  = todayDate.slice(0,7);
         const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
@@ -3941,10 +3867,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             )}
           </div>
         );
-      })()}
-
-      {/* Growth chart — month over month */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+      })()} <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
         <Card>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Month-over-month revenue</div>
           {(() => {
@@ -4000,10 +3923,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
             })
           }
         </Card>
-      </div>
-
-      {/* Today's collection summary */}
-      {todayReports.length > 0 && (
+      </div> {todayReports.length > 0 && (
         <Card>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Today's collection — all counters</div>
           <div style={{ overflowX:"auto" }}>
@@ -4350,10 +4270,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
               <div style={{ fontSize:11,color:T.txt2,fontWeight:700,textTransform:"uppercase" }}>Counter Total</div>
               <div style={{ fontSize:18,fontWeight:800,color:T.amber }}>₹{(counterServiceTotal(counter)+counterSalesTotal(counter)).toLocaleString("en-IN")}</div>
             </div>
-          </div>
-
-          {/* SERVICE rows */}
-          <div style={{ fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🔧 Services</div>
+          </div> <div style={{ fontSize:12,fontWeight:800,color:T.navy,textTransform:"uppercase",marginBottom:8,letterSpacing:".04em" }}>🔧 Services</div>
           <div style={{ overflowX:"auto", marginBottom:16 }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead><tr style={{ background:T.surf }}>
@@ -4778,22 +4695,13 @@ function ExecutiveReportGenerator({ state }) {
             {executives.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </div>
-      </div>
-
-      {/* Grand summary bar */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
-        {/* Row 1 — Today */}
-        <StatCard label="Today Service"   value={fmtCurr(gDaySvc)}   color={T.navy}    icon="🔧"/>
+      </div> <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}> <StatCard label="Today Service"   value={fmtCurr(gDaySvc)}   color={T.navy}    icon="🔧"/>
         <StatCard label="Today Sales"     value={fmtCurr(gDaySales)}  color="#15803D"   icon="🛢"/>
         <StatCard label="Today Total"     value={fmtCurr(gDayTotal)}  color={T.amber}   icon="💰"/>
-        <StatCard label="Day Growth"      value={(dayGrowth>=0?"+":"")+dayGrowth+"%"} color={dayGrowth>=0?T.grn:T.red} icon={dayGrowth>=0?"📈":"📉"}/>
-        {/* Row 2 — Monthly */}
-        <StatCard label="Month Service"   value={fmtCurr(gMoSvc)}    color={T.navy}    icon="📅"/>
+        <StatCard label="Day Growth"      value={(dayGrowth>=0?"+":"")+dayGrowth+"%"} color={dayGrowth>=0?T.grn:T.red} icon={dayGrowth>=0?"📈":"📉"}/> <StatCard label="Month Service"   value={fmtCurr(gMoSvc)}    color={T.navy}    icon="📅"/>
         <StatCard label="Month Sales"     value={fmtCurr(gMoSales)}   color="#15803D"   icon="📊"/>
         <StatCard label="Month Total"     value={fmtCurr(gMoTotal)}   color={T.amber}   icon="🏆"/>
-        <StatCard label="Monthly Growth"  value={(growth>=0?"+":"")+growth+"%"} color={growth>=0?T.grn:T.red} icon={growth>=0?"📈":"📉"}/>
-        {/* Row 3 — Attendance */}
-        <StatCard label="Present Today"   value={presentToday.length+halfToday.length} color={T.grn} icon="✅"/>
+        <StatCard label="Monthly Growth"  value={(growth>=0?"+":"")+growth+"%"} color={growth>=0?T.grn:T.red} icon={growth>=0?"📈":"📉"}/> <StatCard label="Present Today"   value={presentToday.length+halfToday.length} color={T.grn} icon="✅"/>
         <StatCard label="Absent Today"    value={absentToday.length}  color={T.red}     icon="❌"/>
         <StatCard label="Not Marked"      value={notMarkedToday}      color={T.txt2}    icon="❓"/>
         <StatCard label="Total Staff"     value={activeStaff.length}  color="#7C3AED"   icon="👥"/>
@@ -4801,10 +4709,7 @@ function ExecutiveReportGenerator({ state }) {
 
       {summaries.length===0 && (
         <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No data for {fmtDate(selDate)}</div></Card>
-      )}
-
-      {/* Per-executive cards */}
-      {summaries.map(s=>(
+      )} {summaries.map(s=>(
         <Card key={s.exec.id} style={{marginBottom:12,borderTop:"3px solid "+T.navy}}>
           <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:10,cursor:"pointer"}}
                onClick={()=>setExpanded(p=>({...p,[s.exec.id]:!p[s.exec.id]}))}>
@@ -4822,10 +4727,7 @@ function ExecutiveReportGenerator({ state }) {
               <div style={{fontSize:11,color:T.txt2,marginTop:2}}>Month: {fmtCurr(s.moSvc)}</div>
               <div style={{fontSize:10,color:T.txt3,marginTop:2}}>{expanded[s.exec.id]?"▲ collapse":"▼ expand"}</div>
             </div>
-          </div>
-
-          {/* Counter breakdown */}
-          {expanded[s.exec.id] && (
+          </div> {expanded[s.exec.id] && (
             <div style={{borderTop:"1px solid "+T.bdr,paddingTop:10}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                 <thead><tr style={{background:T.navyXL}}>
@@ -4855,10 +4757,7 @@ function ExecutiveReportGenerator({ state }) {
             </div>
           )}
         </Card>
-      ))}
-
-      {/* Company Sales — separate section at bottom */}
-      {(dayBardahlCo+dayOtherCo)>0 && (
+      ))} {(dayBardahlCo+dayOtherCo)>0 && (
         <Card style={{borderTop:"3px solid #15803D",marginTop:8}}>
           <div style={{fontSize:14,fontWeight:800,color:"#15803D",marginBottom:12}}>🛢 Company Sales (Office)</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:12}}>
@@ -4879,10 +4778,7 @@ function ExecutiveReportGenerator({ state }) {
             </div>
           </div>
         </Card>
-      )}
-
-      {/* Collection Summary */}
-      {(()=>{
+      )} {(()=>{
         const colRep = (state.serviceReports||[]).length>=0 && (state.collectionReports||[]).find(r=>r.date===selDate);
         if (!colRep) return null;
         const bank = (colRep.bankEntries||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
@@ -4908,10 +4804,7 @@ function ExecutiveReportGenerator({ state }) {
             </div>
           </Card>
         );
-      })()}
-
-      {/* Grand Total — Services + Sales combined */}
-      {(gDaySvc+dayBardahlCo+dayOtherCo)>0 && (
+      })()} {(gDaySvc+dayBardahlCo+dayOtherCo)>0 && (
         <div style={{background:T.navy,borderRadius:12,padding:"16px 20px",marginTop:12,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>
           <div>
             <div style={{fontSize:11,color:"rgba(255,255,255,.6)",textTransform:"uppercase"}}>Today Service</div>
@@ -5064,10 +4957,7 @@ function UserMgmt({ user, state, setState, toast }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div style={{fontSize:16,fontWeight:800}}>User Management</div>
         <Btn onClick={openNew} variant="amber">+ Add User</Btn>
-      </div>
-
-      {/* Resign confirmation modal */}
-      {resignModal && (
+      </div> {resignModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:"#fff",borderRadius:12,padding:24,maxWidth:360,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
             <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Mark as Resigned</div>
@@ -5081,10 +4971,7 @@ function UserMgmt({ user, state, setState, toast }) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Edit/Add form */}
-      {editing!==null && (
+      )} {editing!==null && (
         <Card style={{marginBottom:20,borderTop:"3px solid "+T.amber}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>{(editing&&editing.id)?"Edit User":"New User"}</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
@@ -5126,10 +5013,7 @@ function UserMgmt({ user, state, setState, toast }) {
             <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
           </div>
         </Card>
-      )}
-
-      {/* Filter tabs */}
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      )} <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
         {[
           {id:"active",   label:"Active ("+counts.active+")",   color:T.grn},
           {id:"inactive", label:"Inactive ("+counts.inactive+")", color:T.amber},
@@ -5237,10 +5121,7 @@ function CounterMgmt({ user, state, setState, toast }) {
                   style={{width:"100%",padding:"8px 10px",border:"1px solid "+T.bdrS,borderRadius:7,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
               </div>
             ))}
-          </div>
-
-          {/* Multi-executive selection */}
-          <div style={{marginBottom:14}}>
+          </div> <div style={{marginBottom:14}}>
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:8,textTransform:"uppercase"}}>
               Assigned Executives ({selExecs.length} selected)
             </label>
@@ -5274,10 +5155,7 @@ function CounterMgmt({ user, state, setState, toast }) {
             <Btn onClick={()=>setEditing(null)} variant="ghost">Cancel</Btn>
           </div>
         </Card>
-      )}
-
-      {/* Counter list */}
-      {[["Service Counters",state.counters.filter(c=>c.name!=="OFFICE")],["Office",state.counters.filter(c=>c.name==="OFFICE")]].map(([label,ctrs])=>
+      )} {[["Service Counters",state.counters.filter(c=>c.name!=="OFFICE")],["Office",state.counters.filter(c=>c.name==="OFFICE")]].map(([label,ctrs])=>
         ctrs.length>0 && (
           <div key={label} style={{marginBottom:16}}>
             <div style={{fontSize:12,fontWeight:800,color:T.txt2,textTransform:"uppercase",marginBottom:8}}>{label}</div>
@@ -6323,9 +6201,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
   };
 
   return (
-    <div>
-      {/* Pending approvals for this executive/manager */}
-      {pending.length > 0 && (
+    <div> {pending.length > 0 && (
         <div style={{marginBottom:24}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:12,color:T.red}}>⏳ Pending Approvals ({pending.length})</div>
           {pending.map(l=>{
@@ -6348,13 +6224,8 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
             );
           })}
         </div>
-      )}
-
-      {/* Apply leave form */}
-      <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>Apply Leave</div>
-      <Card style={{maxWidth:520,marginBottom:20}}>
-        {/* Staff selection for executives */}
-        {isExec && myStaff.length > 0 && (
+      )} <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>Apply Leave</div>
+      <Card style={{maxWidth:520,marginBottom:20}}> {isExec && myStaff.length > 0 && (
           <div style={{marginBottom:14}}>
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>For (self or staff member)</label>
             <select value={forStaff} onChange={e=>setForStaff(e.target.value)}
@@ -6374,10 +6245,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
             style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
         </div>
         <Btn onClick={submit} variant="amber">Submit Leave Request</Btn>
-      </Card>
-
-      {/* My leave history */}
-      {myLeaves.length > 0 && (
+      </Card> {myLeaves.length > 0 && (
         <>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>
             {forStaff===user.id ? "My Leave Requests" : (state.users.find(u=>u.id===forStaff)||{}).name+"'s Leaves"}
@@ -6427,10 +6295,7 @@ function CollectionDashboard({ state, user, isAdmin }) {
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Collection Report Dashboard</div>
-      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
-
-      {/* Summary cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
+      <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/> <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
         <Card style={{textAlign:"center",padding:16}}>
           <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase",fontWeight:700}}>Total Bank In</div>
           <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{fmtCurr(totalBank)}</div>
@@ -6451,10 +6316,7 @@ function CollectionDashboard({ state, user, isAdmin }) {
 
       {rows.length===0 && (
         <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No collection reports for selected period</div></Card>
-      )}
-
-      {/* Per-date breakdown */}
-      {rows.map(r=>(
+      )} {rows.map(r=>(
         <Card key={r.date} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setExpanded(expanded===r.date?null:r.date)}>
           <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
             <div>
@@ -6637,10 +6499,7 @@ function DailyNotePortal({ user, state, setState, toast }) {
               </select>
             </div>
           )}
-        </div>
-
-        {/* Category selector */}
-        <div style={{marginBottom:12}}>
+        </div> <div style={{marginBottom:12}}>
           <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:8,textTransform:"uppercase"}}>Category</label>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {cats.map(c=>(
@@ -6663,10 +6522,7 @@ function DailyNotePortal({ user, state, setState, toast }) {
           <div style={{fontSize:11,color:T.txt2,marginTop:4,textAlign:"right"}}>{message.length} chars</div>
         </div>
         <Btn onClick={submit} variant="amber" disabled={!message.trim()}>📤 Submit Note</Btn>
-      </Card>
-
-      {/* My note history */}
-      {myNotes.length > 0 && (
+      </Card> {myNotes.length > 0 && (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>My Notes ({myNotes.length})</div>
           {myNotes.slice(0,10).map(n=>(
@@ -6855,7 +6711,7 @@ function StockCheckin({ user, state, setState, toast }) {
           productName:name, unit:row.unit||"pcs",
           currentStock:qty, minStock:0, lastUpdated:date, updatedBy:user.id });
       }
-      txs.push({ id:`tx_ci_${name}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      txs.push({ id:"tx_ci_"+name+"_"+Date.now()+"_"+Math.random().toString(36).slice(2),
         date, type:"checkin", productName:name, qty,
         counterId:"GODOWN", counterName:"Godown", notes:row.notes||"", doneBy:user.id });
     });
@@ -6864,7 +6720,7 @@ function StockCheckin({ user, state, setState, toast }) {
       stockTransactions:[...(p.stockTransactions||[]),...txs]}));
     await DB.upsertInventory(inv).catch(console.error);
     for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
-    toast.show(`✅ Checked in ${valid.length} product(s)`);
+    toast.show("✅ Checked in "+valid.length+" product(s)");
     setRows([{productName:"",qty:"",unit:"pcs",notes:""}]);
     setSaving(false);
   };
@@ -6874,18 +6730,12 @@ function StockCheckin({ user, state, setState, toast }) {
       <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Godown Check-in</div>
       <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter stock received from the godown</div>
       <Card style={{marginBottom:20}}>
-        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:14}}/>
-
-        {/* Current stock summary */}
-        {state.inventory&&state.inventory.length>0 && (
+        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:14}}/> {state.inventory&&state.inventory.length>0 && (
           <div style={{background:T.navyXL,borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12}}>
             <b>Current Stock:</b>{" "}
             {(state.inventory||[]).map(function(i){return i.productName+": "+i.currentStock+" "+i.unit;}).join(" · ")}
           </div>
-        )}
-
-        {/* Quick Select from Sales Items */}
-        {(state.salesItems&&state.salesItems.length>0)&&(
+        )} {(state.salesItems&&state.salesItems.length>0)&&(
           <div style={{marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Quick Add Product</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -6986,10 +6836,7 @@ function StockCheckin({ user, state, setState, toast }) {
             {saving?"Saving...":"💾 Check In Stock"}
           </Btn>
         </div>
-      </Card>
-
-      {/* Recent check-ins */}
-      {(state.stockTransactions||[]).filter(t=>t.type==="checkin").slice(0,5).length>0 && (
+      </Card> {(state.stockTransactions||[]).filter(t=>t.type==="checkin").slice(0,5).length>0 && (
         <div>
           <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.txt2}}>Recent Check-ins</div>
           {(state.stockTransactions||[]).filter(t=>t.type==="checkin")
@@ -7670,10 +7517,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Inventory Dashboard</div>
       <Tabs tabs={tabs} active={view} onChange={setView}/>
-      <div style={{marginTop:16}}>
-
-        {/* ── STOCK VIEW ── */}
-        {view==="stock" && (
+      <div style={{marginTop:16}}> {view==="stock" && (
           <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
               <Card style={{textAlign:"center",padding:12}}>
@@ -7743,10 +7587,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
               </table>
             </div>
           </div>
-        )}
-
-        {/* ── REQUESTS VIEW ── */}
-        {view==="requests" && (
+        )} {view==="requests" && (
           <div>
             <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
             <div style={{marginTop:12,overflowX:"auto"}}>
@@ -7806,10 +7647,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
               </table>
             </div>
           </div>
-        )}
-
-        {/* ── TRANSACTIONS VIEW ── */}
-        {view==="transactions" && (
+        )} {view==="transactions" && (
           <div>
             <DateRangePicker range={dr.range} setRange={dr.setRange} customFrom={dr.customFrom} setCustomFrom={dr.setCustomFrom} customTo={dr.customTo} setCustomTo={dr.setCustomTo}/>
             <div style={{marginTop:12,overflowX:"auto"}}>
@@ -7850,10 +7688,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
               </table>
             </div>
           </div>
-        )}
-
-        {/* ── MONTHLY PENDING ── */}
-        {view==="monthly" && (
+        )} {view==="monthly" && (
           <div>
             <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center"}}>
               <div>
@@ -8080,10 +7915,7 @@ function TargetFulfillmentReport({ user, state }) {
 
   return (
     <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Target Fulfillment Report</div>
-
-      {/* Summary cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Target Fulfillment Report</div> <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
         <Card style={{textAlign:"center",padding:12}}>
           <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{fmtCurr(totalRev)}</div>
           <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Total Revenue</div>
@@ -8102,10 +7934,7 @@ function TargetFulfillmentReport({ user, state }) {
           <div style={{fontSize:22,fontWeight:800,color:T.grn}}>{achieved}/{withTarget.length}</div>
           <div style={{fontSize:11,color:T.txt2,textTransform:"uppercase"}}>Targets Achieved</div>
         </Card>
-      </div>
-
-      {/* Filters */}
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      </div> <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
         {[["counter","🏪 Counter"],["executive","👤 Executive"],["manager","👔 Manager"]].map(([id,label])=>(
           <button key={id} onClick={()=>{setView(id);setExpanded(null);}} style={{
             padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
@@ -8122,10 +7951,7 @@ function TargetFulfillmentReport({ user, state }) {
         <input type={(periods.find(p=>p.id===period)||{inputType:"month"}).inputType} value={selRef}
           onChange={e=>setSelRef(e.target.value)}
           style={{padding:"5px 10px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-      </div>
-
-      {/* Table */}
-      <div style={{overflowX:"auto"}}>
+      </div> <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
             <tr style={{background:T.navy,color:"#fff"}}>
@@ -8285,9 +8111,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
   };
 
   return (
-    <>
-      {/* Trigger */}
-      <button id="cal-trigger" onClick={()=>setOpen(p=>!p)} style={{
+    <> <button id="cal-trigger" onClick={()=>setOpen(p=>!p)} style={{
         background:T.navyXL,border:"1px solid "+T.bdr,cursor:"pointer",
         padding:"7px 14px",borderRadius:10,color:T.navy,fontSize:20,
         display:"flex",alignItems:"center",gap:8,fontFamily:"inherit"
@@ -8299,22 +8123,14 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
         {holidays.some(h=>h.date===tod)&&(
           <span style={{background:T.red,color:"#fff",fontSize:9,borderRadius:10,padding:"1px 5px",fontWeight:800}}>HOL</span>
         )}
-      </button>
-
-      {/* Dark overlay — pointerEvents none so it NEVER intercepts clicks */}
-      {open&&<div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.4)",pointerEvents:"none"}}/>}
-
-      {/* Calendar popup */}
-      {open&&(
+      </button> {open&&<div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.4)",pointerEvents:"none"}}/>} {open&&(
         <div id="cal-popup" style={{
           position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
           zIndex:1001,background:"#fff",borderRadius:16,
           boxShadow:"0 24px 64px rgba(0,0,0,.3)",
           width:340,maxHeight:"88vh",overflowY:"auto",
           border:"1px solid "+T.bdr
-        }}>
-          {/* Month nav */}
-          <div style={{background:T.navy,padding:"14px 16px",color:"#fff",borderRadius:"16px 16px 0 0",position:"sticky",top:0,zIndex:2}}>
+        }}> <div style={{background:T.navy,padding:"14px 16px",color:"#fff",borderRadius:"16px 16px 0 0",position:"sticky",top:0,zIndex:2}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <button onClick={()=>setViewDate(new Date(year,month-1,1))} style={{
                 background:"rgba(255,255,255,.15)",border:"none",color:"#fff",
@@ -8333,9 +8149,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
             </div>
           </div>
 
-          <div style={{padding:"12px 14px"}}>
-            {/* Date grid */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:14}}>
+          <div style={{padding:"12px 14px"}}> <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:14}}>
               {cells.map((d,i)=>{
                 if (!d) return <div key={i}/>;
                 const hol=getHol(d),sun=isSunday(d),now=isToday(d),sel=isSelected(d);
@@ -8353,10 +8167,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
                   </button>
                 );
               })}
-            </div>
-
-            {/* Selected date info */}
-            {selDate&&(
+            </div> {selDate&&(
               <div style={{marginBottom:12,padding:"8px 10px",background:T.navyXL,borderRadius:8,fontSize:12}}>
                 <div style={{fontWeight:700,color:T.navy}}>{fmtDate(selDate)}</div>
                 {selectedSun&&<div style={{color:T.red,fontSize:11,marginTop:2}}>🔴 Sunday – Weekly Holiday</div>}
@@ -8369,10 +8180,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
                   }}>Remove this holiday</button>
                 )}
               </div>
-            )}
-
-            {/* Holidays this month list */}
-            {thisMonthHols.length>0&&(
+            )} {thisMonthHols.length>0&&(
               <div style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid "+T.bdr}}>
                 <div style={{fontSize:10,fontWeight:800,color:T.txt2,textTransform:"uppercase",marginBottom:6}}>Holidays this month</div>
                 {thisMonthHols.map(h=>(
@@ -8384,10 +8192,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
                   </div>
                 ))}
               </div>
-            )}
-
-            {/* Footer buttons */}
-            <div style={{display:"flex",gap:8,marginBottom:mgmtOpen?12:0}}>
+            )} <div style={{display:"flex",gap:8,marginBottom:mgmtOpen?12:0}}>
               <button onClick={()=>{setViewDate(new Date());setSelDate(tod);setHolDate(tod);}} style={{
                 flex:1,padding:"9px",borderRadius:8,border:"1px solid "+T.bdrS,
                 background:T.surf,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:T.txt
@@ -8398,10 +8203,7 @@ function CompanyCalendar({ state, setState, user, toast, setPage }) {
                   background:T.navy,color:"#fff",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700
                 }}>⚙️ Manage Holidays</button>
               )}
-            </div>
-
-            {/* Add holiday form - moved to dedicated page */}
-            {false&&mgmtOpen&&(
+            </div> {false&&mgmtOpen&&(
               <div style={{background:T.navyXL,borderRadius:10,padding:14}}>
                 <div style={{fontSize:12,fontWeight:800,color:T.navy,marginBottom:12}}>ADD HOLIDAY</div>
                 <div style={{marginBottom:8}}>
@@ -8561,10 +8363,7 @@ function HolidayManager({ state, setState, toast }) {
   return (
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Holiday Management</div>
-      <div style={{fontSize:13,color:T.txt2,marginBottom:20}}>Define company holidays for all staff calendars</div>
-
-      {/* Bulk import */}
-      <Card style={{marginBottom:16,maxWidth:560,borderLeft:"4px solid "+T.amber}}>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:20}}>Define company holidays for all staff calendars</div> <Card style={{marginBottom:16,maxWidth:560,borderLeft:"4px solid "+T.amber}}>
         <div style={{fontSize:14,fontWeight:800,color:T.navy,marginBottom:8}}>📋 Bulk Import Holidays</div>
         <div style={{fontSize:12,color:T.txt2,marginBottom:10}}>
           Paste one holiday per line in format: <code style={{background:T.surf,padding:"1px 6px",borderRadius:4}}>YYYY-MM-DD, Name, Type</code>
@@ -8572,10 +8371,7 @@ function HolidayManager({ state, setState, toast }) {
             <pre style={{background:T.surf,padding:"6px 10px",borderRadius:6,fontSize:11,marginTop:4,fontFamily:"monospace"}}>{"2026-01-26, Republic Day, holiday\n2026-08-15, Independence Day\n2026-10-02, Gandhi Jayanti"}</pre>
         </div>
         <BulkHolidayImport state={state} setState={setState} toast={toast}/>
-      </Card>
-
-      {/* Add form */}
-      <Card style={{marginBottom:24,maxWidth:560}}>
+      </Card> <Card style={{marginBottom:24,maxWidth:560}}>
         <div style={{fontSize:14,fontWeight:800,color:T.navy,marginBottom:14}}>➕ Add Single Holiday</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
           <div>
@@ -8604,10 +8400,7 @@ function HolidayManager({ state, setState, toast }) {
               borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
         </div>
         <Btn onClick={save} variant="amber" style={{minWidth:160}}>💾 Save Holiday</Btn>
-      </Card>
-
-      {/* Holiday list grouped by year */}
-      {years.length===0
+      </Card> {years.length===0
         ? <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No holidays defined yet. Add one above.</div></Card>
         : years.map(yr=>(
           <div key={yr} style={{marginBottom:20}}>
@@ -8729,10 +8522,7 @@ function SelfAttendance({ user, state, setState, toast }) {
             ⚠ Attendance already marked for this date — saving will update the existing record
           </div>
         )}
-      </Card>
-
-      {/* History */}
-      {history.length>0&&(
+      </Card> {history.length>0&&(
         <div>
           <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:T.navy}}>My Attendance History</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
@@ -8860,10 +8650,7 @@ function SalesItemsMaster({ state, setState, toast }) {
           <div style={{fontSize:13,color:T.amberD}}>No items yet. Load defaults to get started.</div>
           <Btn onClick={seedDefaults} variant="amber" size="sm">Load Defaults</Btn>
         </div>
-      )}
-
-      {/* Add / Edit form */}
-      <Card style={{marginBottom:20,maxWidth:600}}>
+      )} <Card style={{marginBottom:20,maxWidth:600}}>
         <div style={{fontSize:13,fontWeight:800,color:T.navy,marginBottom:12}}>
           {editId?"✏️ Edit Item":"➕ Add New Item"}
         </div>
@@ -8903,10 +8690,7 @@ function SalesItemsMaster({ state, setState, toast }) {
             <Btn onClick={seedDefaults} variant="outline" size="sm">+ Load Missing Defaults</Btn>
           )}
         </div>
-      </Card>
-
-      {/* Items table */}
-      {items.length>0&&(
+      </Card> {items.length>0&&(
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
             <thead>
