@@ -12,6 +12,10 @@
   },
   "devDependencies": {
     "vite": "^5.4.0",
-    "@vitejs/plugin-react": "^4.3.0"
+    "@vitejs/plugin-react": "^4.3.0",
+    "esbuild": "^0.23.0"
+  },
+  "overrides": {
+    "esbuild": "^0.23.0"
   }
 }
