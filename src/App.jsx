@@ -6753,14 +6753,12 @@ function StockCheckin({ user, state, setState, toast }) {
                     background:added?T.navy:"#fff",color:added?"#fff":T.txt,transition:"all .15s"
                   }}>
                     {s.name}
-                    {(()=>{
-                      const livePend=(state.stockRequests||[])
-                        .filter(r=>r.status==="pending")
-                        .reduce((sum,r)=>sum+(r.items||[]).filter(it=>it.productName===s.name).reduce((s2,it)=>s2+Number(it.qty||0),0),0);
-                      const avail=Math.max(0,qty-livePend);
-                      return <span style={{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(avail>0?T.grn:T.red),fontWeight:700}}>
-                        {avail}{s.unit||"pcs"}{livePend>0?" ("+livePend+" pend)":""}
-                      </span>;
+                    {(function(){
+                      var livePend=(state.stockRequests||[])
+                        .filter(function(r){return r.status==="pending";})
+                        .reduce(function(sum,r){return sum+(r.items||[]).filter(function(it){return it.productName===s.name;}).reduce(function(s2,it){return s2+Number(it.qty||0);},0);},0);
+                      var avail=Math.max(0,qty-livePend);
+                      return React.createElement("span",{style:{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(avail>0?T.grn:T.red),fontWeight:700}},avail," ",(s.unit||"pcs"),livePend>0?" ("+livePend+" pend)":"");
                     })()}
                   </button>
                 );
