@@ -4291,7 +4291,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
     const newReports = reportCounters
       .filter(c => c.counterName)
       .map(c => {
-        const counter = (state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName};
+        const counter = (state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName});
         const allEntries = (c.entries||[]).filter(e=>e.workTypeName&&(e.vehicles>0||e.amount>0));
         const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0),0);
         return {
