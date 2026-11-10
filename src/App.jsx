@@ -7130,8 +7130,14 @@ function StockRequest({ user, state, setState, toast }) {
 
 
 function StockRequestsApproval({ user, state, setState, toast }) {
-  const pending = (state.stockRequests||[]).filter(r=>r.status==="pending").sort((a,b)=>b.date.localeCompare(a.date));
-  const history = (state.stockRequests||[]).filter(r=>r.status!=="pending").sort((a,b)=>b.date.localeCompare(a.date));
+  const pending = (state.stockRequests||[]).filter(function(r){
+    if(r.status==="pending") return true;
+    if((r.status==="approved"||r.status==="partial")&&r.stockStatus!=="delivered") return true;
+    return false;
+  }).sort(function(a,b){return b.date.localeCompare(a.date);});
+  const history = (state.stockRequests||[]).filter(function(r){
+    return r.status==="rejected"||r.status==="cancelled"||r.stockStatus==="delivered";
+  }).sort(function(a,b){return b.date.localeCompare(a.date);});
   const [editQtys, setEditQtys]   = useState({});
   const [activeTab, setActiveTab]   = useState("pending");
   const [expanded, setExpanded]   = useState(null);
@@ -7283,14 +7289,14 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   return (
     <div style={{padding:20}}>
       <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Stock Requests Approval</div>
-      <Tabs tabs={[{id:"pending",label:"Pending ("+pending.length+")"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
+      <Tabs tabs={[{id:"pending",label:"Active ("+pending.length+")"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
       {activeTab==="pending" && (
         <div style={{marginTop:12}}>
           {pending.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No pending requests.</div></Card>}
           {pending.map(function(req){
             var isExp=expanded===req.id;
             return (
-              <Card key={req.id} style={{marginBottom:10,borderLeft:"4px solid "+T.amber}}>
+              <Card key={req.id} style={{marginBottom:10,borderLeft:"4px solid "+(req.status==="pending"?T.amber:req.status==="approved"?T.grn:T.navy)}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:14}}>
@@ -7356,6 +7362,16 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                         return React.createElement("button",{key:s,onClick:function(){updateStockStatus(req,s);},style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}},statusIcon(s)+" "+s);
                       })}
                     </div>
+                  </div>
+                )}
+                {(req.status==="approved"||req.status==="partial")&&!isExp && (
+                  <div style={{marginTop:8,display:"flex",gap:4,flexWrap:"wrap"}}>
+                    <span style={{fontSize:11,color:T.txt2,marginRight:4,alignSelf:"center"}}>Mark as:</span>
+                    {["invoiced","dispatched","delivered"].map(function(s){
+                      var isAct=req.stockStatus===s;
+                      var col=statusColor(s);
+                      return React.createElement("button",{key:s,onClick:function(){updateStockStatus(req,s);},style:{padding:"4px 10px",borderRadius:12,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}},statusIcon(s)+" "+s);
+                    })}
                   </div>
                 )}
               </Card>
