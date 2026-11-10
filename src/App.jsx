@@ -7190,6 +7190,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   const pending = (state.stockRequests||[]).filter(r=>r.status==="pending").sort((a,b)=>b.date.localeCompare(a.date));
   const history = (state.stockRequests||[]).filter(r=>r.status!=="pending").sort((a,b)=>b.date.localeCompare(a.date));
   const [editQtys, setEditQtys]   = useState({});
+  const [activeTab, setActiveTab]   = useState("pending");
   const [expanded, setExpanded]   = useState(null);
 
   // Match inventory item by productName only (reliable)
@@ -7339,14 +7340,12 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   return (
     <div style={{padding:20}}>
       <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Stock Requests Approval</div>
-
-      <Tabs tabs={[{id:"pending",label:"Pending ("+pendingReqs.length+")"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
-
+      <Tabs tabs={[{id:"pending",label:"Pending ("+pending.length+")"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
       {activeTab==="pending" && (
         <div style={{marginTop:12}}>
-          {pendingReqs.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No pending requests.</div></Card>}
-          {pendingReqs.map(function(req){
-            var isExp = expanded===req.id;
+          {pending.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No pending requests.</div></Card>}
+          {pending.map(function(req){
+            var isExp=expanded===req.id;
             return (
               <Card key={req.id} style={{marginBottom:10,borderLeft:"4px solid "+T.amber}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
@@ -7356,9 +7355,7 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                       {req.urgency==="urgent" && <span style={{marginLeft:8,color:T.red,fontSize:11,fontWeight:800}}>URGENT</span>}
                     </div>
                     <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - by {req.requestedByName}</div>
-                    <div style={{fontSize:12,marginTop:4}}>
-                      {req.items.map(function(it){return it.productName+" x"+it.qty;}).join(", ")}
-                    </div>
+                    <div style={{fontSize:12,marginTop:4}}>{req.items.map(function(it){return it.productName+" x"+it.qty;}).join(", ")}</div>
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <Btn onClick={function(){if(isExp){setExpanded(null);}else{initEdit(req);}}} size="sm" variant="outline">{isExp?"Collapse":"Review"}</Btn>
@@ -7405,19 +7402,15 @@ function StockRequestsApproval({ user, state, setState, toast }) {
                         })}
                       </tbody>
                     </table>
-                    <div style={{display:"flex",gap:8}}>
+                    <div style={{display:"flex",gap:8,marginBottom:8}}>
                       <Btn onClick={function(){approve(req,"approved");}} variant="success" size="sm">Approve</Btn>
                       <Btn onClick={function(){approve(req,"rejected");}} variant="danger" size="sm">Reject</Btn>
                     </div>
-                    <div style={{display:"flex",gap:4,marginTop:8}}>
+                    <div style={{display:"flex",gap:4}}>
                       {["invoiced","dispatched","delivered"].map(function(s){
                         var isAct=req.stockStatus===s;
                         var col=statusColor(s);
-                        return React.createElement("button",{
-                          key:s,
-                          onClick:function(){updateStockStatus(req,s);},
-                          style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}
-                        },statusIcon(s)+" "+s);
+                        return React.createElement("button",{key:s,onClick:function(){updateStockStatus(req,s);},style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}},statusIcon(s)+" "+s);
                       })}
                     </div>
                   </div>
@@ -7427,7 +7420,6 @@ function StockRequestsApproval({ user, state, setState, toast }) {
           })}
         </div>
       )}
-
       {activeTab==="history" && (
         <div style={{marginTop:12}}>
           {history.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No history.</div></Card>}
