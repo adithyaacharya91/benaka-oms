@@ -7337,225 +7337,110 @@ function StockRequestsApproval({ user, state, setState, toast }) {
   };
 
   return (
-    <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Stock Requests</div>
-
-      {pending.length===0&&history.length===0&&(
-        <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No stock requests yet</div></Card>
-      )}
-
-      {pending.length>0 && (
-        <div style={{marginBottom:24}}>
-          <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:10}}>⏳ Pending ({pending.length})</div>
-          {pending.map(req=>(
-            <Card key={req.id} style={{marginBottom:12,borderLeft:"4px solid "+T.amber}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-                <div>
-                  <div style={{fontWeight:800,fontSize:14}}>{req.counterName}</div>
-                  <div style={{fontSize:12,color:T.txt2}}>{req.requestedByName} · {fmtDate(req.date)}</div>
-                  {expanded!==req.id&&<div style={{fontSize:12,color:T.txt2,marginTop:4}}>
-                    {req.items.map(function(it){return it.productName+" × "+it.qty;}).join(" | ")}
-                  </div>}
-                </div>
-                <div style={{display:"flex",gap:6}}>
-                  <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
-                    {expanded===req.id?"▲ Collapse":"▼ Review"}
-                  </Btn>
-                  <Btn onClick={()=>{
-                    if(!confirm("Delete this pending request?")) return;
-                    setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
-                    fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
-                    toast.show("Request deleted");
-                  }} size="sm" variant="danger">🗑</Btn>
-                </div>
-              </div>
-
-              {expanded===req.id && (
-                <div style={{marginTop:12,borderTop:"1px solid "+T.bdr,paddingTop:12}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
-                    <thead><tr style={{background:T.navyXL}}>
-                      {["Product","Requested","Available","Release Qty","Status"].map(h=>(
-                        <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-                      ))}
-                      </tr></thead>
-                    <tbody>
-                      {req.items.map((it,i)=>{
-                        const inv       = findInv(it.productName);
-                        const available = Number((inv&&inv.currentStock)||0);
-                        const releaseQty = Number((editQtys[req.id]&&editQtys[req.id][i]!==undefined)?editQtys[req.id][i]:it.qty);
-                        const canFulfil  = available >= it.qty;
-                        return (
-                          <tr key={i} style={{borderBottom:"1px solid "+T.bdr,
-                            background:available===0?"#fff5f5":!canFulfil?"#fffbf0":"#f0fff4"}}>
-                            <td style={{padding:"7px 10px",fontWeight:600}}>{it.productName}</td>
-                            <td style={{padding:"7px 10px",textAlign:"center"}}>{it.qty}</td>
-                            <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700,
-                              color:available===0?T.red:!canFulfil?T.amber:T.grn}}>{available}</td>
-                            <td style={{padding:"7px 10px",width:90}}>
-                              <input type="number" value={releaseQty}
-                                min="0" max={available}
-                                onChange={e=>setEditQtys(p=>({...p,[req.id]:{...p[req.id],[i]:e.target.value}}))}
-                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+(releaseQty>available?"#ef4444":T.bdrS),borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                            </td>
-                            <td style={{padding:"7px 10px",fontSize:11}}>
-                              {available===0?<span style={{color:T.red}}>Out of stock</span>
-                                :!canFulfil?<span style={{color:T.amber}}>Partial only ({available} avail)</span>
-                                :<span style={{color:T.grn}}>Can fulfil</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  <div style={{display:"flex",gap:8}}>
-                    <Btn onClick={()=>approve(req,"approved")} variant="success" size="sm">✅ Release Stock</Btn>
-                    <Btn onClick={()=>approve(req,"rejected")} variant="danger"  size="sm">❌ Reject</Btn>
-                  </div>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {history.length>0 && (
-        <div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
-          {history.slice(0,30).map(req=>(
-            <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
-                <div>
-                  <div style={{fontWeight:600,fontSize:13}}>
-                    {req.counterName} · <span style={{color:T.txt2,fontWeight:400}}>{req.requestedByName}</span>
-                  </div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                    {fmtDate(req.date)} · Requested: {req.items.map(function(it){return it.productName+"×"+it.qty;}).join(", ")}
-                  </div>
-                  {(req.status==="approved"||req.status==="partial")&&(
-                    <div style={{fontSize:11,color:T.grn,marginTop:2}}>
-                      Released: {req.items.filter(function(it){return Number(it.approvedQty)>0;}).map(function(it){return it.productName+"×"+it.approvedQty;}).join(", ")}
-                    </div>
-                  )}
-                </div>
-                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                    <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
-                  </div>
-
-                  {(req.status==="approved"||req.status==="partial")&&(
-                    <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                      {(["invoiced","dispatched","delivered"]).map(function(ss){
-                        const isAct=req.stockStatus===ss;
-                        const scol=statusColor(ss);
-                        return React.createElement("button",{
-                          key:ss,
-                          onClick:function(){updateStockStatus(req,ss);},
-                          style:{
-                            padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,
-                            cursor:"pointer",fontFamily:"inherit",
-                            border:"1px solid "+scol,
-                            background:isAct?scol:"transparent",
-                            color:isAct?"#fff":scol
-                          }
-                        },statusIcon(ss)+" "+ss);
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-  return (
     <div style={{padding:20}}>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Stock Requests</div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Stock Requests Approval</div>
 
-      <Tabs tabs={[{id:"pending",label:"Pending"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
+      <Tabs tabs={[{id:"pending",label:"Pending ("+pendingReqs.length+")"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
 
       {activeTab==="pending" && (
         <div style={{marginTop:12}}>
           {pendingReqs.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No pending requests.</div></Card>}
-          {pendingReqs.map(function(req){return (
-            <Card key={req.id} style={{marginBottom:10,borderLeft:"4px solid "+T.amber}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:14}}>
-                    {req.requestType==="direct"?"Direct Sales":(req.counterName||"No counter")}
-                    {req.urgency==="urgent" && <span style={{marginLeft:8,color:T.red,fontSize:11,fontWeight:800}}>URGENT</span>}
+          {pendingReqs.map(function(req){
+            var isExp = expanded===req.id;
+            return (
+              <Card key={req.id} style={{marginBottom:10,borderLeft:"4px solid "+T.amber}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:14}}>
+                      {req.requestType==="direct"?"Direct Sales":(req.counterName||"No counter")}
+                      {req.urgency==="urgent" && <span style={{marginLeft:8,color:T.red,fontSize:11,fontWeight:800}}>URGENT</span>}
+                    </div>
+                    <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - by {req.requestedByName}</div>
+                    <div style={{fontSize:12,marginTop:4}}>
+                      {req.items.map(function(it){return it.productName+" x"+it.qty;}).join(", ")}
+                    </div>
                   </div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - by {req.requestedByName}</div>
-                  <div style={{fontSize:12,marginTop:4}}>
-                    {req.items.map(function(it,idx){return (
-                      <div key={idx} style={{display:"flex",alignItems:"center",gap:8,marginTop:2}}>
-                        <span style={{fontWeight:600}}>{it.productName}</span>
-                        <span style={{color:T.txt2}}>x{it.qty}</span>
-                        {it.notes && <span style={{color:T.txt3,fontSize:11}}>({it.notes})</span>}
-                        <input type="number" value={editQtys[req.id]&&editQtys[req.id][idx]!==undefined?editQtys[req.id][idx]:it.qty}
-                          onChange={function(e){var val=e.target.value;setEditQtys(function(p){var r=Object.assign({},p);r[req.id]=Object.assign({},r[req.id]);r[req.id][idx]=val;return r;});}}
-                          min="0"
-                          style={{width:60,padding:"3px 6px",border:"1px solid "+T.bdrS,borderRadius:4,fontSize:12,fontFamily:"inherit"}}/>
-                        <span style={{fontSize:11,color:T.txt3}}>
-                          {(function(){var inv=findInv(it.productName);return inv?"avail: "+Number((inv&&inv.currentStock)||0):"";})()}
-                        </span>
-                      </div>
-                    );})}
-                  </div>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
                   <div style={{display:"flex",gap:6}}>
-                    <Btn onClick={function(){approve(req,"approve");}} variant="success" size="sm">Approve</Btn>
-                    <Btn onClick={function(){approve(req,"rejected");}} variant="danger" size="sm">Reject</Btn>
-                  </div>
-                  <div style={{display:"flex",gap:4}}>
-                    {["invoiced","dispatched","delivered"].map(function(s){
-                      var isAct=req.stockStatus===s;
-                      var col=statusColor(s);
-                      return React.createElement("button",{
-                        key:s,
-                        onClick:function(){updateStockStatus(req,s);},
-                        style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}
-                      },statusIcon(s)+" "+s);
-                    })}
+                    <Btn onClick={function(){if(isExp){setExpanded(null);}else{initEdit(req);}}} size="sm" variant="outline">{isExp?"Collapse":"Review"}</Btn>
+                    <Btn onClick={function(){
+                      if(!confirm("Delete this request?")) return;
+                      setState(function(p){return Object.assign({},p,{stockRequests:p.stockRequests.filter(function(r){return r.id!==req.id;})});});
+                      fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                      toast.show("Deleted");
+                    }} size="sm" variant="danger">Delete</Btn>
                   </div>
                 </div>
-              </div>
-            </Card>
-          );})}
+                {isExp && (
+                  <div style={{marginTop:12,borderTop:"1px solid "+T.bdr,paddingTop:12}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10}}>
+                      <thead><tr style={{background:T.navyXL}}>{["Product","Requested","Available","Release Qty"].map(function(h){return <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2}}>{h}</th>;})}</tr></thead>
+                      <tbody>
+                        {req.items.map(function(it,i){
+                          var inv=findInv(it.productName);
+                          var available=Number((inv&&inv.currentStock)||0);
+                          var releaseQty=editQtys[req.id]&&editQtys[req.id][i]!==undefined?Number(editQtys[req.id][i]):Number(it.qty);
+                          var canFulfil=releaseQty<=available;
+                          return (
+                            <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                              <td style={{padding:"7px 10px",fontWeight:600}}>{it.productName}</td>
+                              <td style={{padding:"7px 10px"}}>{it.qty}</td>
+                              <td style={{padding:"7px 10px",color:available>0?T.grn:T.red,fontWeight:700}}>{available}</td>
+                              <td style={{padding:"7px 10px"}}>
+                                <input type="number" min="0" max={available}
+                                  value={editQtys[req.id]&&editQtys[req.id][i]!==undefined?editQtys[req.id][i]:it.qty}
+                                  onChange={function(e){
+                                    var val=e.target.value;
+                                    var reqId=req.id;
+                                    setEditQtys(function(p){
+                                      var copy=Object.assign({},p);
+                                      copy[reqId]=Object.assign({},copy[reqId]);
+                                      copy[reqId][i]=val;
+                                      return copy;
+                                    });
+                                  }}
+                                  style={{width:70,padding:"4px 6px",border:"1px solid "+(canFulfil?T.grn:T.red),borderRadius:4,fontSize:12,fontFamily:"inherit"}}/>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={function(){approve(req,"approved");}} variant="success" size="sm">Approve</Btn>
+                      <Btn onClick={function(){approve(req,"rejected");}} variant="danger" size="sm">Reject</Btn>
+                    </div>
+                    <div style={{display:"flex",gap:4,marginTop:8}}>
+                      {["invoiced","dispatched","delivered"].map(function(s){
+                        var isAct=req.stockStatus===s;
+                        var col=statusColor(s);
+                        return React.createElement("button",{
+                          key:s,
+                          onClick:function(){updateStockStatus(req,s);},
+                          style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}
+                        },statusIcon(s)+" "+s);
+                      })}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
       {activeTab==="history" && (
         <div style={{marginTop:12}}>
-          {history.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No history yet.</div></Card>}
+          {history.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No history.</div></Card>}
           {history.slice(0,30).map(function(req){return (
             <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
                 <div>
-                  <div style={{fontWeight:600,fontSize:13}}>
-                    {req.requestType==="direct"?"Direct":req.counterName||"No counter"} - {req.requestedByName}
-                  </div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
-                    {fmtDate(req.date)} - {req.items.map(function(it){return it.productName+"x"+it.qty;}).join(", ")}
-                    {(req.status==="approved"||req.status==="partial") && (
-                      <span style={{color:T.grn}}> - Approved: {req.items.filter(function(it){return Number(it.approvedQty)>0;}).map(function(it){return it.productName+"x"+it.approvedQty;}).join(", ")}</span>
-                    )}
-                  </div>
+                  <div style={{fontWeight:600,fontSize:13}}>{req.requestType==="direct"?"Direct":(req.counterName||"No counter")} - {req.requestedByName}</div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - {req.items.map(function(it){return it.productName+"x"+it.qty;}).join(", ")}</div>
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   <Badge color={statusColor(req.status)}>{req.status}</Badge>
                   <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
-                  <button onClick={function(){
-                    if(!confirm("Delete this request?")) return;
-                    setState(function(p){return Object.assign({},p,{stockRequests:p.stockRequests.filter(function(x){return x.id!==req.id;})});});
-                    fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
-                    toast.show("Deleted");
-                  }} style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:14,padding:"2px 6px"}}>x</button>
                 </div>
               </div>
             </Card>
