@@ -806,7 +806,7 @@ const reportAllEntries   = (r) => (r.counters||[]).flatMap(c=>c.entries||[]);
 const reportVehicles     = (r) => reportAllEntries(r).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
 const reportHasCounter   = (r, counterName) => (r.counters||[]).some(c=>c.counterName===counterName);
 const reportHasCounterId = (r, cid, countersArr) => {
-  const c = countersArr.find(x=>x.id===cid);
+  const c = (countersArr||[]).find(x=>x.id===cid);
   return c ? reportHasCounter(r, c.name) : false;
 };
 
@@ -1184,7 +1184,7 @@ function LoginScreen({ onLogin, users, passwords, onUsersLoaded }) {
     }
 
     // Step 2: Check credentials against live (or local) data
-    const user = liveUsers.find(u => u.empId === id && u.active);
+    const user = (liveUsers||[]).find(u => u.empId === id && u.active);
     if (!user) {
       setErr("Employee ID not found or account is inactive.");
       setLoading(false); return;
@@ -1350,7 +1350,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
 
 
   const myStaff = state.users.filter(u => u.managerId === user.id && u.role === "field_staff" && u.active !== false);
-  const myCounter = state.counters.find(c => c.supervisorId === user.id);
+  const myCounter = (state.counters||[]).find(c => c.supervisorId === user.id);
   const todayReports = state.serviceReports.filter(r => r.supervisorId === user.id && r.date === today());
   const todayAtt = state.attendance.filter(a => a.supervisorId === user.id && a.date === today());
   const todayRevenue = todayReports.reduce((s,r)=>s+r.totalAmount,0);
@@ -1378,7 +1378,7 @@ function SupervisorPortal({ user, state, setState, toast, syncStatus="" }) {
 
 function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt, setPage }) {
   const presentToday = todayAtt.filter(a=>a.status==="present").length;
-  const target = state.targets.find(t=>t.supervisorId===user.id && t.month===today().slice(0,7));
+  const target = (state.targets||[]).find(t=>t.supervisorId===user.id && t.month===today().slice(0,7));
   const pct = target&&target.dailyTarget>0 ? Math.min(100, Math.round(todayRevenue*100/(target.dailyTarget+0.001))) : null;
 
   return (
@@ -1412,7 +1412,7 @@ function SupDashboard({ user, state, myStaff, myCounter, todayRevenue, todayAtt,
           <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Staff Status Today</div>
           {myStaff.length === 0 ? <div style={{color:T.txt3,fontSize:13}}>No staff assigned</div> :
             myStaff.map(s => {
-              const att = todayAtt.find(a=>a.staffId===s.id);
+              const att = (todayAtt||[]).find(a=>a.staffId===s.id);
               return <div key={s.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid "+T.bdr }}>
                 <span style={{fontSize:13}}>{s.name}</span>
                 {att ? <Badge color={att.status==="present"?T.lime:T.red}>{att.status}</Badge> : <Badge color={T.txt3}>Not marked</Badge>}
@@ -1453,7 +1453,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
   // Filter reports by date range and counter
   const filteredReports = state.serviceReports.filter(r => {
     if (r.date < dr.from || r.date > dr.to) return false;
-    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== (myCounters.find(c=>c.id===selCounter)||{}).name) return false;
+    if (selCounter !== "all" && r.counterId !== selCounter && r.counterName !== ((myCounters||[]).find(c=>c.id===selCounter)||{}).name) return false;
     // Only show this executive's counters
     return myCounters.some(c=>c.id===r.counterId||c.name===r.counterName) || r.supervisorId===user.id;
   });
@@ -1479,7 +1479,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
 }
 
 function SupFeedback({ user, state }) {
-  const myCounter = state.counters.find(c => c.supervisorId === user.id);
+  const myCounter = (state.counters||[]).find(c => c.supervisorId === user.id);
   const fb = state.feedback
     .filter(f => f.counterId === (myCounter&&myCounter.id) || f.counterName === (myCounter&&myCounter.name))
     .sort((a,b) => b.date.localeCompare(a.date));
@@ -1684,7 +1684,7 @@ function SupAttendance({ user, state, setState, myStaff, toast }) {
           {histAtt.length===0
             ? <Card><div style={{color:T.txt3,textAlign:"center",padding:20}}>No records for {fmtDate(histDate)}</div></Card>
             : <Table cols={[
-                {key:"staff",label:"Staff",render:r=>{ const u=state.users.find(u=>u.id===r.staffId); return <b>{(u&&u.name)||r.staffId}{r.staffId===user.id?" (You)":""}</b>; }},
+                {key:"staff",label:"Staff",render:r=>{ const u=(state.users||[]).find(u=>u.id===r.staffId); return <b>{(u&&u.name)||r.staffId}{r.staffId===user.id?" (You)":""}</b>; }},
                 {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.lime:r.status==="half_day"?T.amber:T.red}>{r.status}</Badge>},
                 {key:"reason",label:"Reason",render:r=>r.reason||"—"},
                 {key:"markedAt",label:"Marked At"},
@@ -1704,7 +1704,7 @@ function SupReport({ user, state, setState, toast }) {
   const [activeCounter, setActiveCounter] = useState((myCounters[0]&&myCounters[0].id) || "");
 
   const allWTs = [...state.workTypes];
-  INITIAL_STATE.workTypes.forEach(iwt => { if(!allWTs.find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
+  INITIAL_STATE.workTypes.forEach(iwt => { if(!(allWTs||[]).find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
   const serviceWTs = allWTs.filter(w => w.category !== "sales");
   const salesWTs   = allWTs.filter(w => w.category === "sales");
   const blankServiceRows = () => [
@@ -1724,7 +1724,7 @@ function SupReport({ user, state, setState, toast }) {
     const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
     myCounters.forEach(c => {
       // Match by counterId OR counterName to catch office-submitted reports
-      const existing = state.serviceReports.find(r =>
+      const existing = (state.serviceReports||[]).find(r =>
         (r.counterId === c.id || r.counterName === c.name) &&
         r.supervisorId === user.id && r.date === date
       );
@@ -1825,7 +1825,7 @@ function SupReport({ user, state, setState, toast }) {
     <Card><div style={{color:T.txt3,textAlign:"center",padding:24}}>No counters assigned to you. Contact IT Admin.</div></Card>
   );
 
-  const activeC = myCounters.find(c=>c.id===activeCounter) || myCounters[0];
+  const activeC = (myCounters||[]).find(c=>c.id===activeCounter) || myCounters[0];
 
   return (
     <div>
@@ -1839,7 +1839,7 @@ function SupReport({ user, state, setState, toast }) {
         {myCounters.map(c => {
           const d = getData(c.id);
           const total = [...(d.entries||[]),...(d.salesEntries||[])].reduce((s,e)=>s+(Number(e.amount)||0),0);
-          const isSubmitted = !!state.serviceReports.find(r=>r.counterId===c.id&&r.supervisorId===user.id&&r.date===date);
+          const isSubmitted = !!(state.serviceReports||[]).find(r=>r.counterId===c.id&&r.supervisorId===user.id&&r.date===date);
           return (
             <button key={c.id} onClick={()=>setActiveCounter(c.id)} style={{
               padding:"8px 16px", borderRadius:8, border:"2px solid "+activeCounter===c.id?T.navy:T.bdrS,
@@ -1857,7 +1857,7 @@ function SupReport({ user, state, setState, toast }) {
         })}
       </div> {activeC && (() => {
         const d = getData(activeC.id);
-        const isSubmitted = !!state.serviceReports.find(r=>(r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date);
+        const isSubmitted = !!(state.serviceReports||[]).find(r=>(r.counterId===activeC.id||r.counterName===activeC.name)&&r.supervisorId===user.id&&r.date===date);
         const svcTotal = (d.entries||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
         return (
           <Card>
@@ -1889,7 +1889,7 @@ function SupReport({ user, state, setState, toast }) {
                 <input list="sup-wt-list" value={e.workTypeName||""} placeholder="Type work type..."
                   onChange={ev=>{
                     const val=ev.target.value;
-                    const wt=allWTs.find(w=>w.name===val);
+                    const wt=(allWTs||[]).find(w=>w.name===val);
                     if(wt) setCounterData(p=>({...p,[activeC.id]:{...getData(activeC.id),entries:getData(activeC.id).entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate||row.rate,amount:(row.vehicles||0)*(wt.defaultRate||row.rate||0)})}}));
                     else updateServiceEntry(activeC.id,ei,"workTypeName",val);
                   }}
@@ -1937,7 +1937,7 @@ function SupHistory({ user, state, setState, toast }) {
 
   const myReports = state.serviceReports
     .filter(r => r.supervisorId === user.id)
-    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === (myCounters.find(c=>c.id===selCounter)||{}).name)
+    .filter(r => selCounter === "all" || r.counterId === selCounter || r.counterName === ((myCounters||[]).find(c=>c.id===selCounter)||{}).name)
     .sort((a,b) => b.date.localeCompare(a.date) || (a.counterName||"").localeCompare(b.counterName||""));
 
   const salesWTNames = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE"];
@@ -2020,13 +2020,13 @@ function LeavePortal({ user, state, setState, toast }) {
   const [type, setType] = useState("sick");
   const [reason, setReason] = useState("");
   const myLeaves = (state.leaves||[]).filter(l=>l.userId===user.id).sort((a,b)=>(b.submittedAt||b.date||"").localeCompare(a.submittedAt||a.date||""));
-  const manager = state.users.find(u=>u.id===user.managerId);
+  const manager = (state.users||[]).find(u=>u.id===user.managerId);
 
   const submit = async () => {
     if (!reason.trim()) { toast.show("Please provide a reason","error"); return; }
     if (!manager) { toast.show("No manager assigned — contact IT Admin","error"); return; }
     // Prevent overlapping leave requests
-    const overlap = myLeaves.find(l=>{
+    const overlap = (myLeaves||[]).find(l=>{
       if (l.status==="rejected") return false;
       const lFrom = l.date||l.fromDate||"";
       const lTo   = l.toDate||lFrom;
@@ -2211,7 +2211,7 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
     const inScope = mySupervisors.some(s=>s.id===r.supervisorId) ||
       myCounters.some(c=>c.id===r.counterId||c.name===r.counterName||c.supervisorId===r.supervisorId);
     if(!inScope) return false;
-    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==(myCounters.find(c=>c.id===selCounter)||{}).name) return false;
+    if(selCounter!=="all" && r.counterId!==selCounter && r.counterName!==((myCounters||[]).find(c=>c.id===selCounter)||{}).name) return false;
     return true;
   });
 
@@ -2296,11 +2296,11 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
   const reportToCounter = {};
   todayReports.forEach(r => {
     // Try counterId match first
-    let matched = myCounters.find(c => r.counterId && r.counterId===c.id);
+    let matched = (myCounters||[]).find(c => r.counterId && r.counterId===c.id);
     // Try counterName match
     if (!matched && r.counterName) {
       const rn = r.counterName.trim().toUpperCase();
-      matched = myCounters.find(c => c.name.trim().toUpperCase()===rn);
+      matched = (myCounters||[]).find(c => c.name.trim().toUpperCase()===rn);
     }
     // Try supervisorId for single-counter execs
     if (!matched && r.supervisorId) {
@@ -2327,11 +2327,11 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         <div style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Counter Performance — Today</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
           {myCounters.map(c => {
-            const sup = mySupervisors.find(s=>s.id===c.supervisorId);
+            const sup = (mySupervisors||[]).find(s=>s.id===c.supervisorId);
             // Sum reports for this counter
             const reps = todayReports.filter(r => reportToCounter[r.id]===c.id);
             const amt = reps.reduce((s,r)=>s+r.totalAmount,0);
-            const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===month)||state.targets.find(t=>t.supervisorId===c.supervisorId&&t.month===month);
+            const tgt = (state.targets||[]).find(t=>t.counterId===c.id&&t.month===month)||(state.targets||[]).find(t=>t.supervisorId===c.supervisorId&&t.month===month);
             const pct = tgt&&tgt.dailyTarget>0 ? Math.min(100, Math.round(amt*100/(tgt.dailyTarget+0.001))) : null;
             const reported = reps.length > 0;
             return (
@@ -2429,7 +2429,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
 
   const getEntries = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
   const isSales = e => e.type==="sales"||SALES_WTS.includes(e.workTypeName);
-  const getCounterName = r => r.counterName || ((r.counters||[])[0]&&(r.counters||[])[0].counterName) || (state.users.find(function(u){return u.id===r.supervisorId;})||{}).counter || "—";
+  const getCounterName = r => r.counterName || ((r.counters||[])[0]&&(r.counters||[])[0].counterName) || ((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{}).counter || "—";
   const getVehicles = r => getEntries(r).filter(e=>!isSales(e)).reduce((s,e)=>s+(Number(e.vehicles)||0),0);
 
   const relevantReports = state.serviceReports.filter(r =>
@@ -2508,7 +2508,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
             <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}>Revenue by Counter</div>
             {myCounters.map(c=>{
               const cr = monthReports.filter(r=>r.counterId===c.id||r.counterName===c.name).reduce((s,r)=>s+r.totalAmount,0);
-              const tgt = state.targets.find(t=>t.counterId===c.id&&t.month===selMonth);
+              const tgt = (state.targets||[]).find(t=>t.counterId===c.id&&t.month===selMonth);
               const pct = tgt&&tgt.monthlyTarget>0 ? Math.min(100, Math.round(cr * 100 / tgt.monthlyTarget)) : null;
               return (
                 <div key={c.id} style={{ marginBottom:14 }}>
@@ -2582,7 +2582,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
     if (mySupIds.includes(l.supervisorId)) return true;
     if (mySupIds.includes(l.userId)) return true;
     // Also match if the staff member reports to one of my supervisors
-    const staffUser = state.users.find(u=>u.id===l.userId);
+    const staffUser = (state.users||[]).find(u=>u.id===l.userId);
     if ((staffUser&&staffUser.managerId)===user.id) return true;
     return false;
   });
@@ -2604,7 +2604,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
       cur.setDate(cur.getDate()+1);
     }
     const userId = leave.userId||leave.user_id||"";
-    const staffUser = state.users.find(u=>u.id===userId);
+    const staffUser = (state.users||[]).find(u=>u.id===userId);
     if (!staffUser) return;
     // Find their supervisor
     const supId = staffUser.managerId||"";
@@ -2624,12 +2624,12 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
   const decideOld = (id, status) => {
     const updated = (state.leaves||[]).map(l=>l.id===id?{...l,status,decidedAt:today(),decidedBy:user.id}:l);
     setState(p=>({...p, leaves:updated}));
-    const leave = updated.find(l=>l.id===id);
+    const leave = (updated||[]).find(l=>l.id===id);
     if (leave) {
       DB.upsertLeave(leave).catch(console.error);
       if (status==="approved") autoMarkLeave(leave, status);
     }
-    const applicant = state.users.find(u=>u.id===(leave&&leave.userId));
+    const applicant = (state.users||[]).find(u=>u.id===(leave&&leave.userId));
     toast.show(status==="approved" ? "✅ Leave approved for "+((applicant&&applicant.name)||"staff")+(status==="approved"?" — attendance auto-marked":"") : "❌ Leave rejected for "+((applicant&&applicant.name)||"staff")
     );
   };
@@ -2637,12 +2637,12 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
   const decideNew = (id, status) => {
     const updated = (state.plannedLeaves||[]).map(l=>l.id===id?{...l,status,decidedOn:today(),decidedBy:user.id}:l);
     setState(p=>({...p, plannedLeaves:updated}));
-    const leave = updated.find(l=>l.id===id);
+    const leave = (updated||[]).find(l=>l.id===id);
     if (leave) {
       DB.upsertPlannedLeave(leave).catch(console.error);
       if (status==="approved") autoMarkLeave({...leave, date:leave.fromDate, toDate:leave.toDate}, status);
     }
-    const applicant = state.users.find(u=>u.id===(leave&&leave.userId));
+    const applicant = (state.users||[]).find(u=>u.id===(leave&&leave.userId));
     toast.show(status==="approved"
       ? `✅ Leave approved for ${(applicant&&applicant.name)||"staff"} — attendance auto-marked absent`
       : `❌ Leave rejected for ${(applicant&&applicant.name)||"staff"}`
@@ -2666,7 +2666,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
         <div style={{marginBottom:20}}>
           <div style={{fontSize:14,fontWeight:700,marginBottom:12,color:T.red}}>⏳ Pending ({pendingNew.length})</div>
           {pendingNew.map(l=>{
-            const applicant = state.users.find(u=>u.id===l.userId);
+            const applicant = (state.users||[]).find(u=>u.id===l.userId);
             return (
               <Card key={l.id} style={{marginBottom:12,borderLeft:"4px solid "+T.amber}}>
                 <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
@@ -2695,7 +2695,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
         <div style={{marginBottom:20}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.amber}}>Legacy Requests ({pendingOld.length})</div>
           {pendingOld.map(l=>{
-            const applicant = state.users.find(u=>u.id===l.userId);
+            const applicant = (state.users||[]).find(u=>u.id===l.userId);
             const fromD = l.date||l.fromDate||"";
             const toD   = l.toDate||fromD;
             const days  = fromD&&toD?Math.max(1,Math.round((new Date(toD)-new Date(fromD))/86400000)+1):1;
@@ -2726,7 +2726,7 @@ function MgrLeaves({ user, state, setState, toast, syncFromCloud=null }) {
         <>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>All Leave Requests</div>
           <Table cols={[
-            {key:"name",label:"Staff",render:r=>r.staffName||(state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
+            {key:"name",label:"Staff",render:r=>r.staffName||((state.users||[]).find(u=>u.id===r.userId)||{name:"—"}).name},
             {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
             {key:"toDate",label:"To",render:r=>fmtDate(r.toDate)},
             {key:"reason",label:"Reason"},
@@ -2777,7 +2777,7 @@ function MgrPeople({ user, state, setState, toast }) {
       {tab==="counters" && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:16 }}>
           {state.counters.filter(c=>mySups.some(s=>s.id===c.supervisorId)).map(c=>{
-            const sup = state.users.find(u=>u.id===c.supervisorId);
+            const sup = (state.users||[]).find(u=>u.id===c.supervisorId);
             const staff = state.users.filter(u=>u.managerId===c.supervisorId&&u.role==="field_staff");
             return (
               <Card key={c.id}>
@@ -2973,7 +2973,7 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
   });
 
   const execSubjects = state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u=>{
-    const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const ctr = (state.counters||[]).find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
     const existing = getExistingTarget("executive", u.id);
     const revenue  = getExecRevenue(u.id);
     const targetVal= existing ? Number(existing[selPeriod]||0) : 0;
@@ -3033,8 +3033,8 @@ function MDTargets({ user, state, setState, toast, syncFromCloud }) {
                   <tbody>
                     {allHistory.map((t,i)=>{
                       const name = t.targetType==="counter"
-                        ? (state.counters.find(c=>c.id===t.counterId)||{}).name||t.counterId
-                        : (state.users.find(u=>u.id===(t.supervisorId||t.targetId))||{}).name||t.targetId;
+                        ? ((state.counters||[]).find(c=>c.id===t.counterId)||{}).name||t.counterId
+                        : ((state.users||[]).find(u=>u.id===(t.supervisorId||t.targetId))||{}).name||t.targetId;
                       return (
                         <tr key={t.id} style={{background:i%2===0?"#fff":T.surf,borderBottom:"1px solid "+T.bdr}}>
                           <td style={{padding:"7px 12px"}}><Badge color={{counter:T.navy,executive:T.grn,manager:T.amber}[t.targetType]||T.txt2}>{t.targetType||"—"}</Badge></td>
@@ -3163,7 +3163,7 @@ function MgrFeedback({ user, state, myCounters }) {
   }));
 
   const feedbackLink = (counterId) => {
-    const c = state.counters.find(x=>x.id===counterId);
+    const c = (state.counters||[]).find(x=>x.id===counterId);
     return c ? "?feedback=" + encodeURIComponent(c.name) : "#";
   };
   const ratingColor = (r) => r>=4 ? T.grn : r===3 ? T.amber : T.red;
@@ -3235,7 +3235,7 @@ function MgrFeedback({ user, state, myCounters }) {
             <Card key={f.id} style={{ marginBottom:12, borderLeft:"4px solid " + bc }}>
               <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || (state.counters.find(c=>c.id===f.counterId)||{}).name}</div>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{f.counterName || ((state.counters||[]).find(c=>c.id===f.counterId)||{}).name}</div>
                   <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt || ""}</div>
                 </div>
                 <Badge color={bc}>{stars(f.rating)} {f.rating}</Badge>
@@ -3297,7 +3297,7 @@ function MDAttendance({ state }) {
       return uid===staff.id && l.status==="approved" && from<=monthStart.slice(0,7)+"-31" && to>=monthStart;
     }).length;
     const marked   = recs.length;
-    const exec     = state.users.find(u=>u.id===staff.managerId);
+    const exec     = (state.users||[]).find(u=>u.id===staff.managerId);
     return { staff, exec, present, absent, halfDay, onLeave, marked, totalWorkingDays,
              pct: totalWorkingDays>0 ? Math.round((present+halfDay*0.5)/totalWorkingDays*100) : 0,
              effective: totalWorkingDays };
@@ -3324,7 +3324,7 @@ function MDAttendance({ state }) {
         const to=l.toDate||l.to_date||from;
         return uid===staff.id && date>=from && date<=to;
       });
-      const supervisor = state.users.find(u=>u.id===staff.managerId)||state.users.find(u=>u.id===(attRec&&attRec.supervisorId));
+      const supervisor = (state.users||[]).find(u=>u.id===staff.managerId)||(state.users||[]).find(u=>u.id===(attRec&&attRec.supervisorId));
       allRows.push({
         date, staffId:staff.id, staffName:staff.name, role:staff.role,
         supervisorName:(supervisor&&supervisor.name)||"—",
@@ -3621,7 +3621,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   todayReports.forEach(r => { const cid=assignReport(r,state.counters); if(cid) todayAssign[r.id]=cid; });
 
   const counterStats = state.counters.map(c => {
-    const sup = state.users.find(u=>u.id===c.supervisorId);
+    const sup = (state.users||[]).find(u=>u.id===c.supervisorId);
     const reps = reports.filter(r => reportAssign[r.id]===c.id);
     const allE = reps.flatMap(r => mdGetEntries(r));
     const svcTotal  = allE.filter(e=>!mdIsSales(e)).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -3899,8 +3899,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
           {absentToday.length===0
             ? <div style={{ color:T.grn, fontSize:13, fontWeight:600 }}>✅ All staff present today</div>
             : absentToday.map(a => {
-              const staff = state.users.find(u=>u.id===a.staffId);
-              const sup = state.users.find(u=>u.id===a.supervisorId);
+              const staff = (state.users||[]).find(u=>u.id===a.staffId);
+              const sup = (state.users||[]).find(u=>u.id===a.supervisorId);
               return <div key={a.id} style={{ padding:"8px 0", borderBottom:"1px solid "+T.bdr }}>
                 <div style={{ fontWeight:700, fontSize:13 }}>{(staff&&staff.name)}</div>
                 <div style={{ fontSize:11, color:T.txt2 }}>{(sup&&sup.counter)} · {a.reason||"No reason given"}</div>
@@ -3912,7 +3912,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
           {pendingLeaves.length===0
             ? <div style={{ color:T.txt3, fontSize:13 }}>No pending leaves</div>
             : pendingLeaves.slice(0,3).map(l => {
-              const u = state.users.find(x=>x.id===l.userId);
+              const u = (state.users||[]).find(x=>x.id===l.userId);
               return <div key={l.id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid "+T.bdr, fontSize:12 }}>
                 <span><b>{(u&&u.name)}</b> — {l.type}</span>
                 <Badge color={T.amber}>{l.status}</Badge>
@@ -4024,8 +4024,8 @@ function MDOperations({ state }) {
       <div style={{ fontSize:18, fontWeight:800, marginBottom:20 }}>All Operations</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:16, marginBottom:20 }}>
         {state.counters.map(c=>{
-          const sup = state.users.find(u=>u.id===c.supervisorId);
-          const mgr = state.users.find(u=>u.id===(sup&&sup.managerId));
+          const sup = (state.users||[]).find(u=>u.id===c.supervisorId);
+          const mgr = (state.users||[]).find(u=>u.id===(sup&&sup.managerId));
           const staff = state.users.filter(u=>u.managerId===c.supervisorId&&u.role==="field_staff");
           const reports = state.serviceReports.filter(r=>r.counterId===c.id||r.counterName===c.name);
           const totalRev = reports.reduce((s,r)=>s+r.totalAmount,0);
@@ -4054,7 +4054,7 @@ function MDPeople({ state, setState, toast }) {
         {key:"empId",label:"ID"},
         {key:"name",label:"Name",render:r=><b>{r.name}</b>},
         {key:"role",label:"Role",render:r=><Badge color={ROLE_COLORS[r.role]}>{ROLE_LABELS[r.role]}</Badge>},
-        {key:"manager",label:"Reports To",render:r=>(state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
+        {key:"manager",label:"Reports To",render:r=>((state.users||[]).find(u=>u.id===r.managerId)||{name:"—"}).name},
         {key:"phone",label:"Phone"},
         {key:"status",label:"Status",render:r=><Badge color={r.active?T.grn:T.red}>{r.active?"Active":"Inactive"}</Badge>},
       ]} rows={state.users}/>
@@ -4135,7 +4135,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
   const executives = state.users.filter(u => u.role === "supervisor" && u.active);
   // Merge DB work types with defaults so all work types always available
   const allWTs = [...state.workTypes];
-  INITIAL_STATE.workTypes.forEach(iwt => { if(!allWTs.find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
+  INITIAL_STATE.workTypes.forEach(iwt => { if(!(allWTs||[]).find(w=>w.id===iwt.id||w.name===iwt.name)) allWTs.push(iwt); });
   const serviceWTs = allWTs.filter(w => w.category !== "sales");
   const salesWTs   = allWTs.filter(w => w.category === "sales");
 
@@ -4149,7 +4149,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
 
   useEffect(() => {
     if (!selSupervisor) return;
-    const existing = state.serviceReports.find(r => r.supervisorId === selSupervisor && r.date === date);
+    const existing = (state.serviceReports||[]).find(r => r.supervisorId === selSupervisor && r.date === date);
     if (existing) {
       const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"];
       const isSales = e => SALES_WTS.includes(e.workTypeName)||e.type==="sales";
@@ -4164,7 +4164,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
       } else {
         // Flat format: single counter report
         const allEntries = existing.entries || [];
-        const ctr = state.counters.find(c=>c.supervisorId===selSupervisor||(c.supervisorIds||[]).includes(selSupervisor));
+        const ctr = (state.counters||[]).find(c=>c.supervisorId===selSupervisor||(c.supervisorIds||[]).includes(selSupervisor));
         restoredCounters = [{
           counterName: existing.counterName || (ctr&&ctr.name) || "",
           counterId:   existing.counterId   || (ctr&&ctr.id)   || "",
@@ -4208,7 +4208,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
     const newReports = reportCounters
       .filter(c => c.counterName)
       .map(c => {
-        const counter = (state.counters.find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName});
+        const counter = ((state.counters||[]).find(x=>x.name===c.counterName)||{id:"c_"+c.counterName,name:c.counterName});
         const allEntries = (c.entries||[]).filter(e=>e.workTypeName&&(e.vehicles>0||e.amount>0));
         const total = allEntries.reduce((s,e)=>s+(Number(e.amount)||0),0);
         return {
@@ -4283,7 +4283,7 @@ function OfficeEnterReport({ user, state, setState, toast, prefillDate, prefillS
                       <input list="off-wt-list" value={e.workTypeName||""} placeholder="Type work type..."
                         onChange={ev=>{
                           const val=ev.target.value;
-                          const wt=allWTs.find(w=>w.name===val);
+                          const wt=(allWTs||[]).find(w=>w.name===val);
                           if(wt){
                             setReportCounters(p=>p.map((c2,ci2)=>ci2!==ci?c2:{...c2,entries:c2.entries.map((row,ri)=>ri!==ei?row:{...row,workTypeId:wt.id,workTypeName:wt.name,rate:wt.defaultRate,amount:(row.vehicles||0)*wt.defaultRate})}));
                           } else {
@@ -4391,7 +4391,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
 
   const executives = state.users.filter(u=>(u.role==="supervisor"||u.role==="manager"||u.role==="md")&&u.active!==false);
 
-  const selExecUser = state.users.find(u=>u.id===selExec);
+  const selExecUser = (state.users||[]).find(u=>u.id===selExec);
   const isSupRole = (selExecUser&&selExecUser.role)==="supervisor";
   const allToMark = selExec ? [
     selExecUser,
@@ -4400,7 +4400,7 @@ function OfficeMarkAttendance({ user, state, setState, toast }) {
 
   // Actually get staff under this executive
   const getStaffForExec = (execId) => {
-    const exec = state.users.find(u=>u.id===execId);
+    const exec = (state.users||[]).find(u=>u.id===execId);
     if(!exec) return [];
     return [exec, ...state.users.filter(u=>u.role==="field_staff"&&u.active!==false&&u.managerId===execId)];
   };
@@ -4555,8 +4555,8 @@ function ExecutiveReportGenerator({ state }) {
     const moSvc   = monthReps.flatMap(r=>getE(r)).filter(isSvc).reduce((s,e)=>s+(Number(e.amount)||0),0);
 
     // Absent/half-day staff
-    const absentList = dayAtt.filter(a=>a.status==="absent").map(a=>(state.users.find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
-    const halfList   = dayAtt.filter(a=>a.status==="half_day").map(a=>(state.users.find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
+    const absentList = dayAtt.filter(a=>a.status==="absent").map(a=>((state.users||[]).find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
+    const halfList   = dayAtt.filter(a=>a.status==="half_day").map(a=>((state.users||[]).find(u=>u.id===a.staffId)||{}).name).filter(Boolean);
 
     return { exec, myCounters, counterRows, daySvc, dayVeh, moSvc, absentList, halfList, reported:dayReps.length>0 };
   };
@@ -4901,7 +4901,7 @@ function UserMgmt({ user, state, setState, toast }) {
       setState(p=>({...p,users:updated,passwords:pwds,_configVersion:(p._configVersion||0)+1}));
       toast.show("User "+form.name+" updated ✅");
     } else {
-      if (state.users.find(u=>u.empId===empId)) { toast.show("Employee ID already exists","error"); return; }
+      if ((state.users||[]).find(u=>u.empId===empId)) { toast.show("Employee ID already exists","error"); return; }
       if (!newPwd) { toast.show("Password is required for new users","error"); return; }
       const newUser = {...form, empId, id:"u_"+Date.now(), active:true};
       const updated = [...state.users, newUser];
@@ -5036,7 +5036,7 @@ function UserMgmt({ user, state, setState, toast }) {
           </div>
         )},
         {key:"role",  label:"Role", render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
-        {key:"mgr",   label:"Manager", render:r=>(state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
+        {key:"mgr",   label:"Manager", render:r=>((state.users||[]).find(u=>u.id===r.managerId)||{name:"—"}).name},
         {key:"act",   label:"", render:r=>(
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             {r.status!=="resigned" && <Btn onClick={()=>openEdit(r)} size="sm" variant="outline">Edit</Btn>}
@@ -5142,7 +5142,7 @@ function CounterMgmt({ user, state, setState, toast }) {
             </div>
             {selExecs.length>1 && (
               <div style={{fontSize:11,color:T.amber,marginTop:6}}>
-                Primary executive (first selected): {(state.users.find(u=>u.id===selExecs[0])||{}).name}
+                Primary executive (first selected): {((state.users||[]).find(u=>u.id===selExecs[0])||{}).name}
               </div>
             )}
           </div>
@@ -5158,7 +5158,7 @@ function CounterMgmt({ user, state, setState, toast }) {
             <div style={{fontSize:12,fontWeight:800,color:T.txt2,textTransform:"uppercase",marginBottom:8}}>{label}</div>
             {ctrs.map(c=>{
               const supIds = c.supervisorIds || (c.supervisorId?[c.supervisorId]:[]);
-              const sups   = supIds.map(id=>state.users.find(u=>u.id===id)).filter(Boolean);
+              const sups   = supIds.map(id=>(state.users||[]).find(u=>u.id===id)).filter(Boolean);
               return (
                 <Card key={c.id} style={{marginBottom:8,padding:"10px 14px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
@@ -5494,7 +5494,7 @@ function CounterAnalysis({ user, state, counterFilter, myCounterIds }) {
             <Card key={c.id}>
               <div style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>{c.name}</div>
               <div style={{ fontSize:12, color:T.txt2, marginBottom:10 }}>
-                {(state.users.find(u=>u.id===c.supervisorId)||{name:"—"}).name} · {c.days} days · {c.repCount} reports
+                {((state.users||[]).find(u=>u.id===c.supervisorId)||{name:"—"}).name} · {c.days} days · {c.repCount} reports
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
                 <div style={{ background:T.navyXL, borderRadius:6, padding:"8px 10px" }}>
@@ -5576,7 +5576,7 @@ function AllReports({ state, setState, toast, user }) {
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
                 <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:"—"}).name}
-                  {r.submittedBy&&<span style={{color:T.txt3}}> · by {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</span>}
+                  {r.submittedBy&&<span style={{color:T.txt3}}> · by {((state.users||[]).find(u=>u.id===r.submittedBy)||{}).name||"Office"}</span>}
                 </div>
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
@@ -5670,7 +5670,7 @@ function StaffDirectory({ state }) {
         {key:"empId",   label:"ID",     render:r=><span style={{fontFamily:"monospace",fontSize:12}}>{r.empId}</span>},
         {key:"name",    label:"Name",   render:r=><b>{r.name}</b>},
         {key:"role",    label:"Role",   render:r=><Badge color={ROLE_COLORS[r.role]||T.navy}>{ROLE_LABELS[r.role]||r.role}</Badge>},
-        {key:"manager", label:"Reports To", render:r=>(state.users.find(u=>u.id===r.managerId)||{name:"—"}).name},
+        {key:"manager", label:"Reports To", render:r=>((state.users||[]).find(u=>u.id===r.managerId)||{name:"—"}).name},
         {key:"dob",     label:"D.O.B",  render:r=>r.dob?r.dob.split("-").reverse().join("/"):"—"},
         {key:"joining", label:"Joining",render:r=>r.joining?r.joining.split("-").reverse().join("/"):"—"},
         {key:"phone",   label:"Phone"},
@@ -5762,7 +5762,7 @@ function MDFeedbackAll({ state }) {
 
   const fb = state.feedback
     .filter(f => f.date>=dr.from && f.date<=dr.to)
-    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===(state.counters.find(c=>c.id===filterCounter)||{}).name)
+    .filter(f => filterCounter==="all" || f.counterId===filterCounter || f.counterName===((state.counters||[]).find(c=>c.id===filterCounter)||{}).name)
     .filter(f => filterRating===0 || f.rating===filterRating)
     .sort((a,b) => b.date.localeCompare(a.date));
 
@@ -5794,7 +5794,7 @@ function MDFeedbackAll({ state }) {
           <Card key={f.id} style={{ marginBottom:10, borderLeft:"4px solid "+bc }}>
             <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
               <div>
-                <div style={{ fontWeight:700 }}>{f.counterName || (state.counters.find(c=>c.id===f.counterId)||{}).name || "—"}</div>
+                <div style={{ fontWeight:700 }}>{f.counterName || ((state.counters||[]).find(c=>c.id===f.counterId)||{}).name || "—"}</div>
                 <div style={{ fontSize:12, color:T.txt2 }}>{fmtDate(f.date)} · {f.submittedAt||""}</div>
               </div>
               <Badge color={bc}>{Array(f.rating).fill("⭐").join("")} {f.rating}</Badge>
@@ -5843,7 +5843,7 @@ function OfficeReports({ state, setState, toast, user }) {
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
                 <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:"—"}).name}</div>
-                {r.submittedBy&&<div style={{fontSize:11,color:T.txt3}}>By: {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</div>}
+                {r.submittedBy&&<div style={{fontSize:11,color:T.txt3}}>By: {((state.users||[]).find(u=>u.id===r.submittedBy)||{}).name||"Office"}</div>}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
                 <div style={{fontWeight:800,fontSize:16,color:T.amber}}>{fmtCurr(r.totalAmount)}</div>
@@ -5886,7 +5886,7 @@ function OfficeAttendanceView({ state }) {
   const att = state.attendance
     .filter(a=>a.date>=dr.from&&a.date<=dr.to)
     .filter(a=>filterStatus==="all"||a.status===filterStatus)
-    .filter(a=>!search||state.users.find(u=>u.id===a.staffId)&&u&&u.name&&u.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(a=>!search||(state.users||[]).find(u=>u.id===a.staffId)&&u&&u.name&&u.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a,b)=>b.date.localeCompare(a.date)||a.status.localeCompare(b.status));
   const counts = { present:att.filter(a=>a.status==="present").length, absent:att.filter(a=>a.status==="absent").length, half:att.filter(a=>a.status==="half_day").length };
   return (
@@ -5908,8 +5908,8 @@ function OfficeAttendanceView({ state }) {
       {att.length>0 && <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}><StatCard label="Present" value={counts.present} color={T.grn}/><StatCard label="Absent" value={counts.absent} color={T.red}/><StatCard label="Half Day" value={counts.half} color={T.amber}/></div>}
       <Table cols={[
         {key:"date",label:"Date",render:r=>fmtDate(r.date)},
-        {key:"staff",label:"Staff",render:r=><b>{(state.users.find(u=>u.id===r.staffId)||{}).name||r.staffId}</b>},
-        {key:"counter",label:"Counter",render:r=>(state.counters.find(c=>c.supervisorId===r.supervisorId)||{name:"—"}).name},
+        {key:"staff",label:"Staff",render:r=><b>{((state.users||[]).find(u=>u.id===r.staffId)||{}).name||r.staffId}</b>},
+        {key:"counter",label:"Counter",render:r=>((state.counters||[]).find(c=>c.supervisorId===r.supervisorId)||{name:"—"}).name},
         {key:"status",label:"Status",render:r=><Badge color={r.status==="present"?T.lime:r.status==="half_day"?T.amber:T.red}>{r.status==="half_day"?"Half Day":r.status.charAt(0).toUpperCase()+r.status.slice(1)}</Badge>},
         {key:"reason",label:"Reason",render:r=>r.reason||"—"},
       ]} rows={att} emptyMsg="No records"/>
@@ -6059,7 +6059,7 @@ function OfficeExport({ state, toast }) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
         {[
           ["Service Reports","📋",()=>dl(state.serviceReports.map(r=>({ Date:r.date, Counter:r.counterName||"", Executive:((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:""}).name, Total:r.totalAmount, Status:r.status })),"reports_"+today()+".csv")],
-          ["Attendance","👥",()=>dl(state.attendance.map(a=>({ Date:a.date, Staff:(state.users.find(u=>u.id===a.staffId)||{name:""}).name, Status:a.status, Reason:a.reason||"" })),"attendance_"+today()+".csv")],
+          ["Attendance","👥",()=>dl(state.attendance.map(a=>({ Date:a.date, Staff:((state.users||[]).find(u=>u.id===a.staffId)||{name:""}).name, Status:a.status, Reason:a.reason||"" })),"attendance_"+today()+".csv")],
           ["Staff List","👤",()=>dl(state.users.map(u=>({ ID:u.empId, Name:u.name, Role:ROLE_LABELS[u.role]||u.role, Phone:u.phone||"" })),"staff_"+today()+".csv")],
           ["Feedback","💬",()=>dl(state.feedback.map(f=>({ Date:f.date, Counter:f.counterName||"", Rating:f.rating, Vehicle:f.vehicleNo||"", Comment:f.comment||"" })),"feedback_"+today()+".csv")],
         ].map(([label,icon,fn])=>(
@@ -6151,7 +6151,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
 
   // Pending approvals: leaves from my staff waiting for approval
   const pending = (state.plannedLeaves||[]).filter(l=>{
-    const staff = state.users.find(u=>u.id===l.userId);
+    const staff = (state.users||[]).find(u=>u.id===l.userId);
     return (staff&&staff.managerId)===user.id && l.status==="pending";
   });
 
@@ -6162,7 +6162,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
 
   const submit = () => {
     if (!from||!to||!reason) { toast.show("Fill all fields","error"); return; }
-    const targetUser = state.users.find(u=>u.id===forStaff)||state.users.find(u=>u.id===user.id);
+    const targetUser = (state.users||[]).find(u=>u.id===forStaff)||(state.users||[]).find(u=>u.id===user.id);
     const leave = {
       id: "pl_"+Date.now(),
       userId: forStaff,
@@ -6170,9 +6170,9 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
       supervisorId: (targetUser&&targetUser.managerId)||user.id,
       approverId: (()=>{
         // Find the correct approver: manager of the target user
-        const tu = targetUser || state.users.find(u=>u.id===user.id);
+        const tu = targetUser || (state.users||[]).find(u=>u.id===user.id);
         // If target is field staff, their supervisor's manager approves
-        const tuSup = (tu&&tu.role==="field_staff") ? state.users.find(u=>u.id===tu.managerId) : tu;
+        const tuSup = (tu&&tu.role==="field_staff") ? (state.users||[]).find(u=>u.id===tu.managerId) : tu;
         return (tuSup&&tuSup.managerId) || (tu&&tu.managerId) || user.managerId || "";
       })(),
       fromDate: from, toDate: to, reason,
@@ -6192,7 +6192,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
       l.id===id ? {...l, status, decidedOn:today(), decidedBy:user.id} : l
     );
     setState(p=>({...p, plannedLeaves:updated}));
-    const leave = updated.find(l=>l.id===id);
+    const leave = (updated||[]).find(l=>l.id===id);
     if (leave) DB.upsertPlannedLeave(leave).catch(console.error);
     toast.show(status==="approved"?"Leave approved ✅":"Leave rejected");
   };
@@ -6202,7 +6202,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
         <div style={{marginBottom:24}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:12,color:T.red}}>⏳ Pending Approvals ({pending.length})</div>
           {pending.map(l=>{
-            const staff = state.users.find(u=>u.id===l.userId);
+            const staff = (state.users||[]).find(u=>u.id===l.userId);
             return (
               <Card key={l.id} style={{marginBottom:10,borderLeft:"3px solid "+T.amber}}>
                 <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
@@ -6227,7 +6227,7 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
             <label style={{display:"block",fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>For (self or staff member)</label>
             <select value={forStaff} onChange={e=>setForStaff(e.target.value)}
               style={{width:"100%",padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}>
-              <option value={user.id}>Myself ({(state.users.find(u=>u.id===user.id)||{}).name})</option>
+              <option value={user.id}>Myself ({((state.users||[]).find(u=>u.id===user.id)||{}).name})</option>
               {myStaff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
@@ -6245,10 +6245,10 @@ function PlannedLeavePortal({ user, state, setState, toast, mode }) {
       </Card> {myLeaves.length > 0 && (
         <>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>
-            {forStaff===user.id ? "My Leave Requests" : (state.users.find(u=>u.id===forStaff)||{}).name+"'s Leaves"}
+            {forStaff===user.id ? "My Leave Requests" : ((state.users||[]).find(u=>u.id===forStaff)||{}).name+"'s Leaves"}
           </div>
           <Table cols={[
-            {key:"staffName",label:"Staff",render:r=>r.staffName||(state.users.find(u=>u.id===r.userId)||{name:"—"}).name},
+            {key:"staffName",label:"Staff",render:r=>r.staffName||((state.users||[]).find(u=>u.id===r.userId)||{name:"—"}).name},
             {key:"fromDate",label:"From",render:r=>fmtDate(r.fromDate)},
             {key:"toDate",label:"To",render:r=>fmtDate(r.toDate)},
             {key:"reason",label:"Reason"},
@@ -6372,8 +6372,8 @@ function DebugReports({ state }) {
   const tod = now.toISOString().split("T")[0];
   const todayReps = (state.serviceReports||[]).filter(r=>r.date===tod);
   const matchCounter = (r) => {
-    let m = state.counters.find(c=>r.counterId&&r.counterId===c.id);
-    if(!m&&r.counterName){ const rn=r.counterName.trim().toUpperCase(); m=state.counters.find(c=>c.name.trim().toUpperCase()===rn); }
+    let m = (state.counters||[]).find(c=>r.counterId&&r.counterId===c.id);
+    if(!m&&r.counterName){ const rn=r.counterName.trim().toUpperCase(); m=(state.counters||[]).find(c=>c.name.trim().toUpperCase()===rn); }
     if(!m&&r.supervisorId){ const sc=state.counters.filter(c=>c.supervisorId===r.supervisorId||(c.supervisorIds||[]).includes(r.supervisorId)); if(sc.length===1) m=sc[0]; }
     return m;
   };
@@ -6411,7 +6411,7 @@ function DebugReports({ state }) {
             {["id","name","supervisorId","supervisorIds","Supervisor"].map(h=><th key={h} style={{padding:"4px 8px",textAlign:"left",border:"1px solid #334"}}>{h}</th>)}
           </tr></thead>
           <tbody>
-            {state.counters.map((c,i)=>{ const sup=state.users.find(u=>u.id===c.supervisorId); return (
+            {state.counters.map((c,i)=>{ const sup=(state.users||[]).find(u=>u.id===c.supervisorId); return (
               <tr key={i}>
                 <td style={{padding:"3px 8px",border:"1px solid #334"}}>{c.id}</td>
                 <td style={{padding:"3px 8px",border:"1px solid #334",color:"#fbbf24"}}>{c.name}</td>
@@ -6567,11 +6567,11 @@ function StaffNotesViewer({ user, state, setState, toast }) {
   ];
 
   const isMyStaff = (userId) => {
-    const u = state.users.find(x=>x.id===userId);
+    const u = (state.users||[]).find(x=>x.id===userId);
     if (!u) return false;
     if (u.managerId===user.id) return true;
     // Also show notes from staff whose supervisor reports to this manager
-    const sup = state.users.find(x=>x.id===u.managerId);
+    const sup = (state.users||[]).find(x=>x.id===u.managerId);
     if ((sup&&sup.managerId)===user.id) return true;
     // MD sees all
     if (user.role==="md") return true;
@@ -6592,7 +6592,7 @@ function StaffNotesViewer({ user, state, setState, toast }) {
   const markRead = (id) => {
     const updated = (state.feedback||[]).map(f=>f.id===id?{...f,status:"read",readAt:new Date().toISOString()}:f);
     setState(p=>({...p,feedback:updated}));
-    const note = updated.find(f=>f.id===id);
+    const note = (updated||[]).find(f=>f.id===id);
     if (note) DB.upsertFeedback(note).catch(console.error);
   };
 
@@ -6794,7 +6794,7 @@ function StockRequest({ user, state, setState, toast }) {
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
 
   // Counter is optional - auto-assign for supervisors, manual for others
-  const autoCounter = state.counters.find(c=>
+  const autoCounter = (state.counters||[]).find(c=>
     c.supervisorId===user.id||(c.supervisorIds||[]).includes(user.id)
   );
   const [selCounterId, setSelCounterId] = useState(autoCounter?autoCounter.id:"");
@@ -6815,7 +6815,7 @@ function StockRequest({ user, state, setState, toast }) {
     const valid = rows.filter(r=>r.productName.trim()&&Number(r.qty)>0);
     if (!valid.length) { toast.show("Add at least one product with quantity","error"); return; }
     setSaving(true);
-    const counter = (requestType==="counter"&&selCounterId) ? state.counters.find(c=>c.id===selCounterId) : null;
+    const counter = (requestType==="counter"&&selCounterId) ? (state.counters||[]).find(c=>c.id===selCounterId) : null;
     const req = {
       id: "req_"+user.id+"_"+Date.now(),
       date: today(),
@@ -7568,7 +7568,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                           <Badge color={isOut?T.red:isLow?T.amber:T.grn}>{isOut?"Out of Stock":isLow?"Low Stock":"In Stock"}</Badge>
                         </td>
                         <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{fmtDate(item.lastUpdated)}</td>
-                        <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{(state.users.find(u=>u.id===item.updatedBy)||{}).name||item.updatedBy}</td>
+                        <td style={{padding:"8px 12px",fontSize:11,color:T.txt2}}>{((state.users||[]).find(u=>u.id===item.updatedBy)||{}).name||item.updatedBy}</td>
                       </tr>
                     );
                   })}
@@ -7599,7 +7599,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                       <td style={{padding:"8px 12px"}}>
                         <Badge color={{pending:T.amber,approved:T.grn,partial:"#7C3AED",rejected:T.red}[req.status]||T.txt2}>{req.status}</Badge>
                       </td>
-                      <td style={{padding:"8px 12px",fontSize:12}}>{req.approvedBy?(state.users.find(u=>u.id===req.approvedBy)||{}).name||req.approvedBy:"—"}</td>
+                      <td style={{padding:"8px 12px",fontSize:12}}>{req.approvedBy?((state.users||[]).find(u=>u.id===req.approvedBy)||{}).name||req.approvedBy:"—"}</td>
                       <td style={{padding:"8px 12px",textAlign:"center"}}>
                         <button onClick={()=>{
                           if(!confirm("Delete this request record?")) return;
@@ -7617,7 +7617,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                             // Persist restored inventory to DB
                             setTimeout(async()=>{
                               for(const item of approvedItems){
-                                const inv=state.inventory.find(i=>i.productName===item.productName);
+                                const inv=(state.inventory||[]).find(i=>i.productName===item.productName);
                                 if(!inv) continue;
                                 await fetch(SUPABASE_URL+"/rest/v1/inventory",{method:"POST",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:inv.id,product_id:inv.productId||inv.id,product_name:inv.productName,unit:inv.unit||"pcs",current_stock:Number(inv.currentStock||0)+Number(item.approvedQty),pending_qty:0,min_stock:Number(inv.minStock||0),last_updated:today(),updated_by:user.id})}).catch(console.error);
                               }
@@ -7661,7 +7661,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
                         {tx.type==="checkin"?"+":"-"}{tx.qty}
                       </td>
                       <td style={{padding:"8px 12px"}}>{tx.counterName}</td>
-                      <td style={{padding:"8px 12px",fontSize:12}}>{(state.users.find(u=>u.id===tx.doneBy)||{}).name||tx.doneBy}</td>
+                      <td style={{padding:"8px 12px",fontSize:12}}>{((state.users||[]).find(u=>u.id===tx.doneBy)||{}).name||tx.doneBy}</td>
                       <td style={{padding:"8px 12px",fontSize:12,color:T.txt2}}>{tx.notes}</td>
                       <td style={{padding:"8px 12px",textAlign:"center"}}>
                         <button onClick={()=>{
@@ -7868,8 +7868,8 @@ function TargetFulfillmentReport({ user, state }) {
   }).sort((a,b)=>(b.pct!==undefined?b.pct:-1)-(a.pct!==undefined?a.pct:-1));
 
   const execRows = state.users.filter(u=>u.role==="supervisor"&&u.active!==false).map(u => {
-    const ctr = state.counters.find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
-    const mgr = state.users.find(m=>m.id===u.managerId);
+    const ctr = (state.counters||[]).find(c=>c.supervisorId===u.id||(c.supervisorIds||[]).includes(u.id));
+    const mgr = (state.users||[]).find(m=>m.id===u.managerId);
     const revenue = getRevenue(u.id);
     const target  = getTarget("executive", u.id);
     const pct     = target>0 ? Math.round(revenue/target*100) : null;
