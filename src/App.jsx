@@ -7366,20 +7366,44 @@ function StockRequestsApproval({ user, state, setState, toast }) {
       {activeTab==="history" && (
         <div style={{marginTop:12}}>
           {history.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No history.</div></Card>}
-          {history.slice(0,30).map(function(req){return (
+          {history.slice(0,30).map(function(req){
+            var canProgress = req.status==="approved"||req.status==="partial";
+            return (
             <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-                <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+                <div style={{flex:1}}>
                   <div style={{fontWeight:600,fontSize:13}}>{req.requestType==="direct"?"Direct":(req.counterName||"No counter")} - {req.requestedByName}</div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - {req.items.map(function(it){return it.productName+"x"+it.qty;}).join(", ")}</div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - {req.items.map(function(it){return it.productName+"x"+it.qty+(it.approvedQty!==undefined?" (approved:"+it.approvedQty+")":"");}).join(", ")}</div>
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
-                  <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                    <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                    <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                    <button onClick={function(){
+                      if(!confirm("Delete this request?")) return;
+                      setState(function(p){return Object.assign({},p,{stockRequests:p.stockRequests.filter(function(r){return r.id!==req.id;})});});
+                      fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                      toast.show("Deleted");
+                    }} style={{background:"none",border:"1px solid "+T.red,borderRadius:4,color:T.red,cursor:"pointer",fontSize:11,padding:"2px 6px",fontFamily:"inherit"}}>x</button>
+                  </div>
+                  {canProgress && (
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {["invoiced","dispatched","delivered"].map(function(s){
+                        var isAct=req.stockStatus===s;
+                        var col=s==="invoiced"?"#7C3AED":s==="dispatched"?T.navy:T.grn;
+                        return React.createElement("button",{
+                          key:s,
+                          onClick:function(){updateStockStatus(req,s);},
+                          style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}
+                        },statusIcon(s)+" "+s);
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
-          );})}
+            );
+          })}
         </div>
       )}
     </div>
