@@ -2184,10 +2184,6 @@ function ManagerPortal({ user, state, setState, toast, syncFromCloud, syncStatus
       {page==="salary"     && <SalaryView user={user} state={state} setState={setState} toast={toast} viewScope="all"/>}
       {page==="attendance"  && <MDAttendance state={state}/>}
       {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
-      {page==="myattendance" && <SelfAttendance user={user} state={state} setState={setState} toast={toast}/>}
       {page==="financial"   && <MDFinancial  state={state}/>}
       {page==="operations"  && <MDOperations state={state}/>}
       {page==="directory"   && <StaffDirectory state={state}/>}
@@ -2426,6 +2422,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
 
 function MgrReports({ user, state, mySupervisors, myCounters }) {
   const [tab, setTab] = useState("daily");
+  const [editingReport, setEditingReport] = useState(null);
   const dr = useDateRange("today");
   const [selMonth, setSelMonth] = useState(today().slice(0,7));
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
