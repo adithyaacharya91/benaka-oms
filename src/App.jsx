@@ -7447,7 +7447,47 @@ function StockRequestsApproval({ user, state, setState, toast }) {
 function InventoryDashboard({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
   const statusIcon  = s => ({requested:"📋",approved:"✅",pending:"⏳",invoiced:"🧾",dispatched:"🚚",delivered:"📦"}[s]||"•");
-  const [view, setView]   = useState("stock");   // stock | requests | transactions | monthly
+  const [view, setView]   = useState("stock");
+  const [editStock, setEditStock] = useState(null); // {id, productName, currentStock}
+  const saveStock = function(item, newQty, reason) {
+    var qty = Number(newQty);
+    if(isNaN(qty)||qty<0){toast.show("Invalid quantity","error");return;}
+    var oldQty = Number(item.currentStock||0);
+    var diff = qty - oldQty;
+    var tx = {
+      id:"tx_edit_"+Date.now(),
+      date:today(),
+      type:"adjustment",
+      productName:item.productName,
+      qty:Math.abs(diff),
+      direction:diff>=0?"in":"out",
+      notes:reason||"Manual stock adjustment",
+      doneBy:user.id,
+      doneByName:user.name||user.id
+    };
+    setState(function(p){
+      return Object.assign({},p,{
+        inventory:p.inventory.map(function(x){
+          if(x.id!==item.id) return x;
+          return Object.assign({},x,{currentStock:qty,lastUpdated:today(),updatedBy:user.id});
+        }),
+        stockTransactions:diff!==0?[tx,...(p.stockTransactions||[])]:(p.stockTransactions||[])
+      });
+    });
+    var updated = Object.assign({},item,{currentStock:qty,lastUpdated:today(),updatedBy:user.id});
+    fetch(SUPABASE_URL+"/rest/v1/inventory?id=eq."+item.id,{
+      method:"PATCH",
+      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
+      body:JSON.stringify({current_stock:qty,last_updated:today(),updated_by:user.id})
+    }).catch(console.error);
+    if(diff!==0) fetch(SUPABASE_URL+"/rest/v1/stock_transactions",{
+      method:"POST",
+      headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
+      body:JSON.stringify(tx)
+    }).catch(console.error);
+    toast.show("Stock updated: "+item.productName+" = "+qty);
+    setEditStock(null);
+  };   // stock | requests | transactions | monthly
   const [search, setSearch] = useState("");
   const dr = useDateRange("month");
   const selMonth = dr.from.slice(0,7);
@@ -7703,6 +7743,39 @@ function InventoryDashboard({ user, state, setState, toast }) {
         )}
       </div>
     </div>
+
+    {editStock && (
+      <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+        <div style={{background:"#fff",borderRadius:12,padding:28,minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Edit Stock</div>
+          <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>{editStock.productName}</div>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>NEW QUANTITY</label>
+            <div style={{fontSize:12,color:T.txt3,marginBottom:6}}>Current: <b>{editStock.currentStock}</b></div>
+            <input type="number" id="esq" defaultValue={editStock.currentStock} min="0"
+              style={{width:"100%",padding:"10px 12px",border:"2px solid "+T.navy,borderRadius:8,fontSize:16,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>REASON</label>
+            <input type="text" id="esr" placeholder="e.g. Stock count correction, damaged goods..."
+              style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <Btn onClick={function(){
+              var qty=document.getElementById("esq").value;
+              var reason=document.getElementById("esr").value||"Manual stock adjustment";
+              saveStock(editStock.item,qty,reason);
+            }} variant="amber">Save Changes</Btn>
+            <Btn onClick={function(){
+              var reason=document.getElementById("esr").value||"Manual reset to zero";
+              if(!confirm("Reset "+editStock.productName+" to ZERO?")) return;
+              saveStock(editStock.item,0,reason);
+            }} variant="danger">Reset to 0</Btn>
+            <Btn onClick={function(){setEditStock(null);}} variant="outline">Cancel</Btn>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }
 function TargetFulfillmentReport({ user, state }) {
