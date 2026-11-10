@@ -6725,9 +6725,129 @@ function StockCheckin({ user, state, setState, toast }) {
     setSaving(false);
   };
 
-  return <div/>;
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Godown Check-in</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter stock received from the godown</div>
+      <Card style={{marginBottom:20}}>
+        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:14}}/> {state.inventory&&state.inventory.length>0 && (
+          <div style={{background:T.navyXL,borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12}}>
+            <b>Current Stock:</b>{" "}
+            {(state.inventory||[]).map(function(i){return i.productName+": "+i.currentStock+" "+i.unit;}).join(" · ")}
+          </div>
+        )} {(state.salesItems&&state.salesItems.length>0)&&(
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Quick Add Product</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {state.salesItems.filter(s=>s.active!==false).map(s=>{
+                const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                const qty=inv?Number(inv.currentStock||0):0;
+                const added=rows.some(r=>r.productName===s.name);
+                return (
+                  <button key={s.id} onClick={()=>{
+                    if(added){toast.show(s.name+" already added","error");return;}
+                    setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",unit:s.unit||"pcs",notes:""}]);
+                  }} style={{
+                    padding:"5px 12px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",
+                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:T.bdrS),
+                    background:added?T.navy:"#fff",color:added?"#fff":T.txt,transition:"all .15s"
+                  }}>
+                    {s.name}
+                    {(function(){
+                      var livePend=(state.stockRequests||[])
+                        .filter(function(r){return r.status==="pending";})
+                        .reduce(function(sum,r){return sum+(r.items||[]).filter(function(it){return it.productName===s.name;}).reduce(function(s2,it){return s2+Number(it.qty||0);},0);},0);
+                      var avail=Math.max(0,qty-livePend);
+                      return React.createElement("span",{style:{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(avail>0?T.grn:T.red),fontWeight:700}},avail," ",(s.unit||"pcs"),livePend>0?" ("+livePend+" pend)":"");
+                    })()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12,minWidth:500}}>
+          <thead>
+            <tr style={{background:T.navyXL}}>
+              {["Product","Qty","Unit","Notes",""].map(h=>(
+                <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+              ))}
+              </tr></thead>
+          <tbody>
+            {rows.map((row,i)=>(
+              <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
+                <td style={{padding:"5px 6px"}}>
+                  <input list="ci-products" value={row.productName}
+                    onChange={e=>upRow(i,"productName",e.target.value)}
+                    placeholder="Product name..."
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:80}}>
+                  <input type="number" value={row.qty} min="0"
+                    onChange={e=>upRow(i,"qty",e.target.value)}
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:80}}>
+                  <select value={row.unit} onChange={e=>upRow(i,"unit",e.target.value)}
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}>
+                    {["pcs","ltr","kg","ml","gm","box","roll","pair"].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                </td>
+                <td style={{padding:"5px 6px"}}>
+                  <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
+                    placeholder="Optional..."
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:36,textAlign:"center"}}>
+                  <button onClick={()=>rmRow(i)}
+                    style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.red,lineHeight:1}}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <datalist id="ci-products">
+          {(state.salesItems&&state.salesItems.length>0
+            ? state.salesItems.filter(s=>s.active!==false)
+            : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
+               {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
+          ).map(s=>{
+            const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+            const total=inv?Number(inv.currentStock||0):0;
+            const livePend=(state.stockRequests||[])
+              .filter(r=>r.status==="pending")
+              .reduce((sum,r)=>sum+(r.items||[])
+                .filter(it=>it.productName===s.name)
+                .reduce((a,it)=>a+Number(it.qty||0),0),0);
+            const avail=Math.max(0,total-livePend);
+            const label=livePend>0
+              ? s.name+" — Available: "+avail+" ("+livePend+" pending)"
+              : s.name+" — Stock: "+avail+" "+(s.unit||"pcs");
+            return <option key={s.id||s.name} value={s.name} label={label}/>;
+          })}
+          {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
+            .map(i=><option key={i.id} value={i.productName}/>)}
+        </datalist>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
+          <Btn onClick={submit} variant="amber" disabled={saving}>
+            {saving?"Saving...":"💾 Check In Stock"}
+          </Btn>
+        </div>
+      </Card> {(state.stockTransactions||[]).filter(t=>t.type==="checkin").slice(0,5).length>0 && (
+        <div>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.txt2}}>Recent Check-ins</div>
+          {(state.stockTransactions||[]).filter(t=>t.type==="checkin")
+            .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(tx=>(
+            <div key={tx.id} style={{fontSize:12,color:T.txt2,padding:"4px 0",borderBottom:"1px solid "+T.bdr}}>
+              {fmtDate(tx.date)} · <b>{tx.productName}</b> · +{tx.qty} {tx.unit||"pcs"}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
-
 
 function StockRequest({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
@@ -6858,93 +6978,208 @@ function StockRequest({ user, state, setState, toast }) {
   return (
     <div style={{padding:20}}>
       <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Request Stock</div>
-      <Card>
-        <div style={{marginBottom:14}}>
-          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5}}>REQUEST TYPE</label>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={function(){setRequestType("counter");}} style={{padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"2px solid "+(requestType==="counter"?T.navy:T.bdrS),background:requestType==="counter"?T.navy:"#fff",color:requestType==="counter"?"#fff":T.txt}}>Counter Request</button>
-            <button onClick={function(){setRequestType("direct");setSelCounterId("");}} style={{padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"2px solid "+(requestType==="direct"?T.navy:T.bdrS),background:requestType==="direct"?T.navy:"#fff",color:requestType==="direct"?"#fff":T.txt}}>Direct Sales</button>
-          </div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Request products from godown</div>
+
+      <Card style={{marginBottom:20}}>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          {[["counter","🏪 Counter Request"],["direct","🚗 Direct / Non-Counter"]].map(([type,label])=>(
+            <button key={type} onClick={()=>{setRequestType(type);if(type==="direct")setSelCounterId("");}} style={{
+              padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",
+              fontFamily:"inherit",border:"2px solid "+(requestType===type?T.navy:T.bdrS),
+              background:requestType===type?T.navy:"#fff",color:requestType===type?"#fff":T.txt
+            }}>{label}</button>
+          ))}
         </div>
         {requestType==="counter" && (
           <div style={{marginBottom:14}}>
-            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5}}>COUNTER</label>
-            <select value={selCounterId} onChange={function(e){setSelCounterId(e.target.value);}} style={{padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",minWidth:220}}>
-              <option value="">No specific counter</option>
-              {state.counters.filter(function(c){return c.name!=="OFFICE";}).sort(function(a,b){return a.name.localeCompare(b.name);}).map(function(c){return <option key={c.id} value={c.id}>{c.name}</option>;})}
+            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>
+              Counter {canManageAll?"(select any)":""}
+            </label>
+            <select value={selCounterId} onChange={e=>setSelCounterId(e.target.value)}
+              style={{padding:"9px 12px",border:"1px solid "+T.bdrS,borderRadius:8,
+                fontSize:13,fontFamily:"inherit",outline:"none",minWidth:220}}>
+              <option value="">— No specific counter —</option>
+              {state.counters.filter(c=>c.name!=="OFFICE").sort((a,b)=>a.name.localeCompare(b.name)).map(c=>(
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </select>
           </div>
         )}
         <div style={{marginBottom:14}}>
-          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5}}>PRIORITY</label>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:5,textTransform:"uppercase"}}>Priority</label>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={function(){setUrgency("normal");}} style={{padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"2px solid "+(urgency==="normal"?T.grn:T.bdrS),background:urgency==="normal"?"#F0FDF4":"#fff",color:urgency==="normal"?T.grn:T.txt}}>Normal</button>
-            <button onClick={function(){setUrgency("urgent");}} style={{padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"2px solid "+(urgency==="urgent"?T.red:T.bdrS),background:urgency==="urgent"?"#FEF2F2":"#fff",color:urgency==="urgent"?T.red:T.txt}}>Urgent</button>
+            {[["normal","🟢 Normal"],["urgent","🔴 Urgent"]].map(([u,label])=>(
+              <button key={u} onClick={()=>setUrgency(u)} style={{
+                padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                fontFamily:"inherit",border:"2px solid "+(urgency===u?(u==="urgent"?T.red:T.grn):T.bdrS),
+                background:urgency===u?(u==="urgent"?"#FEF2F2":"#F0FDF4"):"#fff",
+                color:urgency===u?(u==="urgent"?T.red:T.grn):T.txt
+              }}>{label}</button>
+            ))}
           </div>
         </div>
+        {(state.salesItems&&state.salesItems.length>0)&&(
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:5,textTransform:"uppercase"}}>Quick Add Product</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {state.salesItems.filter(s=>s.active!==false).map(s=>{
+                const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                const totalStock=inv?Number(inv.currentStock||0):0;
+                // Compute live pending from all pending stock requests
+                const livePending=(state.stockRequests||[])
+                  .filter(r=>r.status==="pending")
+                  .reduce((sum,r)=>sum+(r.items||[]).filter(it=>it.productName===s.name).reduce((s,it)=>s+Number(it.qty||0),0),0);
+                const available=Math.max(0,totalStock-livePending);
+                const added=rows.some(r=>r.productName===s.name);
+                return (
+                  <button key={s.id} onClick={()=>{
+                    if(added){toast.show(s.name+" already added","error");return;}
+                    setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",notes:""}]);
+                  }} style={{
+                    padding:"4px 10px",borderRadius:14,fontSize:11,fontWeight:600,cursor:"pointer",
+                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:available>0?T.grn:T.red),
+                    background:added?T.navy:available>0?"#F0FDF4":"#FEF2F2",
+                    color:added?"#fff":available>0?T.grn:T.red
+                  }}>
+                    {s.name}
+                    <span style={{marginLeft:3,fontSize:10,fontWeight:800}}>
+                      {available}
+                      {livePending>0&&<span style={{opacity:.6}}> ({livePending} pending)</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10}}>
-          <thead><tr style={{background:T.navyXL}}>{["Product","Qty","Notes",""].map(function(h){return <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2}}>{h}</th>;})}</tr></thead>
+          <thead><tr style={{background:T.navyXL}}>
+            {["Product","Qty","Notes",""].map(h=>(
+              <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+            ))}
+          </tr></thead>
           <tbody>
-            {rows.map(function(row,i){return (
+            {rows.map((row,i)=>(
               <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
                 <td style={{padding:"5px 6px"}}>
-                  <select value={row.productName} onChange={function(e){upRow(i,"productName",e.target.value);}} style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff"}}>
-                    <option value="">Select product</option>
-                    {(state.salesItems||[]).filter(function(s){return s.active!==false;}).map(function(s){
-                      var inv=(state.inventory||[]).find(function(x){return x.productName===s.name;});
-                      var total=inv?Number(inv.currentStock||0):0;
-                      var pending=(state.stockRequests||[]).filter(function(r){return r.status==="pending";}).reduce(function(sum,r){return sum+(r.items||[]).filter(function(it){return it.productName===s.name;}).reduce(function(a,it){return a+Number(it.qty||0);},0);},0);
-                      var avail=Math.max(0,total-pending);
-                      return <option key={s.id||s.name} value={s.name}>{s.name+" — "+avail+" "+(s.unit||"pcs")+(pending>0?" ("+pending+" pending)":"")}</option>;
-                    })}
-                  </select>
+                  <select value={row.productName} onChange={e=>upRow(i,"productName",e.target.value)}
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,
+                      fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box",background:"#fff"}}>
+                  <option value="">— Select product —</option>
+                  {(state.salesItems&&state.salesItems.length>0
+                    ? state.salesItems.filter(s=>s.active!==false)
+                    : [{name:"JOPASU",unit:"pcs"},{name:"SHAMPOO",unit:"ltr"},{name:"POLISH LIQUID",unit:"ltr"},
+                       {name:"MICROFIBER CLOTH",unit:"pcs"},{name:"AIR FRESHENER",unit:"pcs"},
+                       {name:"TYRE SHINE",unit:"ltr"},{name:"BARDAHL",unit:"ltr"},{name:"OTHER SALES",unit:"pcs"}]
+                  ).map(s=>{
+                    const inv=(state.inventory||[]).find(x=>x.productName===s.name);
+                    const total=inv?Number(inv.currentStock||0):0;
+                    const livePend=(state.stockRequests||[])
+                      .filter(r=>r.status==="pending")
+                      .reduce((sum,r)=>sum+(r.items||[])
+                        .filter(it=>it.productName===s.name)
+                        .reduce((a,it)=>a+Number(it.qty||0),0),0);
+                    const avail=Math.max(0,total-livePend);
+                    const label=livePend>0
+                      ? s.name+" — Avail: "+avail+" "+(s.unit||"pcs")+" ("+livePend+" pending)"
+                      : s.name+" — Stock: "+avail+" "+(s.unit||"pcs");
+                    return <option key={s.id||s.name} value={s.name}>{label}</option>;
+                  })}
+                </select>
                 </td>
-                <td style={{padding:"5px 6px",width:80}}><input type="number" value={row.qty} min="1" onChange={function(e){upRow(i,"qty",e.target.value);}} placeholder="Qty" style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none"}}/></td>
-                <td style={{padding:"5px 6px"}}><input value={row.notes} onChange={function(e){upRow(i,"notes",e.target.value);}} placeholder="Notes" style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none"}}/></td>
-                <td style={{padding:"5px 6px",width:36}}>{rows.length>1 && <button onClick={function(){rmRow(i);}} style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"2px"}}>x</button>}</td>
+                <td style={{padding:"5px 6px",width:80}}>
+                  <input type="number" value={row.qty} min="1"
+                    onChange={e=>upRow(i,"qty",e.target.value)}
+                    placeholder="Qty"
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+                </td>
+                <td style={{padding:"5px 6px"}}>
+                  <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
+                    placeholder="Notes (optional)"
+                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+                </td>
+                <td style={{padding:"5px 6px",width:36}}>
+                  {rows.length>1&&<button onClick={()=>rmRow(i)} style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"2px"}}>×</button>}
+                </td>
               </tr>
-            );})}
+            ))}
           </tbody>
         </table>
+
+
         <div style={{display:"flex",gap:8,marginTop:4}}>
           <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
-          <Btn onClick={submit} variant="amber" disabled={saving}>{saving?"Submitting...":"Submit Request"}</Btn>
+          <Btn onClick={submit} variant="amber" disabled={saving}>
+            {saving?"Submitting...":"📤 Submit Request"}
+          </Btn>
         </div>
       </Card>
-      {pending.length>0 && (
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:8}}>Pending ({pending.length})</div>
-          {pending.map(function(req){return (
+      {pending.length>0&&(
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:8}}>⏳ Pending ({pending.length})</div>
+          {pending.map(req=>(
             <Card key={req.id} style={{marginBottom:8,borderLeft:"4px solid "+T.amber}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                 <div>
-                  <div style={{fontWeight:700,fontSize:13}}>{req.requestType==="direct"?"Direct Sales":(req.counterName||"No counter")} - {fmtDate(req.date)}</div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{req.items.map(function(it){return it.productName+" x"+it.qty;}).join(", ")}</div>
+                  <div style={{fontWeight:700,fontSize:13}}>
+                    {req.requestType==="direct"
+                      ? <span style={{color:"#7C3AED"}}>🚗 Direct Sales</span>
+                      : <span>{req.counterName||"No counter"}</span>
+                    } · {fmtDate(req.date)}
+                    {req.urgency==="urgent"&&<span style={{marginLeft:6,color:T.red,fontSize:11,fontWeight:800}}>🔴 URGENT</span>}
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {req.items.map(it=>it.productName+" ×"+it.qty).join(", ")}
+                  </div>
+                  {req.items.some(it=>it.notes)&&(
+                    <div style={{fontSize:11,color:T.txt3,marginTop:2}}>
+                      Notes: {req.items.filter(it=>it.notes).map(it=>it.productName+": "+it.notes).join(" · ")}
+                    </div>
+                  )}
                 </div>
-                <Btn onClick={function(){cancelReq(req);}} variant="danger" size="sm">Cancel</Btn>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                  <Btn onClick={()=>cancelReq(req)} variant="danger" size="sm">Cancel</Btn>
+                </div>
               </div>
             </Card>
-          );})}
+          ))}
         </div>
       )}
-      {history.length>0 && (
+      {history.length>0&&(
         <div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>History</div>
-          {history.slice(0,10).map(function(req){return (
+          <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>History ({history.length})</div>
+          {history.slice(0,20).map(req=>(
             <Card key={req.id} style={{marginBottom:6,borderLeft:"3px solid "+statusColor(req.status)}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
                 <div>
-                  <div style={{fontWeight:600,fontSize:13}}>{req.requestType==="direct"?"Direct":(req.counterName||"No counter")} - {fmtDate(req.date)}</div>
-                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{req.items.map(function(it){return it.productName+"x"+it.qty;}).join(", ")}</div>
+                  <div style={{fontWeight:600,fontSize:13}}>
+                    {req.requestType==="direct"
+                      ? <span style={{color:"#7C3AED"}}>🚗 Direct</span>
+                      : req.counterName||"No counter"
+                    } · {fmtDate(req.date)}
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {req.items.map(function(it){return it.productName+"×"+it.qty;}).join(", ")}
+                    {(req.status==="approved"||req.status==="partial")&&
+                      <span style={{color:T.grn}}> → Approved: {req.items.filter(function(it){return Number(it.approvedQty)>0;}).map(function(it){return it.productName+"×"+it.approvedQty;}).join(", ")}</span>
+                    }
+                  </div>
                 </div>
-                <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                  {req.stockStatus&&req.stockStatus!==req.status&&(
+                    <Badge color={statusColor(req.stockStatus)}>{statusIcon(req.stockStatus)} {req.stockStatus}</Badge>
+                  )}
+                </div>
               </div>
             </Card>
-          );})}
+          ))}
         </div>
       )}
+
       {pending.length===0&&history.length===0&&(
-        <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No requests yet.</div></Card>
+        <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No stock requests yet. Use the form above to create one.</div></Card>
       )}
     </div>
   );
@@ -7101,7 +7336,234 @@ function StockRequestsApproval({ user, state, setState, toast }) {
     toast.show(statusIcon(newStatus)+" Status updated: "+newStatus);
   };
 
-  return <div/>;
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Stock Requests</div>
+
+      {pending.length===0&&history.length===0&&(
+        <Card><div style={{textAlign:"center",padding:20,color:T.txt3}}>No stock requests yet</div></Card>
+      )}
+
+      {pending.length>0 && (
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:14,fontWeight:800,color:T.amber,marginBottom:10}}>⏳ Pending ({pending.length})</div>
+          {pending.map(req=>(
+            <Card key={req.id} style={{marginBottom:12,borderLeft:"4px solid "+T.amber}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                <div>
+                  <div style={{fontWeight:800,fontSize:14}}>{req.counterName}</div>
+                  <div style={{fontSize:12,color:T.txt2}}>{req.requestedByName} · {fmtDate(req.date)}</div>
+                  {expanded!==req.id&&<div style={{fontSize:12,color:T.txt2,marginTop:4}}>
+                    {req.items.map(function(it){return it.productName+" × "+it.qty;}).join(" | ")}
+                  </div>}
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <Btn onClick={()=>expanded===req.id?setExpanded(null):initEdit(req)} size="sm" variant="outline">
+                    {expanded===req.id?"▲ Collapse":"▼ Review"}
+                  </Btn>
+                  <Btn onClick={()=>{
+                    if(!confirm("Delete this pending request?")) return;
+                    setState(p=>({...p,stockRequests:p.stockRequests.filter(r=>r.id!==req.id)}));
+                    fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                    toast.show("Request deleted");
+                  }} size="sm" variant="danger">🗑</Btn>
+                </div>
+              </div>
+
+              {expanded===req.id && (
+                <div style={{marginTop:12,borderTop:"1px solid "+T.bdr,paddingTop:12}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
+                    <thead><tr style={{background:T.navyXL}}>
+                      {["Product","Requested","Available","Release Qty","Status"].map(h=>(
+                        <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
+                      ))}
+                      </tr></thead>
+                    <tbody>
+                      {req.items.map((it,i)=>{
+                        const inv       = findInv(it.productName);
+                        const available = Number((inv&&inv.currentStock)||0);
+                        const releaseQty = Number((editQtys[req.id]&&editQtys[req.id][i]!==undefined)?editQtys[req.id][i]:it.qty);
+                        const canFulfil  = available >= it.qty;
+                        return (
+                          <tr key={i} style={{borderBottom:"1px solid "+T.bdr,
+                            background:available===0?"#fff5f5":!canFulfil?"#fffbf0":"#f0fff4"}}>
+                            <td style={{padding:"7px 10px",fontWeight:600}}>{it.productName}</td>
+                            <td style={{padding:"7px 10px",textAlign:"center"}}>{it.qty}</td>
+                            <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700,
+                              color:available===0?T.red:!canFulfil?T.amber:T.grn}}>{available}</td>
+                            <td style={{padding:"7px 10px",width:90}}>
+                              <input type="number" value={releaseQty}
+                                min="0" max={available}
+                                onChange={e=>setEditQtys(p=>({...p,[req.id]:{...p[req.id],[i]:e.target.value}}))}
+                                style={{width:"100%",padding:"5px 8px",border:"1px solid "+(releaseQty>available?"#ef4444":T.bdrS),borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                            </td>
+                            <td style={{padding:"7px 10px",fontSize:11}}>
+                              {available===0?<span style={{color:T.red}}>Out of stock</span>
+                                :!canFulfil?<span style={{color:T.amber}}>Partial only ({available} avail)</span>
+                                :<span style={{color:T.grn}}>Can fulfil</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn onClick={()=>approve(req,"approved")} variant="success" size="sm">✅ Release Stock</Btn>
+                    <Btn onClick={()=>approve(req,"rejected")} variant="danger"  size="sm">❌ Reject</Btn>
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {history.length>0 && (
+        <div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>History ({history.length})</div>
+          {history.slice(0,30).map(req=>(
+            <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>
+                    {req.counterName} · <span style={{color:T.txt2,fontWeight:400}}>{req.requestedByName}</span>
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {fmtDate(req.date)} · Requested: {req.items.map(function(it){return it.productName+"×"+it.qty;}).join(", ")}
+                  </div>
+                  {(req.status==="approved"||req.status==="partial")&&(
+                    <div style={{fontSize:11,color:T.grn,marginTop:2}}>
+                      Released: {req.items.filter(function(it){return Number(it.approvedQty)>0;}).map(function(it){return it.productName+"×"+it.approvedQty;}).join(", ")}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                    <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                  </div>
+
+                  {(req.status==="approved"||req.status==="partial")&&(
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                      {(["invoiced","dispatched","delivered"]).map(function(ss){
+                        const isAct=req.stockStatus===ss;
+                        const scol=statusColor(ss);
+                        return React.createElement("button",{
+                          key:ss,
+                          onClick:function(){updateStockStatus(req,ss);},
+                          style:{
+                            padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,
+                            cursor:"pointer",fontFamily:"inherit",
+                            border:"1px solid "+scol,
+                            background:isAct?scol:"transparent",
+                            color:isAct?"#fff":scol
+                          }
+                        },statusIcon(ss)+" "+ss);
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+  return (
+    <div style={{padding:20}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Stock Requests</div>
+
+      <Tabs tabs={[{id:"pending",label:"Pending"},{id:"history",label:"History"}]} active={activeTab} onChange={setActiveTab}/>
+
+      {activeTab==="pending" && (
+        <div style={{marginTop:12}}>
+          {pendingReqs.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No pending requests.</div></Card>}
+          {pendingReqs.map(function(req){return (
+            <Card key={req.id} style={{marginBottom:10,borderLeft:"4px solid "+T.amber}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:14}}>
+                    {req.requestType==="direct"?"Direct Sales":(req.counterName||"No counter")}
+                    {req.urgency==="urgent" && <span style={{marginLeft:8,color:T.red,fontSize:11,fontWeight:800}}>URGENT</span>}
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{fmtDate(req.date)} - by {req.requestedByName}</div>
+                  <div style={{fontSize:12,marginTop:4}}>
+                    {req.items.map(function(it,idx){return (
+                      <div key={idx} style={{display:"flex",alignItems:"center",gap:8,marginTop:2}}>
+                        <span style={{fontWeight:600}}>{it.productName}</span>
+                        <span style={{color:T.txt2}}>x{it.qty}</span>
+                        {it.notes && <span style={{color:T.txt3,fontSize:11}}>({it.notes})</span>}
+                        <input type="number" value={editQtys[req.id]&&editQtys[req.id][idx]!==undefined?editQtys[req.id][idx]:it.qty}
+                          onChange={function(e){var val=e.target.value;setEditQtys(function(p){var r=Object.assign({},p);r[req.id]=Object.assign({},r[req.id]);r[req.id][idx]=val;return r;});}}
+                          min="0"
+                          style={{width:60,padding:"3px 6px",border:"1px solid "+T.bdrS,borderRadius:4,fontSize:12,fontFamily:"inherit"}}/>
+                        <span style={{fontSize:11,color:T.txt3}}>
+                          {(function(){var inv=findInv(it.productName);return inv?"avail: "+Number((inv&&inv.currentStock)||0):"";})()}
+                        </span>
+                      </div>
+                    );})}
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+                  <div style={{display:"flex",gap:6}}>
+                    <Btn onClick={function(){approve(req,"approve");}} variant="success" size="sm">Approve</Btn>
+                    <Btn onClick={function(){approve(req,"rejected");}} variant="danger" size="sm">Reject</Btn>
+                  </div>
+                  <div style={{display:"flex",gap:4}}>
+                    {["invoiced","dispatched","delivered"].map(function(s){
+                      var isAct=req.stockStatus===s;
+                      var col=statusColor(s);
+                      return React.createElement("button",{
+                        key:s,
+                        onClick:function(){updateStockStatus(req,s);},
+                        style:{padding:"3px 8px",borderRadius:12,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+col,background:isAct?col:"transparent",color:isAct?"#fff":col}
+                      },statusIcon(s)+" "+s);
+                    })}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );})}
+        </div>
+      )}
+
+      {activeTab==="history" && (
+        <div style={{marginTop:12}}>
+          {history.length===0 && <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No history yet.</div></Card>}
+          {history.slice(0,30).map(function(req){return (
+            <Card key={req.id} style={{marginBottom:8,borderLeft:"3px solid "+statusColor(req.status)}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>
+                    {req.requestType==="direct"?"Direct":req.counterName||"No counter"} - {req.requestedByName}
+                  </div>
+                  <div style={{fontSize:12,color:T.txt2,marginTop:2}}>
+                    {fmtDate(req.date)} - {req.items.map(function(it){return it.productName+"x"+it.qty;}).join(", ")}
+                    {(req.status==="approved"||req.status==="partial") && (
+                      <span style={{color:T.grn}}> - Approved: {req.items.filter(function(it){return Number(it.approvedQty)>0;}).map(function(it){return it.productName+"x"+it.approvedQty;}).join(", ")}</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <Badge color={statusColor(req.status)}>{req.status}</Badge>
+                  <Badge color={statusColor(req.stockStatus||req.status)}>{statusIcon(req.stockStatus||req.status)} {req.stockStatus||req.status}</Badge>
+                  <button onClick={function(){
+                    if(!confirm("Delete this request?")) return;
+                    setState(function(p){return Object.assign({},p,{stockRequests:p.stockRequests.filter(function(x){return x.id!==req.id;})});});
+                    fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=eq."+req.id,{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                    toast.show("Deleted");
+                  }} style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:14,padding:"2px 6px"}}>x</button>
+                </div>
+              </div>
+            </Card>
+          );})}
+        </div>
+      )}
+    </div>
+  );
 }
 
 
