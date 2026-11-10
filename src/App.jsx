@@ -2368,7 +2368,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
         const todayBank = ((todayColRep&&todayColRep.bankEntries)||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
         const todayExp  = ((todayColRep&&todayColRep.expenses)||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
-        const OFFICE_ID = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id||"c1";
+        const OFFICE_ID = ((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id||"c1";
         const salesToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const getE = r=>r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
         const todayBardahl = salesToday.flatMap(getE).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -3656,7 +3656,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
   const getEntriesMD  = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
   const today_         = today();
-  const todayOffId   = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id;
+  const todayOffId   = ((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id;
   const todaySvcReps = state.serviceReports.filter(r=>r.date===today_&&r.counterId!==todayOffId&&r.counterName!=="OFFICE");
   const gDaySvc      = todaySvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const todayOffReps  = state.serviceReports.filter(r=>r.date===today_&&(r.counterId===todayOffId||r.counterName==="OFFICE"));
@@ -3680,8 +3680,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
     : gDayTotal > 0 ? 100 : 0;
 
   // Month totals — computed directly from state, NOT from counterStats (which uses range filter)
-  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
-  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
+  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id===r.counterId||r.counterName==="OFFICE");
+  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id===r.counterId||r.counterName==="OFFICE");
   const gMoSvc        = moReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const moBardahlCo   = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const moOtherCo     = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -3690,8 +3690,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
   const thisMonthRev = gMoTotal;  // Use same computation as displayed Month Total
-  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
-  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id&&r.counterName!=="OFFICE");
+  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id===r.counterId||r.counterName==="OFFICE");
+  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id&&r.counterName!=="OFFICE");
   const lastMonthSvc       = lastMonthSvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const lastMonthSalesAmt  = lastMonthOffReps.flatMap(getEntriesMD).filter(e=>["BARDAHL","OTHER SALES"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
   const lastMonthRev       = lastMonthSvc + lastMonthSalesAmt;
@@ -3812,7 +3812,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
         const moExp       = allMonthCol.reduce((s,r)=>(r.expenses||[]).reduce((ss,e)=>ss+(Number(e.amount)||0),s),0);
         const moNet       = moBank - moExp;
         // Sales (OFFICE counter only)
-        const OFFICE_ID = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id||"c1";
+        const OFFICE_ID = ((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id||"c1";
         const salesRepsToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const salesRepsMo    = state.serviceReports.filter(r=>r.date.startsWith(monthPfx)&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const getEntries = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
@@ -4519,7 +4519,7 @@ function ExecutiveReportGenerator({ state }) {
   const monthEnd     = selDate.slice(0,7)+"-31";
 
   // Company-level sales (OFFICE counter only)
-  const OFFICE_ID    = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id||"c1";
+  const OFFICE_ID    = ((state.counters||[]).find(function(c){return c.name==="OFFICE";})||{}).id||"c1";
   const officeSalesDay   = state.serviceReports.filter(r=>r.date===selDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
   const officeSalesMo    = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
   const calcSales = (reps, wt) => reps.flatMap(r=>getE(r)).filter(e=>e.workTypeName===wt).reduce((s,e)=>s+(Number(e.amount)||0),0);
