@@ -7182,6 +7182,7 @@ function StockRequest({ user, state, setState, toast }) {
         <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No stock requests yet. Use the form above to create one.</div></Card>
       )}
     </div>
+    </>
   );
 }
 
@@ -7523,6 +7524,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
   const tabs = [{id:"stock",label:"📦 Stock"},{id:"requests",label:"📋 Requests"},{id:"transactions",label:"📜 Transactions"},{id:"monthly",label:"📅 Monthly"}];
 
   return (
+    <>
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Inventory Dashboard</div>
       <Tabs tabs={tabs} active={view} onChange={setView}/>
@@ -7743,7 +7745,6 @@ function InventoryDashboard({ user, state, setState, toast }) {
         )}
       </div>
     </div>
-
     {editStock && (
       <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
         <div style={{background:"#fff",borderRadius:12,padding:28,minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
@@ -7776,6 +7777,7 @@ function InventoryDashboard({ user, state, setState, toast }) {
         </div>
       </div>
     )}
+    </>
   );
 }
 function TargetFulfillmentReport({ user, state }) {
