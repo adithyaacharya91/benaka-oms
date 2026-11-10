@@ -2368,7 +2368,7 @@ function MgrDashboard({ user, state, mySupervisors, myCounters, setPage }) {
         const todayColRep = (state.collectionReports||[]).find(r=>r.date===todayDate);
         const todayBank = ((todayColRep&&todayColRep.bankEntries)||[]).reduce((s,b)=>s+(Number(b.amount)||0),0);
         const todayExp  = ((todayColRep&&todayColRep.expenses)||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
-        const OFFICE_ID = (state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
+        const OFFICE_ID = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id||"c1";
         const salesToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const getE = r=>r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
         const todayBardahl = salesToday.flatMap(getE).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -2470,7 +2470,7 @@ function MgrReports({ user, state, mySupervisors, myCounters }) {
           </div>
           <Table cols={[
             {key:"counter",label:"Counter",render:r=><b>{getCounterName(r)}</b>},
-            {key:"supervisor",label:"Executive",render:r=>(state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name},
+            {key:"supervisor",label:"Executive",render:r=>((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:"—"}).name},
             {key:"vehicles",label:"Vehicles",render:r=>getVehicles(r)},
             {key:"totalAmount",label:"Revenue",render:r=><b style={{color:T.amber}}>{fmtCurr(r.totalAmount)}</b>},
             {key:"submittedAt",label:"Submitted"},
@@ -3153,7 +3153,7 @@ function MgrFeedback({ user, state, myCounters }) {
   const [selDate, setSelDate] = useState("");
 
   let fb = state.feedback.filter(f => myCounters.some(c => c.id===f.counterId||c.name===f.counterName));
-  if (selCounter !== "all") fb = fb.filter(f => f.counterId===selCounter || f.counterName===(state.counters.find(c=>c.id===selCounter)||{}).name);
+  if (selCounter !== "all") fb = fb.filter(f => f.counterId===selCounter || f.counterName===((state.counters||[]).find(function(c){return c.id===selCounter;})||{}).name);
   if (selDate) fb = fb.filter(f => f.date===selDate);
   fb = [...fb].sort((a,b) => b.date.localeCompare(a.date));
 
@@ -3523,7 +3523,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==(state.counters.find(c=>c.id===selCounter)||{}).name) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters||[]).find(function(c){return c.id===selCounter;})||{}).name) return false;
     return true;
   });
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
@@ -3656,7 +3656,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const SALES_WTS_SET = new Set(["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL","OTHER SALES"]);
   const getEntriesMD  = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
   const today_         = today();
-  const todayOffId   = (state.counters.find(c=>c.name==="OFFICE")||{}).id;
+  const todayOffId   = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id;
   const todaySvcReps = state.serviceReports.filter(r=>r.date===today_&&r.counterId!==todayOffId&&r.counterName!=="OFFICE");
   const gDaySvc      = todaySvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const todayOffReps  = state.serviceReports.filter(r=>r.date===today_&&(r.counterId===todayOffId||r.counterName==="OFFICE"));
@@ -3680,8 +3680,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
     : gDayTotal > 0 ? 100 : 0;
 
   // Month totals — computed directly from state, NOT from counterStats (which uses range filter)
-  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!(state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
-  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&(state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
+  const moReps        = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&!((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
+  const moOffReps     = state.serviceReports.filter(r=>r.date.startsWith(thisMonth)&&((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
   const gMoSvc        = moReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const moBardahlCo   = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="BARDAHL").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const moOtherCo     = moOffReps.flatMap(getEntriesMD).filter(e=>e.workTypeName==="OTHER SALES").reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -3690,8 +3690,8 @@ function MDDashboard({ user, state, syncFromCloud }) {
   const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,"0")}`;
   const thisMonthRev = gMoTotal;  // Use same computation as displayed Month Total
-  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&(state.counters.find(c=>c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
-  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==(state.counters.find(c=>c.name==="OFFICE")||{}).id&&r.counterName!=="OFFICE");
+  const lastMonthOffReps  = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id===r.counterId||r.counterName==="OFFICE");
+  const lastMonthSvcReps   = state.serviceReports.filter(r=>r.date.startsWith(lastMonth)&&r.counterId!==((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id&&r.counterName!=="OFFICE");
   const lastMonthSvc       = lastMonthSvcReps.flatMap(getEntriesMD).filter(e=>!SALES_WTS_SET.has(e.workTypeName)&&e.type!=="sales").reduce((s,e)=>s+(Number(e.amount)||0),0);
   const lastMonthSalesAmt  = lastMonthOffReps.flatMap(getEntriesMD).filter(e=>["BARDAHL","OTHER SALES"].includes(e.workTypeName)).reduce((s,e)=>s+(Number(e.amount)||0),0);
   const lastMonthRev       = lastMonthSvc + lastMonthSalesAmt;
@@ -3812,7 +3812,7 @@ function MDDashboard({ user, state, syncFromCloud }) {
         const moExp       = allMonthCol.reduce((s,r)=>(r.expenses||[]).reduce((ss,e)=>ss+(Number(e.amount)||0),s),0);
         const moNet       = moBank - moExp;
         // Sales (OFFICE counter only)
-        const OFFICE_ID = (state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
+        const OFFICE_ID = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id||"c1";
         const salesRepsToday = state.serviceReports.filter(r=>r.date===todayDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const salesRepsMo    = state.serviceReports.filter(r=>r.date.startsWith(monthPfx)&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
         const getEntries = r => r.entries&&r.entries.length>0?r.entries:(r.counters||[]).flatMap(c=>c.entries||[]);
@@ -4362,7 +4362,7 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
   };
   const filteredReports = state.serviceReports.filter(r => {
     if(r.date<dr.from||r.date>dr.to) return false;
-    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==(state.counters.find(c=>c.id===selCounter)||{}).name) return false;
+    if(selCounter!=="all"&&r.counterId!==selCounter&&r.counterName!==((state.counters||[]).find(function(c){return c.id===selCounter;})||{}).name) return false;
     return true;
   });
   return (
@@ -4519,7 +4519,7 @@ function ExecutiveReportGenerator({ state }) {
   const monthEnd     = selDate.slice(0,7)+"-31";
 
   // Company-level sales (OFFICE counter only)
-  const OFFICE_ID    = (state.counters.find(c=>c.name==="OFFICE")||{}).id||"c1";
+  const OFFICE_ID    = ((state.counters||[]).find(function(c){return c.name==="OFFICE")||{}).id||"c1";
   const officeSalesDay   = state.serviceReports.filter(r=>r.date===selDate&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
   const officeSalesMo    = state.serviceReports.filter(r=>r.date>=monthStart&&r.date<=monthEnd&&(r.counterId===OFFICE_ID||r.counterName==="OFFICE"));
   const calcSales = (reps, wt) => reps.flatMap(r=>getE(r)).filter(e=>e.workTypeName===wt).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -5578,7 +5578,7 @@ function AllReports({ state, setState, toast, user }) {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",gap:8,flexWrap:"wrap"}}>
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
-                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {(state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}
+                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:"—"}).name}
                   {r.submittedBy&&<span style={{color:T.txt3}}> · by {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</span>}
                 </div>
               </div>
@@ -5845,7 +5845,7 @@ function OfficeReports({ state, setState, toast, user }) {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",gap:8,flexWrap:"wrap"}}>
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(isExp?null:r.id)}>
                 <div style={{fontWeight:800,fontSize:14}}>{r.counterName||((r.counters||[])[0]&&(r.counters||[])[0].counterName)||"—"}</div>
-                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {(state.users.find(u=>u.id===r.supervisorId)||{name:"—"}).name}</div>
+                <div style={{fontSize:12,color:T.txt2}}>{fmtDate(r.date)} · {((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:"—"}).name}</div>
                 {r.submittedBy&&<div style={{fontSize:11,color:T.txt3}}>By: {(state.users.find(u=>u.id===r.submittedBy)||{}).name||"Office"}</div>}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
@@ -6061,7 +6061,7 @@ function OfficeExport({ state, toast }) {
       <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Export Data</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
         {[
-          ["Service Reports","📋",()=>dl(state.serviceReports.map(r=>({ Date:r.date, Counter:r.counterName||"", Executive:(state.users.find(u=>u.id===r.supervisorId)||{name:""}).name, Total:r.totalAmount, Status:r.status })),"reports_"+today()+".csv")],
+          ["Service Reports","📋",()=>dl(state.serviceReports.map(r=>({ Date:r.date, Counter:r.counterName||"", Executive:((state.users||[]).find(function(u){return u.id===r.supervisorId;})||{name:""}).name, Total:r.totalAmount, Status:r.status })),"reports_"+today()+".csv")],
           ["Attendance","👥",()=>dl(state.attendance.map(a=>({ Date:a.date, Staff:(state.users.find(u=>u.id===a.staffId)||{name:""}).name, Status:a.status, Reason:a.reason||"" })),"attendance_"+today()+".csv")],
           ["Staff List","👤",()=>dl(state.users.map(u=>({ ID:u.empId, Name:u.name, Role:ROLE_LABELS[u.role]||u.role, Phone:u.phone||"" })),"staff_"+today()+".csv")],
           ["Feedback","💬",()=>dl(state.feedback.map(f=>({ Date:f.date, Counter:f.counterName||"", Rating:f.rating, Vehicle:f.vehicleNo||"", Comment:f.comment||"" })),"feedback_"+today()+".csv")],
@@ -6393,7 +6393,7 @@ function DebugReports({ state }) {
               {["Exec","counterId","counterName","Total","Matched To","OK?"].map(h=><th key={h} style={{padding:"4px 8px",textAlign:"left",border:"1px solid #334"}}>{h}</th>)}
             </tr></thead>
             <tbody>
-              {todayReps.map((r,i)=>{ const sup=state.users.find(u=>u.id===r.supervisorId); const ctr=matchCounter(r); return (
+              {todayReps.map((r,i)=>{ const sup=(state.users||[]).find(function(u){return u.id===r.supervisorId;}); const ctr=matchCounter(r); return (
                 <tr key={i} style={{background:ctr?"#0d1f0d":"#1f0d0d"}}>
                   <td style={{padding:"3px 8px",border:"1px solid #334"}}>{(sup&&sup.name)||r.supervisorId}</td>
                   <td style={{padding:"3px 8px",border:"1px solid #334",color:r.counterId?"#4ade80":"#f87171"}}>{r.counterId||"NONE"}</td>
@@ -6452,7 +6452,7 @@ function DailyNotePortal({ user, state, setState, toast }) {
   const submit = async () => {
     if (!message.trim()) { toast.show("Please enter your note","error"); return; }
     const counter = selCounter
-      ? state.counters.find(c=>c.id===selCounter)
+      ? (state.counters||[]).find(function(c){return c.id===selCounter;})
       : myCounters[0];
     const note = {
       id: `note_${user.id}_${date}_${Date.now()}`,
@@ -6724,6 +6724,7 @@ function StockCheckin({ user, state, setState, toast }) {
     setRows([{productName:"",qty:"",unit:"pcs",notes:""}]);
     setSaving(false);
   };
+  const recentCi = (state.stockTransactions||[]).filter(function(t){return t.type==="checkin";}).sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,10);
 
   return (
     <div style={{padding:20}}>
