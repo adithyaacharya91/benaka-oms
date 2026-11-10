@@ -6726,128 +6726,70 @@ function StockCheckin({ user, state, setState, toast }) {
   };
 
   return (
-    <div>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Godown Check-in</div>
-      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Enter stock received from the godown</div>
-      <Card style={{marginBottom:20}}>
-        <Input label="Date" type="date" value={date} onChange={setDate} style={{maxWidth:200,marginBottom:14}}/> {state.inventory&&state.inventory.length>0 && (
-          <div style={{background:T.navyXL,borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12}}>
-            <b>Current Stock:</b>{" "}
-            {(state.inventory||[]).map(function(i){return i.productName+": "+i.currentStock+" "+i.unit;}).join(" · ")}
-          </div>
-        )} {(state.salesItems&&state.salesItems.length>0)&&(
+    <div style={{padding:20}}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Godown Check-in</div>
+      <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>Record stock received into godown</div>
+      <Card style={{marginBottom:16}}>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>DATE</label>
+          <Input type="date" value={date} onChange={setDate} style={{maxWidth:160}}/>
+        </div>
+        {(state.salesItems&&state.salesItems.length>0) && (
           <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6,textTransform:"uppercase"}}>Quick Add Product</div>
+            <div style={{fontSize:11,fontWeight:700,color:T.txt2,marginBottom:6}}>QUICK ADD</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {state.salesItems.filter(s=>s.active!==false).map(s=>{
-                const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-                const qty=inv?Number(inv.currentStock||0):0;
-                const added=rows.some(r=>r.productName===s.name);
+              {state.salesItems.filter(function(s){return s.active!==false;}).map(function(s){
+                var inv=(state.inventory||[]).find(function(x){return x.productName===s.name;});
+                var qty=inv?Number(inv.currentStock||0):0;
+                var added=rows.some(function(r){return r.productName===s.name;});
                 return (
-                  <button key={s.id} onClick={()=>{
+                  <button key={s.id||s.name} onClick={function(){
                     if(added){toast.show(s.name+" already added","error");return;}
-                    setRows(p=>[...p.filter(r=>r.productName!==""),{productName:s.name,qty:"",unit:s.unit||"pcs",notes:""}]);
-                  }} style={{
-                    padding:"5px 12px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",
-                    fontFamily:"inherit",border:"1px solid "+(added?T.navy:T.bdrS),
-                    background:added?T.navy:"#fff",color:added?"#fff":T.txt,transition:"all .15s"
-                  }}>
-                    {s.name}
-                    {(function(){
-                      var livePend=(state.stockRequests||[])
-                        .filter(function(r){return r.status==="pending";})
-                        .reduce(function(sum,r){return sum+(r.items||[]).filter(function(it){return it.productName===s.name;}).reduce(function(s2,it){return s2+Number(it.qty||0);},0);},0);
-                      var avail=Math.max(0,qty-livePend);
-                      return React.createElement("span",{style:{marginLeft:4,fontSize:10,color:added?"rgba(255,255,255,.7)":(avail>0?T.grn:T.red),fontWeight:700}},avail," ",(s.unit||"pcs"),livePend>0?" ("+livePend+" pend)":"");
-                    })()}
+                    setRows(function(p){return p.filter(function(r){return r.productName!=="";}).concat([{productName:s.name,qty:"",unit:s.unit||"pcs",notes:""}]);});
+                  }} style={{padding:"4px 10px",borderRadius:14,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid "+(added?T.navy:T.bdrS),background:added?T.navy:"#fff",color:added?"#fff":T.txt}}>
+                    {s.name} <span style={{fontSize:10,opacity:.7}}>{qty}</span>
                   </button>
                 );
               })}
             </div>
           </div>
         )}
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12,minWidth:500}}>
-          <thead>
-            <tr style={{background:T.navyXL}}>
-              {["Product","Qty","Unit","Notes",""].map(h=>(
-                <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2,textTransform:"uppercase"}}>{h}</th>
-              ))}
-              </tr></thead>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
+          <thead><tr style={{background:T.navyXL}}>{["Product","Qty","Unit","Notes",""].map(function(h){return <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:T.txt2}}>{h}</th>;})}</tr></thead>
           <tbody>
-            {rows.map((row,i)=>(
+            {rows.map(function(row,i){return (
               <tr key={i} style={{borderBottom:"1px solid "+T.bdr}}>
-                <td style={{padding:"5px 6px"}}>
-                  <input list="ci-products" value={row.productName}
-                    onChange={e=>upRow(i,"productName",e.target.value)}
-                    placeholder="Product name..."
-                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                </td>
-                <td style={{padding:"5px 6px",width:80}}>
-                  <input type="number" value={row.qty} min="0"
-                    onChange={e=>upRow(i,"qty",e.target.value)}
-                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                </td>
-                <td style={{padding:"5px 6px",width:80}}>
-                  <select value={row.unit} onChange={e=>upRow(i,"unit",e.target.value)}
-                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-                    {["pcs","ltr","kg","ml","gm","box","roll","pair"].map(u=><option key={u}>{u}</option>)}
-                  </select>
-                </td>
-                <td style={{padding:"5px 6px"}}>
-                  <input value={row.notes} onChange={e=>upRow(i,"notes",e.target.value)}
-                    placeholder="Optional..."
-                    style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-                </td>
-                <td style={{padding:"5px 6px",width:36,textAlign:"center"}}>
-                  <button onClick={()=>rmRow(i)}
-                    style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.red,lineHeight:1}}>×</button>
-                </td>
+                <td style={{padding:"5px 6px"}}><input list="ci-products" value={row.productName} onChange={function(e){upRow(i,"productName",e.target.value);}} placeholder="Product name" style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></td>
+                <td style={{padding:"5px 6px",width:80}}><input type="number" value={row.qty} min="0" onChange={function(e){upRow(i,"qty",e.target.value);}} style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none"}}/></td>
+                <td style={{padding:"5px 6px",width:90}}><select value={row.unit} onChange={function(e){upRow(i,"unit",e.target.value);}} style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none"}}>{["pcs","ltr","kg","ml","gm","box","roll","pair"].map(function(u){return <option key={u} value={u}>{u}</option>;})}</select></td>
+                <td style={{padding:"5px 6px"}}><input value={row.notes} onChange={function(e){upRow(i,"notes",e.target.value);}} placeholder="Optional" style={{width:"100%",padding:"6px 8px",border:"1px solid "+T.bdrS,borderRadius:6,fontSize:13,fontFamily:"inherit",outline:"none"}}/></td>
+                <td style={{padding:"5px 6px",width:36}}>{rows.length>1 && <button onClick={function(){rmRow(i);}} style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"2px"}}>x</button>}</td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
         <datalist id="ci-products">
-          {(state.salesItems&&state.salesItems.length>0
-            ? state.salesItems.filter(s=>s.active!==false)
-            : [{name:"JOPASU"},{name:"SHAMPOO"},{name:"POLISH LIQUID"},{name:"MICROFIBER CLOTH"},
-               {name:"AIR FRESHENER"},{name:"TYRE SHINE"},{name:"BARDAHL"},{name:"OTHER SALES"}]
-          ).map(s=>{
-            const inv=(state.inventory||[]).find(x=>x.productName===s.name);
-            const total=inv?Number(inv.currentStock||0):0;
-            const livePend=(state.stockRequests||[])
-              .filter(r=>r.status==="pending")
-              .reduce((sum,r)=>sum+(r.items||[])
-                .filter(it=>it.productName===s.name)
-                .reduce((a,it)=>a+Number(it.qty||0),0),0);
-            const avail=Math.max(0,total-livePend);
-            const label=livePend>0
-              ? s.name+" — Available: "+avail+" ("+livePend+" pending)"
-              : s.name+" — Stock: "+avail+" "+(s.unit||"pcs");
-            return <option key={s.id||s.name} value={s.name} label={label}/>;
-          })}
-          {(state.inventory||[]).filter(i=>!(state.salesItems||[]).find(s=>s.name===i.productName))
-            .map(i=><option key={i.id} value={i.productName}/>)}
-        </datalist>
+          {(state.salesItems||[]).map(function(s){return <option key={s.id||s.name} value={s.name}/>;})}{(state.inventory||[]).filter(function(i){return !(state.salesItems||[]).find(function(s){return s.name===i.productName;});}).map(function(i){return <option key={i.id} value={i.productName}/>;})}</datalist>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={addRow} variant="outline" size="sm">+ Add Row</Btn>
-          <Btn onClick={submit} variant="amber" disabled={saving}>
-            {saving?"Saving...":"💾 Check In Stock"}
-          </Btn>
+          <Btn onClick={submit} variant="amber" disabled={saving}>{saving?"Saving...":"Submit Check-in"}</Btn>
         </div>
-      </Card> {(state.stockTransactions||[]).filter(t=>t.type==="checkin").slice(0,5).length>0 && (
+      </Card>
+      {recentCi.length>0 && (
         <div>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:T.txt2}}>Recent Check-ins</div>
-          {(state.stockTransactions||[]).filter(t=>t.type==="checkin")
-            .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(tx=>(
-            <div key={tx.id} style={{fontSize:12,color:T.txt2,padding:"4px 0",borderBottom:"1px solid "+T.bdr}}>
-              {fmtDate(tx.date)} · <b>{tx.productName}</b> · +{tx.qty} {tx.unit||"pcs"}
-            </div>
-          ))}
+          <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>Recent Check-ins</div>
+          {recentCi.slice(0,5).map(function(ci){return (
+            <Card key={ci.id} style={{marginBottom:6}}>
+              <div style={{fontWeight:600,fontSize:13}}>{fmtDate(ci.date)}</div>
+              <div style={{fontSize:12,color:T.txt2,marginTop:2}}>{(ci.items||[]).map(function(it){return it.productName+" x"+it.qty+" "+it.unit;}).join(", ")}</div>
+            </Card>
+          );})}
         </div>
       )}
     </div>
   );
 }
+
 
 function StockRequest({ user, state, setState, toast }) {
   const statusColor = s => ({requested:"#6B7280",approved:T.grn,pending:T.amber,invoiced:"#7C3AED",dispatched:T.navy,delivered:T.lime}[s]||T.txt2);
@@ -7182,7 +7124,6 @@ function StockRequest({ user, state, setState, toast }) {
         <Card><div style={{textAlign:"center",padding:24,color:T.txt3}}>No stock requests yet. Use the form above to create one.</div></Card>
       )}
     </div>
-    </>
   );
 }
 
@@ -7524,7 +7465,6 @@ function InventoryDashboard({ user, state, setState, toast }) {
   const tabs = [{id:"stock",label:"📦 Stock"},{id:"requests",label:"📋 Requests"},{id:"transactions",label:"📜 Transactions"},{id:"monthly",label:"📅 Monthly"}];
 
   return (
-    <>
     <div>
       <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Inventory Dashboard</div>
       <Tabs tabs={tabs} active={view} onChange={setView}/>
@@ -7744,40 +7684,39 @@ function InventoryDashboard({ user, state, setState, toast }) {
           </div>
         )}
       </div>
-    </div>
-    {editStock && (
-      <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-        <div style={{background:"#fff",borderRadius:12,padding:28,minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
-          <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Edit Stock</div>
-          <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>{editStock.productName}</div>
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>NEW QUANTITY</label>
-            <div style={{fontSize:12,color:T.txt3,marginBottom:6}}>Current: <b>{editStock.currentStock}</b></div>
-            <input type="number" id="esq" defaultValue={editStock.currentStock} min="0"
-              style={{width:"100%",padding:"10px 12px",border:"2px solid "+T.navy,borderRadius:8,fontSize:16,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-          </div>
-          <div style={{marginBottom:16}}>
-            <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>REASON</label>
-            <input type="text" id="esr" placeholder="e.g. Stock count correction, damaged goods..."
-              style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-          </div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <Btn onClick={function(){
-              var qty=document.getElementById("esq").value;
-              var reason=document.getElementById("esr").value||"Manual stock adjustment";
-              saveStock(editStock.item,qty,reason);
-            }} variant="amber">Save Changes</Btn>
-            <Btn onClick={function(){
-              var reason=document.getElementById("esr").value||"Manual reset to zero";
-              if(!confirm("Reset "+editStock.productName+" to ZERO?")) return;
-              saveStock(editStock.item,0,reason);
-            }} variant="danger">Reset to 0</Btn>
-            <Btn onClick={function(){setEditStock(null);}} variant="outline">Cancel</Btn>
+      {editStock && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div style={{background:"#fff",borderRadius:12,padding:28,minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Edit Stock</div>
+            <div style={{fontSize:13,color:T.txt2,marginBottom:16}}>{editStock.productName}</div>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>NEW QUANTITY</label>
+              <div style={{fontSize:12,color:T.txt3,marginBottom:6}}>Current: <b>{editStock.currentStock}</b></div>
+              <input type="number" id="esq" defaultValue={editStock.currentStock} min="0"
+                style={{width:"100%",padding:"10px 12px",border:"2px solid "+T.navy,borderRadius:8,fontSize:16,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,fontWeight:700,color:T.txt2,display:"block",marginBottom:4}}>REASON</label>
+              <input type="text" id="esr" placeholder="e.g. Stock count correction, damaged goods..."
+                style={{width:"100%",padding:"8px 12px",border:"1px solid "+T.bdrS,borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <Btn onClick={function(){
+                var qty=document.getElementById("esq").value;
+                var reason=document.getElementById("esr").value||"Manual stock adjustment";
+                saveStock(editStock.item,qty,reason);
+              }} variant="amber">Save Changes</Btn>
+              <Btn onClick={function(){
+                var reason=document.getElementById("esr").value||"Manual reset to zero";
+                if(!confirm("Reset "+editStock.productName+" to ZERO?")) return;
+                saveStock(editStock.item,0,reason);
+              }} variant="danger">Reset to 0</Btn>
+              <Btn onClick={function(){setEditStock(null);}} variant="outline">Cancel</Btn>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-    </>
+      )}
+    </div>
   );
 }
 function TargetFulfillmentReport({ user, state }) {
