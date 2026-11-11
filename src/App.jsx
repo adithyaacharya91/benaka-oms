@@ -6715,7 +6715,23 @@ function StockCheckin({ user, state, setState, toast }) {
 
     setState(p=>({...p, inventory:inv,
       stockTransactions:[...(p.stockTransactions||[]),...txs]}));
-    await DB.upsertInventory(inv).catch(console.error);
+    // Update each inventory item - PATCH existing, POST new
+    await Promise.all(inv.map(function(item){
+      var isNew = !(state.inventory||[]).find(function(x){return x.id===item.id;});
+      if(isNew) {
+        return fetch(SUPABASE_URL+"/rest/v1/inventory",{
+          method:"POST",
+          headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},
+          body:JSON.stringify([{id:item.id,product_id:item.id,product_name:item.productName,unit:item.unit||"pcs",current_stock:Number(item.currentStock)||0,min_stock:0,last_updated:item.lastUpdated,updated_by:item.updatedBy}])
+        });
+      } else {
+        return fetch(SUPABASE_URL+"/rest/v1/inventory?id=eq."+item.id,{
+          method:"PATCH",
+          headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
+          body:JSON.stringify({current_stock:Number(item.currentStock)||0,last_updated:item.lastUpdated,updated_by:item.updatedBy})
+        });
+      }
+    })).catch(console.error);
     for (const tx of txs) await DB.upsertStockTransaction(tx).catch(console.error);
     toast.show("✅ Checked in "+valid.length+" product(s)");
     setRows([{productName:"",qty:"",unit:"pcs",notes:""}]);
@@ -7531,15 +7547,20 @@ function InventoryDashboard({ user, state, setState, toast }) {
                 if(!confirm("Clear ALL stock quantities to 0? This cannot be undone.")) return;
                 const updated = (state.inventory||[]).map(x=>({...x,currentStock:0,lastUpdated:today(),updatedBy:user.id}));
                 setState(p=>({...p,inventory:updated}));
-                DB.upsertInventory(updated).catch(console.error);
-                toast.show("All stock cleared to 0");
+                Promise.all(updated.map(function(item){
+                  return fetch(SUPABASE_URL+"/rest/v1/inventory?id=eq."+item.id,{
+                    method:"PATCH",
+                    headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
+                    body:JSON.stringify({current_stock:0,last_updated:today(),updated_by:user.id})
+                  });
+                })).then(function(){toast.show("All stock cleared to 0 ✅");}).catch(function(e){console.error(e);toast.show("Clear may have partially failed","error");});
               }} variant="danger" size="sm">⬜ Clear All Stock</Btn>
               <Btn onClick={()=>{
                 if(!confirm("Delete ALL inventory records? This cannot be undone.")) return;
                 setState(p=>({...p,inventory:[],stockTransactions:[],stockRequests:[]}));
-                supabase.from("inventory").delete().neq("id","").catch(console.error);
-                supabase.from("stock_transactions").delete().neq("id","").catch(console.error);
-                supabase.from("stock_requests").delete().neq("id","").catch(console.error);
+                fetch(SUPABASE_URL+"/rest/v1/inventory?id=neq.",{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                fetch(SUPABASE_URL+"/rest/v1/stock_transactions?id=neq.",{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
+                fetch(SUPABASE_URL+"/rest/v1/stock_requests?id=neq.",{method:"DELETE",headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY}}).catch(console.error);
                 toast.show("All inventory data cleared");
               }} variant="danger" size="sm">🗑 Clear All Data</Btn>
             </div>
