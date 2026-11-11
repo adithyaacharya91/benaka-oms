@@ -1441,7 +1441,7 @@ function SupCollectionReport({ user, state, setState, toast }) {
 
   // For collection report saving, use single date (from)
   const date = dr.from;
-  const existing = (state.collectionReports&&state.collectionReports.find)(r=>r.supervisorId===user.id&&r.date===date);
+  const existing = (state.collectionReports||[]).find(r=>r.supervisorId===user.id&&r.date===date);
 
   const save = (bankEntries, expenses) => {
     const rep = { id:(existing&&existing.id)||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
@@ -2195,7 +2195,7 @@ function MgrCollectionReport({ user, state, setState, toast, mySupervisors, myCo
   const dr = useDateRange("today");
   const date = dr.from;
   const [selCounter, setSelCounter] = useState("all");
-  const existing = (state.collectionReports&&state.collectionReports.find)(r=>r.date===date);
+  const existing = (state.collectionReports||[]).find(r=>r.date===date);
   const SALES_WTS = ["JOPASU","SHAMPOO","POLISH LIQUID","MICROFIBER CLOTH","AIR FRESHENER","TYRE SHINE","BARDAHL"];
   const getE = r => r.entries&&r.entries.length>0 ? r.entries : (r.counters||[]).flatMap(c=>c.entries||[]);
 
@@ -3511,7 +3511,7 @@ function MDCollectionReport({ user, state, setState, toast }) {
   const dr = useDateRange("today");
   const date = dr.from;
   const [selCounter, setSelCounter] = useState("all");
-  const existing = (state.collectionReports&&state.collectionReports.find)(r=>r.date===date);
+  const existing = (state.collectionReports||[]).find(r=>r.date===date);
   const save = (bankEntries, expenses) => {
     const rep = { id:(existing&&existing.id)||`cr_${Date.now()}`, date, supervisorId:"admin", bankEntries, expenses };
     setState(p=>({...p, collectionReports:[...(p.collectionReports||[]).filter(r=>r.id!==rep.id), rep]}));
@@ -4343,7 +4343,7 @@ function OfficeCollectionReport({ user, state, setState, toast }) {
   const dr = useDateRange("today");
   const date = dr.from;
   const [selCounter, setSelCounter] = useState("all");
-  const existing = (state.collectionReports&&state.collectionReports.find)(r=>r.date===date);
+  const existing = (state.collectionReports||[]).find(r=>r.date===date);
   const save = async (bankEntries, expenses) => {
     console.log("💾 Collection save:", {date, bankEntries, expenses, userId:user.id});
     const rep = { id:(existing&&existing.id)||`cr_${Date.now()}`, date, supervisorId:user.id, bankEntries, expenses };
